@@ -30,6 +30,30 @@
         "icon": "$(refresh)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "revGraphContainer",
+          "title": "Revision Graph",
+          "icon": "icons/revision-graph.svg"
+        }
+      ]
+    },
+    "views": {
+      "revGraphContainer": [
+        {
+          "id": "revGraph.launchView",
+          "name": "Git Revision Graph",
+          "icon": "icons/revision-graph.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "revGraph.launchView",
+        "contents": "Nyisd meg a Git Revision Graph-ot az alábbi gombbal.\n\nMegjeleníti a commit-ok, helyi és távoli branch-ek, és tag-ek gráfját — TortoiseSVN stílusban.\n\n[$(git-branch)  Revision Graph megnyitása](command:revGraph.show)\n\nJobb klikk egy commit-on → új branch létrehozása."
+      }
+    ],
     "menus": {
       "scm/title": [
         {
@@ -37,8 +61,24 @@
           "group": "navigation",
           "when": "scmProvider == git"
         }
+      ],
+      "view/title": [
+        {
+          "command": "revGraph.show",
+          "group": "navigation",
+          "when": "view == revGraph.launchView",
+          "icon": "$(git-branch)"
+        }
       ]
     },
+    "keybindings": [
+      {
+        "command": "revGraph.show",
+        "key": "ctrl+alt+g",
+        "mac": "ctrl+alt+g",
+        "when": "!terminalFocus"
+      }
+    ],
     "configuration": {
       "title": "Git Revision Graph",
       "properties": {

@@ -21,6 +21,8 @@ function boot(): void {
 
   const canvas = document.createElement("div");
   canvas.className = "graph-canvas";
+  canvas.style.position = "relative";
+  canvas.appendChild(buildLegend());
 
   root.appendChild(canvas);
   root.appendChild(statusBar);
@@ -91,6 +93,47 @@ function boot(): void {
   root.insertBefore(toolbar, canvas);
 
   bridge.post({ type: "ready" });
+}
+
+function buildLegend(): HTMLElement {
+  const items: { cls: string; label: string }[] = [
+    { cls: "head",   label: "HEAD / aktuális branch" },
+    { cls: "local",  label: "Lokális branch" },
+    { cls: "remote", label: "Távoli branch (remote)" },
+    { cls: "tag",    label: "Tag (verzió)" },
+    { cls: "commit", label: "Commit" },
+  ];
+
+  const legend = document.createElement("div");
+  legend.className = "legend";
+
+  const header = document.createElement("div");
+  header.className = "legend-header";
+  header.innerHTML = `<span>Jelmagyarázat</span><span class="legend-toggle">▲</span>`;
+  legend.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "legend-body";
+  for (const { cls, label } of items) {
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = `<span class="legend-swatch ${cls}"></span><span>${label}</span>`;
+    body.appendChild(row);
+  }
+  legend.appendChild(body);
+
+  header.addEventListener("click", () => {
+    const collapsed = legend.hasAttribute("data-collapsed");
+    if (collapsed) {
+      legend.removeAttribute("data-collapsed");
+      (header.querySelector(".legend-toggle") as HTMLElement).textContent = "▲";
+    } else {
+      legend.setAttribute("data-collapsed", "");
+      (header.querySelector(".legend-toggle") as HTMLElement).textContent = "▼";
+    }
+  });
+
+  return legend;
 }
 
 if (document.readyState === "loading") {

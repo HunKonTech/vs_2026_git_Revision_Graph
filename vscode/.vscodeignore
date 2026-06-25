@@ -7,6 +7,7 @@ tsconfig.json
 **/*.ts
 node_modules/**
 
-# Keep: out/extension.js, media/*, package.json, README, LICENSE
+# Keep: out/extension.js, media/*, icons/*, package.json, README, LICENSE
 !out/extension.js
 !media/**
+!icons/**

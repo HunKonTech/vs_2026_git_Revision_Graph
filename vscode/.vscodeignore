@@ -1,0 +1,12 @@
+# Source and build inputs — only the bundled output ships.
+src/**
+build.mjs
+tsconfig.json
+.vscode/**
+**/*.map
+**/*.ts
+node_modules/**
+
+# Keep: out/extension.js, media/*, package.json, README, LICENSE
+!out/extension.js
+!media/**

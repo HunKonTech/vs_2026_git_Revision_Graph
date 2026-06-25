@@ -1,0 +1,30 @@
+{
+  "name": "git-revision-graph",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TortoiseSVN-style Revision Graph for Git, in Visual Studio and VS Code",
+  "workspaces": [
+    "packages/protocol",
+    "packages/graph-core",
+    "packages/graph-webview",
+    "vscode"
+  ],
+  "scripts": {
+    "build:core": "tsc -b packages/protocol packages/graph-core",
+    "build:webview": "npm run -w @rev-graph/graph-webview build",
+    "build:vscode": "npm run -w rev-graph-vscode build",
+    "build:vs-assets": "node scripts/copy-vs-assets.mjs",
+    "build": "npm run build:core && npm run build:webview && npm run build:vscode && npm run build:vs-assets",
+    "package:vscode": "node scripts/package-vscode.mjs",
+    "package:all": "pwsh scripts/build-installers.ps1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "harness": "npm run -w @rev-graph/graph-webview harness"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

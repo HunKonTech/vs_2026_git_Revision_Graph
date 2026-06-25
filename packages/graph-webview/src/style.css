@@ -1,0 +1,173 @@
+:root {
+  --bg: #1e1e1e;
+  --fg: #d4d4d4;
+  --accent: #0e639c;
+  --border: #3c3c3c;
+
+  /* ref / node hues — modeled on the TortoiseSVN revision graph */
+  --commit-bg: #6b6b6b;
+  --commit-fg: #ffffff;
+  --local-bg: #4a7c3f;
+  --remote-bg: #2f6fb0;
+  --tag-bg: #b9a23a;
+  --head-bg: #b0473a;
+  --edge: #8a8a8a;
+  --edge-merge: #c08a3a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.toolbar button {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.toolbar button:hover {
+  border-color: var(--accent);
+}
+
+.graph-canvas {
+  flex: 1 1 auto;
+  overflow: hidden;
+  position: relative;
+}
+
+.status-bar {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.rev-graph-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+.rev-graph-svg.panning {
+  cursor: grabbing;
+}
+
+/* edges */
+.edge {
+  fill: none;
+  stroke: var(--edge);
+  stroke-width: 2;
+}
+.edge-merge {
+  stroke: var(--edge-merge);
+  stroke-dasharray: 5 3;
+}
+
+/* nodes */
+.node {
+  cursor: context-menu;
+}
+.node-rect {
+  fill: var(--commit-bg);
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 1;
+}
+.node-localBranch .node-rect {
+  fill: var(--local-bg);
+}
+.node-remoteBranch .node-rect {
+  fill: var(--remote-bg);
+}
+.node-tag .node-rect {
+  fill: var(--tag-bg);
+}
+.node-head .node-rect {
+  fill: var(--head-bg);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.node:hover .node-rect {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.node-sha {
+  fill: rgba(255, 255, 255, 0.7);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 11px;
+}
+.node-summary {
+  fill: var(--commit-fg);
+  font-size: 11px;
+}
+
+/* ref chips */
+.chip-rect {
+  fill: rgba(0, 0, 0, 0.45);
+  stroke: rgba(255, 255, 255, 0.4);
+}
+.chip-current {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+.chip-text {
+  fill: #ffffff;
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+}
+
+/* context menu */
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  padding: 4px 0;
+  user-select: none;
+}
+.ctx-item {
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ctx-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}

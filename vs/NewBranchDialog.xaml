@@ -1,0 +1,31 @@
+<Window x:Class="RevisionGraph.NewBranchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Create Branch" Height="170" Width="380"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="StartPointText" Grid.Row="0" Margin="0,0,0,8" />
+
+        <TextBlock Grid.Row="1" Text="Branch name:" Margin="0,0,0,4" />
+        <TextBox x:Name="NameBox" Grid.Row="2" Height="24" VerticalContentAlignment="Center" />
+
+        <CheckBox x:Name="CheckoutBox" Grid.Row="3" Margin="0,12,0,0"
+                  Content="Checkout branch after creation" IsChecked="True"
+                  VerticalAlignment="Top" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="OkButton" Content="Create" Width="84" Height="26" Margin="0,0,8,0"
+                    IsDefault="True" Click="OnOk" />
+            <Button Content="Cancel" Width="84" Height="26" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

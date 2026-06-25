@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Revision Graph — dev harness</title>
+    <link rel="stylesheet" href="/dist/main.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/harness/mock-data.js"></script>
+    <script>
+      // Capture messages the webview sends to the "host" and echo a fake response.
+      window.__REV_GRAPH_HARNESS__ = {
+        onPost(msg) {
+          if (msg.type === "ready" || msg.type === "requestRefresh") {
+            window.postMessage({ type: "setData", data: window.__MOCK_GRAPH__ }, "*");
+          }
+          if (msg.type === "createBranch") {
+            const name = prompt("New branch name (from " + msg.sha.slice(0, 7) + "):", "feature/new");
+            if (name) window.postMessage({ type: "branchCreated", name, sha: msg.sha }, "*");
+          }
+          if (msg.type === "checkout") alert("checkout " + (msg.sha || msg.ref));
+          if (msg.type === "copySha") navigator.clipboard?.writeText(msg.sha);
+        },
+      };
+    </script>
+    <script src="/dist/main.js"></script>
+  </body>
+</html>

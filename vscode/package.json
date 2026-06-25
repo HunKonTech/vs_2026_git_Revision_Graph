@@ -1,0 +1,64 @@
+{
+  "name": "rev-graph-vscode",
+  "displayName": "Git Revision Graph",
+  "description": "TortoiseSVN-style revision graph for Git: commits, local & remote branches, and tags as connected boxes. Right-click a commit to create a branch from it.",
+  "version": "0.1.0",
+  "publisher": "benkoncsik",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM Providers", "Visualization"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BenKoncsik/vs_2026_git_Revision_Graph.git"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "revGraph.show",
+        "title": "Open Revision Graph",
+        "category": "Git Revision Graph",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "revGraph.refresh",
+        "title": "Refresh Revision Graph",
+        "category": "Git Revision Graph",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "revGraph.show",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Git Revision Graph",
+      "properties": {
+        "revGraph.maxCommits": {
+          "type": "number",
+          "default": 1000,
+          "description": "Maximum number of commits to load into the graph."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "vscode:prepublish": "node build.mjs"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0"
+  },
+  "dependencies": {
+    "@rev-graph/protocol": "0.1.0"
+  }
+}

@@ -1,0 +1,253 @@
+name: Build & Publish Extensions
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options: [patch, minor, major]
+
+permissions:
+  contents: write   # GitHub Release létrehozása
+  actions: write    # EXTENSION_VERSION repo variable frissítése
+
+jobs:
+  release:
+    runs-on: [self-hosted, Windows]
+
+    env:
+      CURRENT_VERSION: ${{ vars.EXTENSION_VERSION }}
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Forrás
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Verzió kiszámítása
+      # -----------------------------------------------------------------------
+      - name: Compute new version
+        id: ver
+        shell: pwsh
+        run: |
+          $cur = "$env:CURRENT_VERSION"
+          if (-not $cur -or $cur -eq '') { $cur = '1.0.0' }
+
+          $parts = $cur -split '\.'
+          $major = [int]$parts[0]; $minor = [int]$parts[1]; $patch = [int]$parts[2]
+
+          $bump = if ('${{ inputs.bump }}') { '${{ inputs.bump }}' } else { 'patch' }
+          switch ($bump) {
+            'major' { $major++; $minor = 0; $patch = 0 }
+            'minor' { $minor++;             $patch = 0 }
+            'patch' { $patch++ }
+          }
+          $new = "$major.$minor.$patch"
+          Write-Host "Version: $cur -> $new"
+          "NEW_VERSION=$new" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "NEW_VERSION=$new" | Out-File -FilePath $env:GITHUB_ENV    -Append
+
+      # -----------------------------------------------------------------------
+      # 3. Verzió beírása a forrásba (build előtt)
+      # -----------------------------------------------------------------------
+      - name: Patch versions in source files
+        shell: pwsh
+        run: |
+          $v = $env:NEW_VERSION
+
+          # root package.json
+          $f = 'package.json'
+          (Get-Content $f -Raw) -replace '"version":\s*"[^"]*"', '"version": "' + $v + '"' |
+            Set-Content $f -NoNewline
+
+          # vscode/package.json
+          $f = 'vscode/package.json'
+          (Get-Content $f -Raw) -replace '"version":\s*"[^"]*"', '"version": "' + $v + '"' |
+            Set-Content $f -NoNewline
+
+          # vs/source.extension.vsixmanifest (XML attribute)
+          $manifestPath = (Resolve-Path 'vs/source.extension.vsixmanifest').Path
+          $xml = [xml](Get-Content $manifestPath -Raw)
+          $xml.PackageManifest.Metadata.Identity.Version = $v
+          $xml.Save($manifestPath)
+
+          Write-Host "Patched all version strings to $v"
+
+      # -----------------------------------------------------------------------
+      # 4. Node.js
+      # -----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # -----------------------------------------------------------------------
+      # 5. Build
+      #    A meglévő scripts/build-installers.ps1 elvégzi az npm install-t,
+      #    a shared renderer buildet, a VS Code .vsix-eket és a VS VSIX-et.
+      # -----------------------------------------------------------------------
+      - name: Build all extensions
+        shell: pwsh
+        run: pwsh scripts/build-installers.ps1
+
+      - name: List artifacts
+        shell: pwsh
+        run: |
+          Write-Host "=== dist/installers/ ==="
+          Get-ChildItem dist/installers/*.vsix |
+            Format-Table Name, @{L='KB'; E={[math]::Round($_.Length/1KB, 1)}}
+
+      # -----------------------------------------------------------------------
+      # 6. GitHub Release
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v   = $env:NEW_VERSION
+          $tag = "v$v"
+
+          $assets = (Get-ChildItem dist/installers/*.vsix).FullName
+
+          $noteLines = @(
+            "## Git Revision Graph $v",
+            "",
+            "### Csomagok",
+            "| Fájl | Leírás |",
+            "|------|--------|",
+            "| rev-graph-vscode-$v.vsix | VS Code stable (engine ^1.85) |",
+            "| rev-graph-vscode-vs2026-$v.vsix | VS Code pre-release — VS 2026 beépített editor (engine ^1.96) |",
+            "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
+            "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
+          )
+          $notes = $noteLines -join "`n"
+
+          gh release create $tag @assets `
+            --title "v$v" `
+            --notes $notes
+
+      # -----------------------------------------------------------------------
+      # 7. VS Code Marketplace — stable
+      # -----------------------------------------------------------------------
+      - name: Publish VS Code extension (stable)
+        shell: pwsh
+        env:
+          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+        run: |
+          $vsix = Get-ChildItem dist/installers/rev-graph-vscode-*.vsix |
+                  Where-Object { $_.Name -notmatch 'vs2026' } |
+                  Select-Object -First 1
+          if (-not $vsix) {
+            Write-Warning "VS Code stable VSIX nem található — lépés kihagyva."
+            exit 0
+          }
+          Write-Host "Publishing: $($vsix.Name)"
+          npx --yes @vscode/vsce publish `
+            --pat "$env:VSCE_PAT" `
+            --packagePath "$($vsix.FullName)"
+
+      # -----------------------------------------------------------------------
+      # 8. VS Code Marketplace — VS 2026 pre-release
+      # -----------------------------------------------------------------------
+      - name: Publish VS Code extension (VS 2026 pre-release)
+        shell: pwsh
+        env:
+          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+        run: |
+          $vsix = Get-ChildItem dist/installers/rev-graph-vscode-vs2026-*.vsix |
+                  Select-Object -First 1
+          if (-not $vsix) {
+            Write-Warning "VS Code VS2026 VSIX nem található — lépés kihagyva."
+            exit 0
+          }
+          Write-Host "Publishing (pre-release): $($vsix.Name)"
+          npx --yes @vscode/vsce publish `
+            --pat "$env:VSCE_PAT" `
+            --pre-release `
+            --packagePath "$($vsix.FullName)"
+
+      # -----------------------------------------------------------------------
+      # 9. Visual Studio Marketplace (VsixPublisher.exe)
+      # -----------------------------------------------------------------------
+      - name: Publish Visual Studio extension
+        shell: pwsh
+        env:
+          VS_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            Write-Warning "vswhere.exe nem található — VS Marketplace publish kihagyva."
+            exit 0
+          }
+
+          # VsixPublisher keresése (VS 2026 vagy VS 2022)
+          $vsixPublisher = $null
+          foreach ($spec in @(
+              @{ Range = '[18.0,19.0)'; Pre = $true  },
+              @{ Range = '[17.0,18.0)'; Pre = $false }
+          )) {
+            $args = @(
+              '-version',  $spec.Range,
+              '-latest',
+              '-requires', 'Microsoft.VisualStudio.Workload.VisualStudioExtension',
+              '-property',  'installationPath'
+            )
+            if ($spec.Pre) { $args += '-prerelease' }
+            $path = & $vswhere @args 2>$null
+            if ($path) {
+              $candidate = Join-Path $path 'VSSDK\VisualStudioIntegration\Tools\Bin\VsixPublisher.exe'
+              if (Test-Path $candidate) { $vsixPublisher = $candidate; break }
+            }
+          }
+
+          if (-not $vsixPublisher) {
+            Write-Warning "VsixPublisher.exe nem található — VS Marketplace publish kihagyva."
+            Write-Warning "Ellenőrizd, hogy a runner gépen telepítve van-e a VS Extension Development workload."
+            exit 0
+          }
+          Write-Host "VsixPublisher: $vsixPublisher"
+
+          # Melyik VSIX-et töltjük fel (vs2026 előnyt élvez)
+          $vsix = Get-ChildItem `
+              dist/installers/RevisionGraph-vs2026.vsix,
+              dist/installers/RevisionGraph-vs2022.vsix `
+              -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $vsix) {
+            Write-Warning "Visual Studio VSIX nem található — lépés kihagyva."
+            exit 0
+          }
+          Write-Host "Publishing VS extension: $($vsix.Name)"
+
+          & $vsixPublisher publish `
+            -payload       "$($vsix.FullName)" `
+            -publishManifest 'vs/publishManifest.json' `
+            -personalAccessToken "$env:VS_PAT"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "VsixPublisher.exe kilépési kód: $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          Write-Host "Sikeresen feltöltve a Visual Studio Marketplace-re."
+
+      # -----------------------------------------------------------------------
+      # 10. Repo változó frissítése az új verzióra
+      # -----------------------------------------------------------------------
+      - name: Update EXTENSION_VERSION repo variable
+        if: success()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = $env:NEW_VERSION
+          gh variable set EXTENSION_VERSION --body $v
+          Write-Host "EXTENSION_VERSION -> $v"

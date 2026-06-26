@@ -123,12 +123,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
           $v   = $env:NEW_VERSION
           $tag = "v$v"
 
-          $assets = (Get-ChildItem dist/installers/*.vsix).FullName
-
-          $noteLines = @(
+          $notes = @(
             "## Git Revision Graph $v",
             "",
             "### Packages",
@@ -138,12 +138,42 @@ jobs:
             "| rev-graph-vscode-vs2026-$v.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
             "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
-          )
-          $notes = $noteLines -join "`n"
+          ) -join "`n"
 
-          gh release create $tag @assets `
-            --title "v$v" `
-            --notes $notes
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github.v3+json"
+          }
+
+          # 1. Create the release
+          $releaseJson = [ordered]@{
+            tag_name   = $tag
+            name       = "v$v"
+            body       = $notes
+            draft      = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $release = Invoke-RestMethod -Method Post `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" `
+            -Headers $headers `
+            -Body $releaseJson `
+            -ContentType "application/json"
+
+          Write-Host "Release created: $($release.html_url)"
+
+          # 2. Upload each VSIX asset
+          $uploadBase = $release.upload_url -replace '\{.*\}', ''
+          foreach ($assetPath in (Get-ChildItem dist/installers/*.vsix).FullName) {
+            $name  = Split-Path $assetPath -Leaf
+            $bytes = [System.IO.File]::ReadAllBytes($assetPath)
+            Invoke-RestMethod -Method Post `
+              -Uri ($uploadBase + "?name=$name") `
+              -Headers $headers `
+              -Body $bytes `
+              -ContentType "application/octet-stream" | Out-Null
+            Write-Host "Uploaded: $name"
+          }
 
       # -----------------------------------------------------------------------
       # 7. VS Code Marketplace — stable
@@ -258,6 +288,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
           $v = $env:NEW_VERSION
-          gh variable set EXTENSION_VERSION --body $v
+
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github.v3+json"
+          }
+          $body = [ordered]@{
+            name  = "EXTENSION_VERSION"
+            value = $v
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Method Patch `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/variables/EXTENSION_VERSION" `
+            -Headers $headers `
+            -Body $body `
+            -ContentType "application/json" | Out-Null
+
           Write-Host "EXTENSION_VERSION -> $v"

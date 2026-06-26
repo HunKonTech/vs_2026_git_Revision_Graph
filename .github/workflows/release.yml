@@ -145,27 +145,46 @@ jobs:
             Accept        = "application/vnd.github.v3+json"
           }
 
-          # 1. Create the release
-          $releaseJson = [ordered]@{
-            tag_name   = $tag
-            name       = "v$v"
-            body       = $notes
-            draft      = $false
-            prerelease = $false
-          } | ConvertTo-Json
+          # 1. Get existing release for this tag, or create a new one
+          $release = $null
+          try {
+            $release = Invoke-RestMethod -Method Get `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" `
+              -Headers $headers
+            Write-Host "Using existing release: $($release.html_url)"
+          } catch {}
 
-          $release = Invoke-RestMethod -Method Post `
-            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" `
-            -Headers $headers `
-            -Body $releaseJson `
-            -ContentType "application/json"
+          if (-not $release) {
+            $releaseJson = [ordered]@{
+              tag_name   = $tag
+              name       = "v$v"
+              body       = $notes
+              draft      = $false
+              prerelease = $false
+            } | ConvertTo-Json
 
-          Write-Host "Release created: $($release.html_url)"
+            $release = Invoke-RestMethod -Method Post `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases" `
+              -Headers $headers `
+              -Body $releaseJson `
+              -ContentType "application/json"
 
-          # 2. Upload each VSIX asset
+            Write-Host "Release created: $($release.html_url)"
+          }
+
+          # 2. Upload each VSIX asset (delete existing asset with same name first)
           $uploadBase = $release.upload_url -replace '\{.*\}', ''
           foreach ($assetPath in (Get-ChildItem dist/installers/*.vsix).FullName) {
             $name  = Split-Path $assetPath -Leaf
+
+            $existing = $release.assets | Where-Object { $_.name -eq $name }
+            if ($existing) {
+              Invoke-RestMethod -Method Delete `
+                -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($existing.id)" `
+                -Headers $headers | Out-Null
+              Write-Host "Removed old asset: $name"
+            }
+
             $bytes = [System.IO.File]::ReadAllBytes($assetPath)
             Invoke-RestMethod -Method Post `
               -Uri ($uploadBase + "?name=$name") `

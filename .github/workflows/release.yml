@@ -96,7 +96,17 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Build all extensions
         shell: powershell
-        run: powershell -ExecutionPolicy Bypass -File scripts\build-installers.ps1
+        run: |
+          # PS 5.1 reads BOM-less UTF-8 files as Windows-1252.
+          # The em dash (U+2014, UTF-8: E2 80 94) has 0x94 as its 3rd byte,
+          # which Windows-1252 maps to the right curly quote (U+201D).
+          # PowerShell treats U+201D as a string terminator, breaking the parser.
+          # Fix: re-write the script with a UTF-8 BOM so PS 5.1 reads it correctly.
+          $scriptPath = (Resolve-Path 'scripts\build-installers.ps1').Path
+          $content    = [System.IO.File]::ReadAllText($scriptPath, [System.Text.Encoding]::UTF8)
+          $utf8bom    = New-Object System.Text.UTF8Encoding $true
+          [System.IO.File]::WriteAllText($scriptPath, $content, $utf8bom)
+          & $scriptPath
 
       - name: List artifacts
         shell: powershell

@@ -396,6 +396,10 @@ jobs:
         shell: powershell
         run: |
           npm install
+          # A copy-vs-assets a graph-webview/dist-ből másol, ezért előbb fel kell
+          # építeni a shared renderert (core + webview), különben ENOENT.
+          npm run build:core
+          npm run build:webview
           npm run build:vs-assets
 
       # -----------------------------------------------------------------------

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json.schemastore.org/vsix-publish",
-  "categories": ["Integrated Development Environments (IDE)"],
+  "categories": ["Source Control"],
   "identity": {
     "internalName": "GitRevisionGraph"
   },

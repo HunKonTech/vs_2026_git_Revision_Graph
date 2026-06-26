@@ -415,11 +415,15 @@ jobs:
             Write-Warning "vswhere.exe not found - skipping."
             exit 0
           }
-          $path = & $vswhere -version "[17.0,18.0)" -latest `
+          # A VSIX-et a Microsoft.VSSDK.BuildTools NuGet buildeli, ezért bármelyik
+          # MSBuild jó (a manifest install-target [17.0,19.0) VS 2022 + VS 2026).
+          # A runner image VS 2022-t VAGY VS 2026-ot tartalmazhat, ezért tág a
+          # tartomány és a -prerelease is kell (a VS 2026 prerelease-ként jelölt).
+          $path = & $vswhere -version "[17.0,19.0)" -latest -prerelease `
             -requires Microsoft.Component.MSBuild `
             -property installationPath
           if (-not $path) {
-            Write-Warning "VS 2022 not found - skipping."
+            Write-Warning "No Visual Studio with MSBuild found - skipping."
             exit 0
           }
           $msbuild = Join-Path $path "MSBuild\Current\Bin\MSBuild.exe"

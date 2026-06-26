@@ -131,11 +131,11 @@ jobs:
           $noteLines = @(
             "## Git Revision Graph $v",
             "",
-            "### Csomagok",
-            "| Fájl | Leírás |",
-            "|------|--------|",
+            "### Packages",
+            "| File | Description |",
+            "|------|-------------|",
             "| rev-graph-vscode-$v.vsix | VS Code stable (engine ^1.85) |",
-            "| rev-graph-vscode-vs2026-$v.vsix | VS Code pre-release — VS 2026 beépített editor (engine ^1.96) |",
+            "| rev-graph-vscode-vs2026-$v.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
             "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
           )
@@ -157,7 +157,7 @@ jobs:
                   Where-Object { $_.Name -notmatch 'vs2026' } |
                   Select-Object -First 1
           if (-not $vsix) {
-            Write-Warning "VS Code stable VSIX nem található — lépés kihagyva."
+            Write-Warning "VS Code stable VSIX not found - skipping."
             exit 0
           }
           Write-Host "Publishing: $($vsix.Name)"
@@ -176,7 +176,7 @@ jobs:
           $vsix = Get-ChildItem dist/installers/rev-graph-vscode-vs2026-*.vsix |
                   Select-Object -First 1
           if (-not $vsix) {
-            Write-Warning "VS Code VS2026 VSIX nem található — lépés kihagyva."
+            Write-Warning "VS Code VS2026 VSIX not found - skipping."
             exit 0
           }
           Write-Host "Publishing (pre-release): $($vsix.Name)"
@@ -195,11 +195,11 @@ jobs:
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (-not (Test-Path $vswhere)) {
-            Write-Warning "vswhere.exe nem található — VS Marketplace publish kihagyva."
+            Write-Warning "vswhere.exe not found - skipping VS Marketplace publish."
             exit 0
           }
 
-          # VsixPublisher keresése (VS 2026 vagy VS 2022)
+          # Find VsixPublisher.exe (prefer VS 2026, fall back to VS 2022)
           $vsixPublisher = $null
           foreach ($spec in @(
               @{ Range = '[18.0,19.0)'; Pre = $true  },
@@ -220,20 +220,20 @@ jobs:
           }
 
           if (-not $vsixPublisher) {
-            Write-Warning "VsixPublisher.exe nem található — VS Marketplace publish kihagyva."
-            Write-Warning "Ellenőrizd, hogy a runner gépen telepítve van-e a VS Extension Development workload."
+            Write-Warning "VsixPublisher.exe not found - skipping VS Marketplace publish."
+            Write-Warning "Ensure the VS Extension Development workload is installed on this runner."
             exit 0
           }
           Write-Host "VsixPublisher: $vsixPublisher"
 
-          # Melyik VSIX-et töltjük fel (vs2026 előnyt élvez)
+          # VSIX to publish (prefer vs2026, fall back to vs2022)
           $vsix = Get-ChildItem `
               dist/installers/RevisionGraph-vs2026.vsix,
               dist/installers/RevisionGraph-vs2022.vsix `
               -ErrorAction SilentlyContinue |
             Select-Object -First 1
           if (-not $vsix) {
-            Write-Warning "Visual Studio VSIX nem található — lépés kihagyva."
+            Write-Warning "Visual Studio VSIX not found - skipping."
             exit 0
           }
           Write-Host "Publishing VS extension: $($vsix.Name)"
@@ -244,10 +244,10 @@ jobs:
             -personalAccessToken "$env:VS_PAT"
 
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "VsixPublisher.exe kilépési kód: $LASTEXITCODE"
+            Write-Error "VsixPublisher.exe exited with code $LASTEXITCODE"
             exit $LASTEXITCODE
           }
-          Write-Host "Sikeresen feltöltve a Visual Studio Marketplace-re."
+          Write-Host "Successfully published to Visual Studio Marketplace."
 
       # -----------------------------------------------------------------------
       # 10. Repo változó frissítése az új verzióra

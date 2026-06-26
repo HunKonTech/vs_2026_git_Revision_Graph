@@ -181,7 +181,7 @@ namespace RevisionGraph.Git
             // ArgumentList is .NET 5+ only; on .NET Framework 4.7.2 build the
             // Arguments string manually, quoting tokens that contain spaces.
             psi.Arguments = string.Join(" ", System.Array.ConvertAll(
-                args, a => a.Contains(' ') ? "\"" + a.Replace("\"", "\\\"") + "\"" : a));
+                args, a => a.Contains(" ") ? "\"" + a.Replace("\"", "\\\"") + "\"" : a));
 
             var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
             var stdout = new StringBuilder();

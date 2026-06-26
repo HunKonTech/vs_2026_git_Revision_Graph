@@ -495,3 +495,60 @@ jobs:
             -Body $bytes `
             -ContentType "application/octet-stream" | Out-Null
           Write-Host "Uploaded: $name"
+
+      # -----------------------------------------------------------------------
+      # 5. Visual Studio Marketplace publish
+      #    VsixPublisher.exe is part of the VS Extension Development workload.
+      #    The windows-2025-vs2026 runner ships VS 2026 Enterprise which
+      #    includes it; search without a workload constraint so the path check
+      #    is the real gate.
+      # -----------------------------------------------------------------------
+      - name: Publish Visual Studio extension to Marketplace
+        shell: powershell
+        env:
+          VS_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+        run: |
+          if (-not $env:VS_PAT) {
+            Write-Warning "VS_MARKETPLACE_PAT secret is empty - skipping publish."
+            exit 0
+          }
+          $vsixPath = "dist\installers\RevisionGraph-vs2022.vsix"
+          if (-not (Test-Path $vsixPath)) {
+            Write-Warning "VSIX not found - skipping publish."
+            exit 0
+          }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            Write-Warning "vswhere.exe not found - skipping publish."
+            exit 0
+          }
+          # Search any VS 17-18 installation; VsixPublisher lives under VSSDK\
+          # regardless of the exact workload set.
+          $vsixPublisher = $null
+          foreach ($spec in @(
+            @{ Range = '[18.0,19.0)'; Pre = $true  },
+            @{ Range = '[17.0,18.0)'; Pre = $false }
+          )) {
+            $vsArgs = @('-version', $spec.Range, '-latest', '-requires', 'Microsoft.Component.MSBuild', '-property', 'installationPath')
+            if ($spec.Pre) { $vsArgs += '-prerelease' }
+            $installPath = & $vswhere @vsArgs 2>$null
+            if ($installPath) {
+              $candidate = Join-Path $installPath 'VSSDK\VisualStudioIntegration\Tools\Bin\VsixPublisher.exe'
+              if (Test-Path $candidate) { $vsixPublisher = $candidate; break }
+            }
+          }
+          if (-not $vsixPublisher) {
+            Write-Warning "VsixPublisher.exe not found - skipping VS Marketplace publish."
+            Write-Warning "Install the 'Visual Studio extension development' workload on this runner."
+            exit 0
+          }
+          Write-Host "VsixPublisher: $vsixPublisher"
+          & $vsixPublisher publish `
+            -payload       (Resolve-Path $vsixPath).Path `
+            -publishManifest (Resolve-Path 'vs\publishManifest.json').Path `
+            -personalAccessToken "$env:VS_PAT"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "VsixPublisher.exe exited with code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          Write-Host "Successfully published to Visual Studio Marketplace."

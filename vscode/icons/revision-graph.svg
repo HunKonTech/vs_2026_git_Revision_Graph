@@ -1,13 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
-  <!-- Main trunk line -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <line x1="7" y1="4" x2="7" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Branch line -->
   <line x1="7" y1="9" x2="17" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-  <!-- Trunk nodes -->
-  <circle cx="7" cy="4"  r="2.2" fill="currentColor"/>
-  <circle cx="7" cy="9"  r="2.2" fill="currentColor"/>
+  <circle cx="7" cy="4" r="2.2" fill="currentColor"/>
+  <circle cx="7" cy="9" r="2.2" fill="currentColor"/>
   <circle cx="7" cy="14" r="2.2" fill="currentColor"/>
   <circle cx="7" cy="20" r="2.2" fill="currentColor"/>
-  <!-- Branch node -->
   <circle cx="17" cy="14" r="2.2" fill="currentColor"/>
 </svg>

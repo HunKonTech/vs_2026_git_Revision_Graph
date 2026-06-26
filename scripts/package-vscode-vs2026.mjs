@@ -34,10 +34,21 @@ run("npm", ["run", "build:webview"], root);
 
 // 2. Read base package.json and patch for VS 2026 target.
 const basePkg = JSON.parse(readFileSync(resolve(vscodeDir, "package.json"), "utf8"));
+
+// VS Marketplace requires the pre-release version to differ from the stable version.
+// Convention: bump minor by 1 (stable 1.0.x → pre-release 1.1.x).
+// PRERELEASE_VERSION is set by the workflow; fall back to auto-compute for local runs.
+const preReleaseVersion = process.env.PRERELEASE_VERSION || (() => {
+  const [major, minor, patch] = basePkg.version.split(".").map(Number);
+  return `${major}.${minor + 1}.${patch}`;
+})();
+
 const vs2026Pkg = {
   ...basePkg,
   // VS 2026 bundles VS Code engine >= 1.96.
   engines: { vscode: "^1.96.0" },
+  // Pre-release must have a higher version than the stable release.
+  version: preReleaseVersion,
   // Separate displayName so users can tell the two apart.
   displayName: basePkg.displayName + " (VS 2026)",
   // Remove the prepublish script: the bundle is already built; vsce must not
@@ -66,7 +77,7 @@ writeFileSync(resolve(tmpDir, "package.json"), JSON.stringify(vs2026Pkg, null, 2
 // --skip-license: license is already copied; --no-dependencies: bundle is pre-built;
 // --skip-vscode-version: engine version is set explicitly in the patched package.json.
 // We pass the prepublish script as a no-op to avoid vsce trying to run build.mjs.
-const outFile = resolve(outDir, `rev-graph-vscode-vs2026-${basePkg.version}.vsix`);
+const outFile = resolve(outDir, `rev-graph-vscode-vs2026-${preReleaseVersion}.vsix`);
 console.log("==> Packaging VS Code extension for VS 2026");
 run("npx", ["--yes", "@vscode/vsce", "package",
   "--no-dependencies",

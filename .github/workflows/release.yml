@@ -50,9 +50,13 @@ jobs:
             'patch' { $patch++ }
           }
           $new = "$major.$minor.$patch"
-          Write-Host "Version: $cur -> $new"
-          "NEW_VERSION=$new" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "NEW_VERSION=$new" | Out-File -FilePath $env:GITHUB_ENV    -Append
+          $preMinor = $minor + 1
+          $preNew = "$major.$preMinor.$patch"
+          Write-Host "Version: $cur -> $new (stable)  /  $preNew (pre-release)"
+          "NEW_VERSION=$new"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "NEW_VERSION=$new"         | Out-File -FilePath $env:GITHUB_ENV    -Append
+          "PRERELEASE_VERSION=$preNew" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "PRERELEASE_VERSION=$preNew" | Out-File -FilePath $env:GITHUB_ENV    -Append
 
       # -----------------------------------------------------------------------
       # 3. Verzió beírása a forrásba (build előtt)
@@ -128,6 +132,7 @@ jobs:
           $v   = $env:NEW_VERSION
           $tag = "v$v"
 
+          $pv = $env:PRERELEASE_VERSION
           $notes = @(
             "## Git Revision Graph $v",
             "",
@@ -135,7 +140,7 @@ jobs:
             "| File | Description |",
             "|------|-------------|",
             "| rev-graph-vscode-$v.vsix | VS Code stable (engine ^1.85) |",
-            "| rev-graph-vscode-vs2026-$v.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
+            "| rev-graph-vscode-vs2026-$pv.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
             "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
           ) -join "`n"

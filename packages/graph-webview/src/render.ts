@@ -73,9 +73,9 @@ export class GraphView {
     while (this.viewport.firstChild) this.viewport.removeChild(this.viewport.firstChild);
     if (!this.layout) return;
 
-    const width = MARGIN * 2 + this.layout.laneCount * LANE_W;
-    const height = MARGIN * 2 + this.layout.rowCount * ROW_H;
-    this.svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    // No viewBox: 1 SVG unit == 1 CSS pixel, so nodes always render at their
+    // native size regardless of how many commits there are. Navigation is done
+    // via the pan/zoom transform, not by squeezing the whole graph to fit.
 
     // Edges first so nodes paint on top.
     const edgeLayer = document.createElementNS(SVG_NS, "g");
@@ -214,7 +214,7 @@ export class GraphView {
     this.svg.addEventListener("wheel", (e) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      const next = clamp(this.scale * factor, 0.15, 3);
+      const next = clamp(this.scale * factor, 0.05, 4);
       // zoom toward cursor
       const rect = this.svg.getBoundingClientRect();
       const mx = e.clientX - rect.left;

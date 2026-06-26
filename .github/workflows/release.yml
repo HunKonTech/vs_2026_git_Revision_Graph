@@ -432,13 +432,21 @@ jobs:
             exit 0
           }
           Write-Host "MSBuild: $msbuild"
+          # Two-pass build: Restore must complete in its own invocation so that the
+          # NuGet-generated obj\*.nuget.g.targets (which contains the VSSDK
+          # CreateVsixContainer target) is written to disk before the project is
+          # re-evaluated for the actual Rebuild.  A single /t:Restore,Rebuild call
+          # evaluates the project before restore runs, so the VSIX target is never
+          # imported and the .vsix file is never produced.
+          & $msbuild vs\RevisionGraph.csproj /t:Restore /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "MSBuild Restore failed ($LASTEXITCODE)" }
           & $msbuild vs\RevisionGraph.csproj `
-            /t:Restore,Rebuild `
+            /t:Rebuild `
             /p:Configuration=Release `
             /p:Platform=AnyCPU `
             /p:DeployExtension=false `
             /v:minimal
-          if ($LASTEXITCODE -ne 0) { throw "MSBuild failed ($LASTEXITCODE)" }
+          if ($LASTEXITCODE -ne 0) { throw "MSBuild Rebuild failed ($LASTEXITCODE)" }
           $built = "vs\bin\Release\RevisionGraph.vsix"
           if (-not (Test-Path $built)) {
             Write-Warning "VSIX not found at $built after build."

@@ -3,7 +3,7 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="GitRevisionGraph.benkoncsik.b7e9c2a4"
-              Version="0.1.0" Language="en-US" Publisher="Ben Koncsik" />
+              Version="0.1.0" Language="en-US" Publisher="BenKoncsik" />
     <DisplayName>Git Revision Graph</DisplayName>
     <Description xml:space="preserve">TortoiseSVN-style revision graph for Git: commits, local &amp; remote branches and tags as connected boxes. Right-click a commit to create a branch from it.</Description>
   </Metadata>

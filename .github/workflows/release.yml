@@ -20,6 +20,9 @@ jobs:
   release:
     runs-on: [self-hosted, Windows]
 
+    outputs:
+      new_version: ${{ steps.ver.outputs.NEW_VERSION }}
+
     env:
       CURRENT_VERSION: ${{ vars.EXTENSION_VERSION }}
 
@@ -332,3 +335,133 @@ jobs:
             -ContentType "application/json" | Out-Null
 
           Write-Host "EXTENSION_VERSION -> $v"
+
+  # -------------------------------------------------------------------------
+  # Second job: build VS 2022 VSIX on a GitHub-hosted runner.
+  # Runs after the release job so the GitHub Release already exists.
+  # Uses Microsoft.VSSDK.BuildTools (NuGet) — no workload install needed.
+  # -------------------------------------------------------------------------
+  build-vs-vsix:
+    needs: release
+    runs-on: windows-latest
+    if: success() || needs.release.result == 'success'
+
+    env:
+      NEW_VERSION: ${{ needs.release.outputs.new_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 1. Verzio beírása a VS manifestbe
+      # -----------------------------------------------------------------------
+      - name: Patch version in VS manifest
+        shell: powershell
+        run: |
+          $v = $env:NEW_VERSION
+          $pattern     = '"version":\s*"[^"]*"'
+          $replacement = '"version": "' + $v + '"'
+          $f = 'package.json'
+          (Get-Content $f -Raw) -replace $pattern, $replacement | Set-Content $f -NoNewline
+          $manifestPath = (Resolve-Path 'vs/source.extension.vsixmanifest').Path
+          $xml = [xml](Get-Content $manifestPath -Raw)
+          $xml.PackageManifest.Metadata.Identity.Version = $v
+          $xml.Save($manifestPath)
+          Write-Host "Patched VS manifest to $v"
+
+      # -----------------------------------------------------------------------
+      # 2. Node + web asset build (szükséges a VS extension webview-hoz)
+      # -----------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build web assets for VS
+        shell: powershell
+        run: |
+          npm install
+          npm run build:vs-assets
+
+      # -----------------------------------------------------------------------
+      # 3. VS 2022 VSIX build MSBuild-del
+      #    Microsoft.VSSDK.BuildTools NuGet-csomagot a /t:Restore visszallitja,
+      #    igy nem kell az Extension development workload.
+      # -----------------------------------------------------------------------
+      - name: Build VS 2022 VSIX
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            Write-Warning "vswhere.exe not found - skipping."
+            exit 0
+          }
+          $path = & $vswhere -version "[17.0,18.0)" -latest `
+            -requires Microsoft.Component.MSBuild `
+            -property installationPath
+          if (-not $path) {
+            Write-Warning "VS 2022 not found - skipping."
+            exit 0
+          }
+          $msbuild = Join-Path $path "MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $msbuild)) {
+            Write-Warning "MSBuild.exe not found at $msbuild - skipping."
+            exit 0
+          }
+          Write-Host "MSBuild: $msbuild"
+          & $msbuild vs\RevisionGraph.csproj `
+            /t:Restore,Rebuild `
+            /p:Configuration=Release `
+            /p:Platform=AnyCPU `
+            /p:DeployExtension=false `
+            /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "MSBuild failed ($LASTEXITCODE)" }
+          $built = "vs\bin\Release\RevisionGraph.vsix"
+          if (-not (Test-Path $built)) {
+            Write-Warning "VSIX not found at $built after build."
+            exit 0
+          }
+          New-Item -ItemType Directory -Force "dist\installers" | Out-Null
+          Copy-Item $built "dist\installers\RevisionGraph-vs2022.vsix" -Force
+          Write-Host "VS 2022 VSIX ready."
+
+      # -----------------------------------------------------------------------
+      # 4. Feltoltes a mar meglevo GitHub Release-be
+      # -----------------------------------------------------------------------
+      - name: Upload VS 2022 VSIX to GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $vsixPath = "dist\installers\RevisionGraph-vs2022.vsix"
+          if (-not (Test-Path $vsixPath)) {
+            Write-Warning "RevisionGraph-vs2022.vsix not found - skipping upload."
+            exit 0
+          }
+          $v   = $env:NEW_VERSION
+          $tag = "v$v"
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github.v3+json"
+          }
+          $release = Invoke-RestMethod -Method Get `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" `
+            -Headers $headers
+          $uploadBase = $release.upload_url -replace '\{.*\}', ''
+          $name = "RevisionGraph-vs2022.vsix"
+          $existing = $release.assets | Where-Object { $_.name -eq $name }
+          if ($existing) {
+            Invoke-RestMethod -Method Delete `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($existing.id)" `
+              -Headers $headers | Out-Null
+            Write-Host "Removed old asset: $name"
+          }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $vsixPath).Path)
+          Invoke-RestMethod -Method Post `
+            -Uri ($uploadBase + "?name=$name") `
+            -Headers $headers `
+            -Body $bytes `
+            -ContentType "application/octet-stream" | Out-Null
+          Write-Host "Uploaded: $name"

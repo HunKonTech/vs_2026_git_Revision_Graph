@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write   # GitHub Release létrehozása
-  variables: write  # EXTENSION_VERSION repo variable frissítése
 
 jobs:
   release:
@@ -313,7 +312,7 @@ jobs:
         if: success()
         shell: powershell
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 

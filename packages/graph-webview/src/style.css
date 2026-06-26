@@ -128,6 +128,15 @@ body,
   fill: var(--commit-fg);
   font-size: 11px;
 }
+.node-author {
+  fill: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+}
+.node-date {
+  fill: rgba(255, 255, 255, 0.6);
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 10px;
+}
 
 /* ref chips */
 .chip-rect {

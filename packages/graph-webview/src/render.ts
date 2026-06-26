@@ -6,9 +6,9 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Pixel geometry of the grid. Tuned to resemble the TortoiseSVN graph. */
 const LANE_W = 210;
-const ROW_H = 74;
+const ROW_H = 92;
 const BOX_W = 170;
-const BOX_H = 52;
+const BOX_H = 68;
 const MARGIN = 28;
 
 /** Distinct hues per ref kind, echoing the SVN graph (grey trunk, green branch, yellow tag). */
@@ -137,7 +137,7 @@ export class GraphView {
     // short sha (top-left)
     const sha = document.createElementNS(SVG_NS, "text");
     sha.setAttribute("x", "10");
-    sha.setAttribute("y", "18");
+    sha.setAttribute("y", "14");
     sha.classList.add("node-sha");
     sha.textContent = c.sha.slice(0, 7);
     g.appendChild(sha);
@@ -145,10 +145,26 @@ export class GraphView {
     // summary (clipped)
     const summary = document.createElementNS(SVG_NS, "text");
     summary.setAttribute("x", "10");
-    summary.setAttribute("y", "36");
+    summary.setAttribute("y", "28");
     summary.classList.add("node-summary");
     summary.textContent = truncate(c.summary, 24);
     g.appendChild(summary);
+
+    // author
+    const author = document.createElementNS(SVG_NS, "text");
+    author.setAttribute("x", "10");
+    author.setAttribute("y", "44");
+    author.classList.add("node-author");
+    author.textContent = truncate(c.author, 22);
+    g.appendChild(author);
+
+    // commit date
+    const dateEl = document.createElementNS(SVG_NS, "text");
+    dateEl.setAttribute("x", "10");
+    dateEl.setAttribute("y", "60");
+    dateEl.classList.add("node-date");
+    dateEl.textContent = formatDate(c.date);
+    g.appendChild(dateEl);
 
     // ref chips stacked above the box
     c.refs.forEach((ref, i) => g.appendChild(this.refChip(ref, i)));
@@ -243,6 +259,11 @@ function nodeKind(c: PositionedCommit): NodeKind {
   if (c.refs.some((r) => r.type === "remoteBranch")) return "remoteBranch";
   if (c.refs.some((r) => r.type === "tag")) return "tag";
   return "commit";
+}
+
+function formatDate(isoDate: string): string {
+  // Extract YYYY-MM-DD from ISO 8601 (e.g. "2026-06-26T10:30:00+02:00")
+  return isoDate ? isoDate.slice(0, 10) : "";
 }
 
 function truncate(s: string, n: number): string {

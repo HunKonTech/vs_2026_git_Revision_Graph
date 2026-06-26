@@ -61,16 +61,16 @@ jobs:
         shell: powershell
         run: |
           $v = $env:NEW_VERSION
+          $pattern     = '"version":\s*"[^"]*"'
+          $replacement = '"version": "' + $v + '"'
 
           # root package.json
           $f = 'package.json'
-          (Get-Content $f -Raw) -replace '"version":\s*"[^"]*"', '"version": "' + $v + '"' |
-            Set-Content $f -NoNewline
+          (Get-Content $f -Raw) -replace $pattern, $replacement | Set-Content $f -NoNewline
 
           # vscode/package.json
           $f = 'vscode/package.json'
-          (Get-Content $f -Raw) -replace '"version":\s*"[^"]*"', '"version": "' + $v + '"' |
-            Set-Content $f -NoNewline
+          (Get-Content $f -Raw) -replace $pattern, $replacement | Set-Content $f -NoNewline
 
           # vs/source.extension.vsixmanifest (XML attribute)
           $manifestPath = (Resolve-Path 'vs/source.extension.vsixmanifest').Path

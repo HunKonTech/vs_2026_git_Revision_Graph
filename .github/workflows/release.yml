@@ -35,7 +35,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Compute new version
         id: ver
-        shell: pwsh
+        shell: powershell
         run: |
           $cur = "$env:CURRENT_VERSION"
           if (-not $cur -or $cur -eq '') { $cur = '1.0.0' }
@@ -58,7 +58,7 @@ jobs:
       # 3. Verzió beírása a forrásba (build előtt)
       # -----------------------------------------------------------------------
       - name: Patch versions in source files
-        shell: pwsh
+        shell: powershell
         run: |
           $v = $env:NEW_VERSION
 
@@ -95,11 +95,11 @@ jobs:
       #    a shared renderer buildet, a VS Code .vsix-eket és a VS VSIX-et.
       # -----------------------------------------------------------------------
       - name: Build all extensions
-        shell: pwsh
-        run: pwsh scripts/build-installers.ps1
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File scripts\build-installers.ps1
 
       - name: List artifacts
-        shell: pwsh
+        shell: powershell
         run: |
           Write-Host "=== dist/installers/ ==="
           Get-ChildItem dist/installers/*.vsix |
@@ -109,7 +109,7 @@ jobs:
       # 6. GitHub Release
       # -----------------------------------------------------------------------
       - name: Create GitHub Release
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -139,7 +139,7 @@ jobs:
       # 7. VS Code Marketplace — stable
       # -----------------------------------------------------------------------
       - name: Publish VS Code extension (stable)
-        shell: pwsh
+        shell: powershell
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
         run: |
@@ -159,7 +159,7 @@ jobs:
       # 8. VS Code Marketplace — VS 2026 pre-release
       # -----------------------------------------------------------------------
       - name: Publish VS Code extension (VS 2026 pre-release)
-        shell: pwsh
+        shell: powershell
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
         run: |
@@ -179,7 +179,7 @@ jobs:
       # 9. Visual Studio Marketplace (VsixPublisher.exe)
       # -----------------------------------------------------------------------
       - name: Publish Visual Studio extension
-        shell: pwsh
+        shell: powershell
         env:
           VS_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
         run: |
@@ -244,7 +244,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Update EXTENSION_VERSION repo variable
         if: success()
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

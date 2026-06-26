@@ -14,7 +14,7 @@ on:
 
 permissions:
   contents: write   # GitHub Release létrehozása
-  actions: write    # EXTENSION_VERSION repo variable frissítése
+  variables: write  # EXTENSION_VERSION repo variable frissítése
 
 jobs:
   release:

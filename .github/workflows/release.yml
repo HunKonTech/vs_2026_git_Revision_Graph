@@ -75,6 +75,13 @@ jobs:
 
           $v = $env:NEW_VERSION
 
+          if (-not $env:GH_TOKEN) {
+            Write-Warning "GH_PAT secret is empty - cannot persist EXTENSION_VERSION."
+            Write-Warning "Create a fine-grained PAT (Variables: Read and write) and save it as the GH_PAT secret."
+            Write-Warning "Continuing the build; the version will NOT advance until GH_PAT is set."
+            exit 0
+          }
+
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
             Accept        = "application/vnd.github.v3+json"
@@ -84,13 +91,19 @@ jobs:
             value = $v
           } | ConvertTo-Json
 
-          Invoke-RestMethod -Method Patch `
-            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/variables/EXTENSION_VERSION" `
-            -Headers $headers `
-            -Body $body `
-            -ContentType "application/json" | Out-Null
-
-          Write-Host "EXTENSION_VERSION -> $v (bumped before build/publish)"
+          # Don't let a token/permission problem kill the whole build — warn and continue.
+          try {
+            Invoke-RestMethod -Method Patch `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/variables/EXTENSION_VERSION" `
+              -Headers $headers `
+              -Body $body `
+              -ContentType "application/json" | Out-Null
+            Write-Host "EXTENSION_VERSION -> $v (bumped before build/publish)"
+          } catch {
+            Write-Warning "Failed to update EXTENSION_VERSION variable: $($_.Exception.Message)"
+            Write-Warning "Check that GH_PAT has 'Variables: Read and write' permission on this repo."
+            Write-Warning "Continuing the build; the version will NOT advance this run."
+          }
 
       # -----------------------------------------------------------------------
       # 3. Verzió beírása a forrásba (build előtt)

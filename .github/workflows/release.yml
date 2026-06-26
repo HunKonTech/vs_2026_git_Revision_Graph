@@ -61,6 +61,38 @@ jobs:
           "PRERELEASE_VERSION=$preNew" | Out-File -FilePath $env:GITHUB_ENV    -Append
 
       # -----------------------------------------------------------------------
+      # 2b. EXTENSION_VERSION repo változó frissítése AZONNAL.
+      #     Így ha bármelyik későbbi (build/publish) lépés elhasal, a következő
+      #     futás már az új verziószámmal indul, és nem ragad be ugyanazon a
+      #     "v... already exists" hibán.
+      # -----------------------------------------------------------------------
+      - name: Bump EXTENSION_VERSION repo variable (early)
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          $v = $env:NEW_VERSION
+
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github.v3+json"
+          }
+          $body = [ordered]@{
+            name  = "EXTENSION_VERSION"
+            value = $v
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Method Patch `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/variables/EXTENSION_VERSION" `
+            -Headers $headers `
+            -Body $body `
+            -ContentType "application/json" | Out-Null
+
+          Write-Host "EXTENSION_VERSION -> $v (bumped before build/publish)"
+
+      # -----------------------------------------------------------------------
       # 3. Verzió beírása a forrásba (build előtt)
       # -----------------------------------------------------------------------
       - name: Patch versions in source files
@@ -304,36 +336,6 @@ jobs:
             exit $LASTEXITCODE
           }
           Write-Host "Successfully published to Visual Studio Marketplace."
-
-      # -----------------------------------------------------------------------
-      # 10. Repo változó frissítése az új verzióra
-      # -----------------------------------------------------------------------
-      - name: Update EXTENSION_VERSION repo variable
-        if: success()
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-          $v = $env:NEW_VERSION
-
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept        = "application/vnd.github.v3+json"
-          }
-          $body = [ordered]@{
-            name  = "EXTENSION_VERSION"
-            value = $v
-          } | ConvertTo-Json
-
-          Invoke-RestMethod -Method Patch `
-            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/variables/EXTENSION_VERSION" `
-            -Headers $headers `
-            -Body $body `
-            -ContentType "application/json" | Out-Null
-
-          Write-Host "EXTENSION_VERSION -> $v"
 
   # -------------------------------------------------------------------------
   # Second job: build VS 2022 VSIX on a GitHub-hosted runner.

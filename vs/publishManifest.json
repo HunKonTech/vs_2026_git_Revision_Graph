@@ -4,10 +4,10 @@
   "identity": {
     "internalName": "GitRevisionGraph"
   },
-  "overview": "../README.md",
+  "overview": "overview.md",
   "priceCategory": "free",
   "publisher": "benkoncsik",
   "private": false,
   "qna": true,
-  "repo": "https://github.com/BenKoncsik/vs_2026_git_Revision_Graph"
+  "repo": "https://github.com/HunKonTech/git_Revision_Graph"
 }

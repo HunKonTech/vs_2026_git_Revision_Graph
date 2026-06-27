@@ -1,6 +1,7 @@
 import { computeLayout } from "@rev-graph/graph-core";
 import type { PositionedCommit, GraphLayout, LayoutEdge } from "@rev-graph/graph-core";
 import type { GraphData, GitRef, ThemeTokens } from "@rev-graph/protocol";
+import type { DisplayMode } from "./displayMode.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -30,9 +31,16 @@ export interface RenderCallbacks {
 
 /** Renders a git DAG as connected boxes inside an SVG, with zoom & pan. */
 export class GraphView {
+  /** Scrolling wrapper around the SVG — owns the scrollbars in classic mode. */
+  private readonly scrollEl: HTMLDivElement;
   private readonly svg: SVGSVGElement;
   private readonly viewport: SVGGElement;
   private layout: GraphLayout | null = null;
+  /**
+   * Display style. "modern" = free pan/zoom canvas; "classic" = fixed-scale,
+   * scroll-only canvas with the trunk pinned left (SVN revision graph style).
+   */
+  private mode: DisplayMode = "modern";
   /** Pixel height of each row = tallest box on it, indexed by row (level). */
   private rowHeights: number[] = [];
   /** Own pixel height of each commit's box, by sha (grows with its ref count). */
@@ -54,6 +62,9 @@ export class GraphView {
     private readonly container: HTMLElement,
     private readonly cb: RenderCallbacks,
   ) {
+    this.scrollEl = document.createElement("div");
+    this.scrollEl.className = "graph-scroll";
+
     this.svg = document.createElementNS(SVG_NS, "svg");
     this.svg.classList.add("rev-graph-svg");
     this.svg.setAttribute("width", "100%");
@@ -62,8 +73,48 @@ export class GraphView {
     (this.svg.style as CSSStyleDeclaration & { userSelect: string }).userSelect = "none";
     this.viewport = document.createElementNS(SVG_NS, "g");
     this.svg.appendChild(this.viewport);
-    this.container.appendChild(this.svg);
+    this.scrollEl.appendChild(this.svg);
+    this.container.appendChild(this.scrollEl);
     this.installPanZoom();
+  }
+
+  /** Switch between the modern (free pan/zoom) and classic (scroll-only) modes. */
+  setMode(mode: DisplayMode): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.applyMode();
+  }
+
+  /** Apply the current mode to the DOM: sizing, transform and scroll behaviour. */
+  private applyMode(): void {
+    if (this.mode === "classic") {
+      this.scrollEl.classList.add("classic");
+      // No zoom/pan transform: 1 SVG unit == 1 CSS pixel, navigation is scroll.
+      this.scale = 1;
+      this.tx = 0;
+      this.ty = 0;
+      this.viewport.removeAttribute("transform");
+      this.sizeSvgToContent();
+      this.scrollEl.scrollLeft = 0;
+      this.scrollEl.scrollTop = 0;
+    } else {
+      this.scrollEl.classList.remove("classic");
+      // Back to a viewport-filling canvas driven by the pan/zoom transform.
+      this.svg.setAttribute("width", "100%");
+      this.svg.setAttribute("height", "100%");
+      this.applyTransform();
+    }
+  }
+
+  /** Size the SVG to the graph's full pixel extent so the wrapper can scroll it. */
+  private sizeSvgToContent(): void {
+    if (!this.layout) return;
+    const w = MARGIN + Math.max(0, this.layout.laneCount - 1) * LANE_W + BOX_W + MARGIN;
+    const lastTop = this.rowTops[this.rowTops.length - 1] ?? MARGIN;
+    const lastH = this.rowHeights[this.rowHeights.length - 1] ?? CONTENT_H;
+    const h = lastTop + lastH + MARGIN;
+    this.svg.setAttribute("width", String(w));
+    this.svg.setAttribute("height", String(h));
   }
 
   setTheme(theme: ThemeTokens): void {
@@ -94,14 +145,22 @@ export class GraphView {
       y += this.rowHeights[r]! + ROW_GAP;
     }
     this.draw();
+    // In classic mode the SVG carries its full pixel size so the wrapper scrolls.
+    if (this.mode === "classic") this.sizeSvgToContent();
   }
 
   getPositionedCommit(sha: string): PositionedCommit | undefined {
     return this.layout?.commits.find((c) => c.sha === sha);
   }
 
-  /** Reset zoom/pan to show the top-left of the graph. */
+  /** Reset the view to the top-left of the graph (the trunk). */
   resetView(): void {
+    if (this.mode === "classic") {
+      // No zoom in classic mode — just scroll back to the trunk at top-left.
+      this.scrollEl.scrollLeft = 0;
+      this.scrollEl.scrollTop = 0;
+      return;
+    }
     this.scale = 1;
     this.tx = 0;
     this.ty = 0;
@@ -310,6 +369,8 @@ export class GraphView {
 
   private installPanZoom(): void {
     this.svg.addEventListener("wheel", (e) => {
+      // Classic mode has no zoom; let the wrapper scroll natively.
+      if (this.mode === "classic") return;
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
       const next = clamp(this.scale * factor, 0.05, 4);
@@ -324,6 +385,7 @@ export class GraphView {
     });
 
     this.svg.addEventListener("mousedown", (e) => {
+      if (this.mode === "classic") return; // scroll-only navigation, no drag-pan
       if (e.button !== 0) return;
       if ((e.target as Element).closest(".node")) return; // let nodes handle their own clicks
       this.panning = true;

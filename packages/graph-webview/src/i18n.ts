@@ -39,7 +39,15 @@ type Dict = {
   "settings.language": string;
   "settings.mainBranch": string;
   "settings.mainBranchAuto": string;
+  "settings.display": string;
+  "settings.displayModern": string;
+  "settings.displayClassic": string;
+  "settings.displayModernHint": string;
+  "settings.displayClassicHint": string;
+  "settings.sectionGeneral": string;
+  "settings.sectionGraph": string;
   "settings.close": string;
+  "settings.done": string;
   "legend.title": string;
   "legend.head": string;
   "legend.local": string;
@@ -81,7 +89,15 @@ const DICTS: Record<Lang, Dict> = {
     "settings.language": "Language",
     "settings.mainBranch": "Main branch",
     "settings.mainBranchAuto": "Automatic",
+    "settings.display": "Display style",
+    "settings.displayModern": "Modern",
+    "settings.displayClassic": "Classic",
+    "settings.displayModernHint": "Free canvas — drag to pan, scroll to zoom.",
+    "settings.displayClassicHint": "Fixed canvas — trunk pinned left, no zoom, scroll only (like the SVN revision graph).",
+    "settings.sectionGeneral": "General",
+    "settings.sectionGraph": "Graph",
     "settings.close": "Close",
+    "settings.done": "Done",
     "legend.title": "Legend",
     "legend.head": "HEAD / current branch",
     "legend.local": "Local branch",
@@ -121,7 +137,15 @@ const DICTS: Record<Lang, Dict> = {
     "settings.language": "Nyelv",
     "settings.mainBranch": "Fő ág",
     "settings.mainBranchAuto": "Automatikus",
+    "settings.display": "Megjelenítés stílusa",
+    "settings.displayModern": "Modern",
+    "settings.displayClassic": "Klasszikus",
+    "settings.displayModernHint": "Szabad vászon — húzással mozgatható, görgővel nagyítható.",
+    "settings.displayClassicHint": "Rögzített vászon — a fő ág balra rögzítve, nincs nagyítás, csak görgetés (mint az SVN revision graph).",
+    "settings.sectionGeneral": "Általános",
+    "settings.sectionGraph": "Gráf",
     "settings.close": "Bezárás",
+    "settings.done": "Kész",
     "legend.title": "Jelmagyarázat",
     "legend.head": "HEAD / aktuális branch",
     "legend.local": "Lokális branch",

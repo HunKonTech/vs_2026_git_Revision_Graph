@@ -3,6 +3,7 @@ import { GraphView } from "./render.js";
 import { showContextMenu, closeContextMenu } from "./contextMenu.js";
 import { toggleSettings, closeSettings } from "./settings.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
+import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
 import type { GraphData, ThemeTokens } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
@@ -82,6 +83,7 @@ function boot(): void {
   });
 
   view.setTheme(DEFAULT_THEME);
+  view.setMode(getDisplayMode());
 
   bridge.onMessage((msg) => {
     switch (msg.type) {
@@ -134,6 +136,9 @@ function boot(): void {
     if (lastData) view.setData(lastData, getMainBranch());
   });
 
+  // Switch the canvas between the modern and classic navigation styles.
+  onDisplayModeChange(() => view.setMode(getDisplayMode()));
+
   // Toolbar: refresh + remote ops (fetch/pull/push/sync) + reset view + settings.
   const toolbar = document.createElement("div");
   toolbar.className = "toolbar";
@@ -165,7 +170,7 @@ function boot(): void {
       bridge.post({ type: "sync" });
     }
     if (act === "reset") view.resetView();
-    if (act === "settings") toggleSettings(toolbar, { branches: branchNames() });
+    if (act === "settings") toggleSettings({ branches: branchNames() });
   });
   root.insertBefore(toolbar, mainContent);
 

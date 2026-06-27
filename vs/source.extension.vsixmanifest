@@ -5,17 +5,7 @@
     <Identity Id="GitRevisionGraph.benkoncsik.b7e9c2a4"
               Version="0.1.0" Language="en-US" Publisher="BenKoncsik" />
     <DisplayName>Git Revision Graph</DisplayName>
-    <Description xml:space="preserve">A TortoiseSVN-style revision graph for Git, right inside Visual Studio. Commits, local and remote branches, and tags are shown as connected, color-coded boxes — just like SVN's classic revision graph.
-
-Open it from View → Other Windows → Revision Graph on any folder or solution inside a Git repository.
-
-Features:
-• DAG layout — commits arranged in columns per branch with connecting lines.
-• Color-coded nodes — HEAD/current branch, local and remote branches, tags, plain commits.
-• Right-click a commit to create a branch from it, check it out, or copy its SHA.
-• Zoom and pan the graph canvas; auto-refreshes on repository changes.
-
-See the full overview, screenshots and license on GitHub: https://github.com/HunKonTech/git_Revision_Graph</Description>
+    <Description xml:space="preserve">A TortoiseSVN-style revision graph for Git, right inside Visual Studio. Commits, local and remote branches, and tags appear as connected, color-coded boxes — just like SVN's classic revision graph. Right-click a commit to branch, check out, or copy its SHA.</Description>
     <MoreInfo>https://github.com/HunKonTech/git_Revision_Graph</MoreInfo>
     <ReleaseNotes>https://github.com/HunKonTech/git_Revision_Graph/releases</ReleaseNotes>
     <Tags>git;revision graph;tortoisesvn;branches;tags;dag;version control;source control</Tags>

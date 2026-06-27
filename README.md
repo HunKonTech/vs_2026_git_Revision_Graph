@@ -5,13 +5,9 @@ A **TortoiseSVN-style Revision Graph** for **Git**, for both **Visual Studio
 drawn as connected boxes; right-click a commit to **create a branch from it**
 using the host's native Git.
 
-### Visual Studio
+![Example](RevisionGraph.png)
 
-![Visual Studio](RevisionGraph.png)
-
-### VS Code
-
-![VS Code](RevisionGraph_vs_code.png)
+![VS Code / Visual Studio](RevisionGraph_vs_code.png)
 
 ## What it does
 - Renders the git DAG as boxes-and-edges, with a column-per-branch layout.

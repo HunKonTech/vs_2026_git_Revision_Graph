@@ -17,6 +17,11 @@
 
     <!-- VSIX / VSSDK -->
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <!-- Emit a CodeBase entry in the generated .pkgdef so VS can locate the
+         package assembly (in the per-user Extensions folder, not the GAC) when
+         it merges the CTMENU at config time. Without this the menu command
+         never appears under View → Other Windows. -->
+    <RegisterWithCodebase>true</RegisterWithCodebase>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>

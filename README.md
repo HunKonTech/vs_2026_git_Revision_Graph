@@ -108,6 +108,11 @@ All outputs land in `dist/installers/`.
 - ✅ VS Code extension (data layer verified against a real repo end-to-end)
 - ✅ Visual Studio VSIX authored (build & run on Windows per `vs/BUILD.md`)
 
+## License
+
+**HunKon Personal Use License v1.0** — free for personal use.
+For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
+
 ---
 
 # Git Revision Graph (Magyar)
@@ -204,3 +209,8 @@ Minden kimenet a `dist/installers/` mappába kerül.
 - ✅ közös SVG megjelenítő + helyi menü (böngészős harness-ben ellenőrizve)
 - ✅ VS Code bővítmény (adatréteg valós repón végigvizsgálva)
 - ✅ Visual Studio VSIX elkészítve (build & futtatás Windows alatt a `vs/BUILD.md` szerint)
+
+## Licenc
+
+**HunKon Personal Use License v1.0** — személyes használatra ingyenes.
+Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).

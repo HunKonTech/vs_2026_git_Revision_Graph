@@ -31,7 +31,7 @@ Open a folder or workspace that contains a Git repository, then either:
 ## Source code & license
 
 - Source code: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- License: **HunKon Personal Use License v1.0** — free for personal use.
+- License: **HunKon Personal Use License v1.0** — free for personal use. For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
 
 ---
 
@@ -68,4 +68,4 @@ Nyiss meg egy mappát vagy munkaterületet, amely egy Git repozitóriumot tartal
 ## Forráskód és licenc
 
 - Forráskód: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes.
+- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes. Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).

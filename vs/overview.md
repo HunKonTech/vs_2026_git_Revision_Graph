@@ -24,7 +24,7 @@ The graph loads automatically and shows the full commit DAG of the current repos
 ## Source code & license
 
 - Source code: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- License: **HunKon Personal Use License v1.0** — free for personal use.
+- License: **HunKon Personal Use License v1.0** — free for personal use. For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
 
 ---
 
@@ -54,4 +54,4 @@ A gráf automatikusan betölti az aktuális repozitórium teljes commit-fáját.
 ## Forráskód és licenc
 
 - Forráskód: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes.
+- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes. Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).

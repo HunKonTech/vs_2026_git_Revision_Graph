@@ -170,6 +170,54 @@ describe("computeLayout", () => {
     expect(lane("A1")).toBeLessThan(lane("B1"));
   });
 
+  it("anchors a side branch at its fork level instead of the top", () => {
+    // trunk T4..T0 ; a single newer side commit S1 forked from old T1.
+    const layout = computeLayout(
+      data(
+        [
+          commit("S1", ["T1"]),
+          commit("T4", ["T3"]),
+          commit("T3", ["T2"]),
+          commit("T2", ["T1"]),
+          commit("T1", ["T0"]),
+          commit("T0"),
+        ],
+        {
+          refs: [
+            { name: "main", type: "localBranch", targetSha: "T4", isCurrent: true },
+            { name: "side", type: "localBranch", targetSha: "S1" },
+          ],
+          head: "T4",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
+    expect(at("T4").row).toBe(0); // trunk tip at the top
+    // S1 is the newest commit but, by structure, sits one row above its fork
+    // (T1) — the same level as T2 — not at the top.
+    expect(at("S1").row).toBeGreaterThan(0);
+    expect(at("S1").row).toBe(at("T2").row);
+    expect(at("S1").lane).toBeGreaterThan(at("T2").lane);
+  });
+
+  it("keeps a merge back to the trunk a single row jump", () => {
+    // A is root; main and a side branch each add one commit, then merge.
+    const layout = computeLayout(
+      data(
+        [commit("M", ["B1", "C1"]), commit("B1", ["A"]), commit("C1", ["A"]), commit("A")],
+        {
+          refs: [{ name: "main", type: "localBranch", targetSha: "M", isCurrent: true }],
+          head: "M",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const merge = layout.edges.find((e) => e.isMerge)!;
+    expect(merge.toSha).toBe("C1");
+    expect(merge.toRow - merge.fromRow).toBe(1); // exactly one level
+  });
+
   it("attaches refs to the commit they point at", () => {
     const layout = computeLayout(
       data([commit("C", ["B"]), commit("B")], {

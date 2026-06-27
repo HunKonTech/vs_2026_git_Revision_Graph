@@ -11,6 +11,9 @@ window.__MOCK_GRAPH__ = {
     { sha: "h5555555", parents: ["h4444444"], summary: "Release 1.0.0", author: "Ana", authorEmail: "ana@example.com", date: "2026-06-22T18:00:00Z" },
     { sha: "h4444444", parents: ["h3333333"], summary: "Fix crash on startup", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-21T11:00:00Z" },
     { sha: "h3333333", parents: [], summary: "Initial commit", author: "Ana", authorEmail: "ana@example.com", date: "2026-06-20T08:00:00Z" },
+    // Newest commit by date, but on a side branch forked from the old h4444444 —
+    // it must sit next to its fork, NOT jump to the top.
+    { sha: "t1111111", parents: ["h4444444"], summary: "WIP on test branch", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-27T18:00:00Z" },
   ],
   refs: [
     { name: "main", type: "localBranch", targetSha: "h7777777", isCurrent: true },
@@ -21,5 +24,6 @@ window.__MOCK_GRAPH__ = {
     { name: "v1.0.0", type: "tag", targetSha: "h5555555" },
     { name: "release/1.0", type: "localBranch", targetSha: "h5555555" },
     { name: "origin/release/1.0", type: "remoteBranch", targetSha: "h5555555", remote: "origin" },
+    { name: "test/1.31", type: "localBranch", targetSha: "t1111111" },
   ],
 };

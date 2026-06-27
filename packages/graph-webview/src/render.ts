@@ -1,5 +1,5 @@
 import { computeLayout } from "@rev-graph/graph-core";
-import type { PositionedCommit, GraphLayout } from "@rev-graph/graph-core";
+import type { PositionedCommit, GraphLayout, LayoutEdge } from "@rev-graph/graph-core";
 import type { GraphData, GitRef, ThemeTokens } from "@rev-graph/protocol";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -31,9 +31,11 @@ export class GraphView {
   private readonly svg: SVGSVGElement;
   private readonly viewport: SVGGElement;
   private layout: GraphLayout | null = null;
-  /** Pixel height of each box, indexed by row (grows with its ref count). */
-  private boxHeights: number[] = [];
-  /** Top Y of each box, indexed by row (cumulative — boxes vary in height). */
+  /** Pixel height of each row = tallest box on it, indexed by row (level). */
+  private rowHeights: number[] = [];
+  /** Own pixel height of each commit's box, by sha (grows with its ref count). */
+  private readonly ownHeight = new Map<string, number>();
+  /** Top Y of each row, indexed by row (cumulative — rows vary in height). */
   private rowTops: number[] = [];
   /** Sha of the currently checked-out commit (HEAD), if known. */
   private head: string | null = null;
@@ -74,14 +76,20 @@ export class GraphView {
   setData(data: GraphData, mainBranch?: string): void {
     this.layout = computeLayout(data, { mainBranch });
     this.head = data.head ?? null;
-    // Each box is sized to list all of its refs inside, so nothing overlaps or
-    // hangs off; box tops are accumulated since heights vary row to row.
-    this.boxHeights = this.layout.commits.map((c) => boxHeight(c));
+    // Rows are structural levels and several commits may share a row, so a row's
+    // height is the tallest box on it (each box is sized to list all its refs).
+    this.rowHeights = new Array(this.layout.rowCount).fill(CONTENT_H);
+    this.ownHeight.clear();
+    for (const c of this.layout.commits) {
+      const h = boxHeight(c);
+      this.ownHeight.set(c.sha, h);
+      if (h > (this.rowHeights[c.row] ?? 0)) this.rowHeights[c.row] = h;
+    }
     this.rowTops = [];
     let y = MARGIN;
-    for (let r = 0; r < this.boxHeights.length; r++) {
+    for (let r = 0; r < this.rowHeights.length; r++) {
       this.rowTops[r] = y;
-      y += this.boxHeights[r]! + ROW_GAP;
+      y += this.rowHeights[r]! + ROW_GAP;
     }
     this.draw();
   }
@@ -110,7 +118,7 @@ export class GraphView {
     const edgeLayer = document.createElementNS(SVG_NS, "g");
     edgeLayer.classList.add("edges");
     for (const e of this.layout.edges) {
-      edgeLayer.appendChild(this.edgePath(e.fromRow, e.fromLane, e.toRow, e.toLane, e.isMerge));
+      edgeLayer.appendChild(this.edgePath(e));
     }
     this.viewport.appendChild(edgeLayer);
 
@@ -126,21 +134,14 @@ export class GraphView {
   private boxY(row: number): number {
     return this.rowTops[row] ?? MARGIN;
   }
-  private boxH(row: number): number {
-    return this.boxHeights[row] ?? CONTENT_H;
-  }
 
-  private edgePath(
-    fromRow: number,
-    fromLane: number,
-    toRow: number,
-    toLane: number,
-    isMerge: boolean,
-  ): SVGPathElement {
-    const cx = this.boxX(fromLane) + BOX_W / 2;
-    const cy = this.boxY(fromRow) + this.boxH(fromRow); // child bottom
-    const px = this.boxX(toLane) + BOX_W / 2;
-    const py = this.boxY(toRow); // parent top
+  private edgePath(e: LayoutEdge): SVGPathElement {
+    const cx = this.boxX(e.fromLane) + BOX_W / 2;
+    // Child bottom uses the child's own box height (rows can hold several boxes).
+    const cy = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromSha) ?? CONTENT_H);
+    const px = this.boxX(e.toLane) + BOX_W / 2;
+    const py = this.boxY(e.toRow); // parent top
+    const isMerge = e.isMerge;
     const midY = (cy + py) / 2;
     const path = document.createElementNS(SVG_NS, "path");
     path.setAttribute("d", `M ${cx} ${cy} C ${cx} ${midY}, ${px} ${midY}, ${px} ${py}`);
@@ -152,7 +153,7 @@ export class GraphView {
   private nodeBox(c: PositionedCommit): SVGGElement {
     const x = this.boxX(c.lane);
     const y = this.boxY(c.row);
-    const h = this.boxH(c.row);
+    const h = boxHeight(c); // this box's own height (a row may hold taller boxes)
     const kind = nodeKind(c);
     const isHead = this.head != null && c.sha === this.head;
 

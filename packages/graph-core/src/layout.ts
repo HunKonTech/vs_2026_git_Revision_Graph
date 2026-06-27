@@ -2,7 +2,11 @@ import type { GitCommit, GitRef, GraphData } from "@rev-graph/protocol";
 
 /** A commit with its computed grid position. */
 export interface PositionedCommit extends GitCommit {
-  /** Vertical position (0 = topmost / newest). */
+  /**
+   * Vertical position as a structural level (0 = topmost). Derived from the
+   * commit's generation (depth from the root), not its timestamp, so commits on
+   * different branches may share a row.
+   */
   row: number;
   /** Horizontal lane (column), 0-based from the left. */
   lane: number;
@@ -65,6 +69,46 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   const rowOf = new Map<string, number>();
   commits.forEach((c, i) => rowOf.set(c.sha, i));
 
+  // ---- Phase 0: structural generation (longest path from a root). ----
+  // A commit's row comes from its generation, NOT its timestamp: a branch is
+  // anchored to the commit it forked from and steps up from there, so a fresh
+  // commit on a side branch sits next to its origin instead of jumping to the
+  // top just because it is the newest. Computed with an iterative post-order DFS
+  // (memoized) so it is independent of input ordering and safe on deep history.
+  const genOf = new Map<string, number>();
+  let maxGen = 0;
+  for (const start of commits) {
+    if (genOf.has(start.sha)) continue;
+    const stack: string[] = [start.sha];
+    while (stack.length > 0) {
+      const sha = stack[stack.length - 1]!;
+      if (genOf.has(sha)) {
+        stack.pop();
+        continue;
+      }
+      let ready = true;
+      let g = 0;
+      for (const p of bySha.get(sha)!.parents) {
+        if (!present.has(p)) continue;
+        const pg = genOf.get(p);
+        if (pg === undefined) {
+          stack.push(p); // resolve the parent first
+          ready = false;
+        } else if (pg + 1 > g) {
+          g = pg + 1;
+        }
+      }
+      if (ready) {
+        genOf.set(sha, g);
+        if (g > maxGen) maxGen = g;
+        stack.pop();
+      }
+    }
+  }
+  // Level 0 is the top (highest generation). Generations are contiguous
+  // (a commit at gen g has an in-view parent at gen g-1), so every level is used.
+  const levelOf = (sha: string): number => maxGen - (genOf.get(sha) ?? 0);
+
   // refs grouped by the commit they point at, so render can label nodes.
   const refsBySha = new Map<string, GitRef[]>();
   for (const ref of data.refs) {
@@ -79,10 +123,10 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   // owns the shared base commits instead of whichever tip happens to be newest.
   interface Column {
     id: number;
-    /** Row of the column's tip (its newest commit). */
-    tipRow: number;
-    /** Row of the column's base (its oldest commit) — the branch creation point. */
-    baseRow: number;
+    /** Generation of the column's tip (its newest commit). */
+    tipGen: number;
+    /** Generation of the column's base (oldest commit) — the branch creation point. */
+    baseGen: number;
     /** Column this one diverged from, or null when it is an independent root. */
     forkParent: number | null;
   }
@@ -106,12 +150,12 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   for (const seed of seeds) {
     if (colOf.has(seed)) continue;
     const col = nextCol++;
-    const seedRow = rowOf.get(seed)!;
-    columns[col] = { id: col, tipRow: seedRow, baseRow: seedRow, forkParent: null };
+    const seedGen = genOf.get(seed) ?? 0;
+    columns[col] = { id: col, tipGen: seedGen, baseGen: seedGen, forkParent: null };
     let cur: string | undefined = seed;
     while (cur !== undefined) {
       colOf.set(cur, col);
-      columns[col]!.baseRow = rowOf.get(cur)!; // last claimed = oldest so far
+      columns[col]!.baseGen = genOf.get(cur) ?? 0; // last claimed = oldest so far
       const parents: string[] = bySha.get(cur)!.parents.filter((p) => present.has(p));
       const first: string | undefined = parents[0];
       if (first === undefined) break; // root, or first parent out of view
@@ -133,12 +177,13 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       children.set(col.forkParent, arr);
     }
   }
-  const byTipRow = (a: number, b: number) => columns[a]!.tipRow - columns[b]!.tipRow;
-  // Sibling branches are ordered by creation revision: the branch created
-  // earlier (its base/fork point is older — a larger row) goes to the left,
-  // matching how TortoiseSVN orders copy columns.
+  // Newer tip first (higher generation) — used to order independent roots.
+  const byTip = (a: number, b: number) => columns[b]!.tipGen - columns[a]!.tipGen;
+  // Sibling branches are ordered by creation point: the branch created earlier
+  // (its base/fork point is at a lower generation) goes to the left, matching
+  // how TortoiseSVN orders copy columns.
   const byCreation = (a: number, b: number) =>
-    columns[b]!.baseRow - columns[a]!.baseRow || byTipRow(a, b);
+    columns[a]!.baseGen - columns[b]!.baseGen || byTip(a, b);
 
   const laneOf = new Map<number, number>();
   let nextLane = 0;
@@ -153,18 +198,18 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   // any remaining columns (other roots / disconnected history) topmost-first.
   const mainCol = mainColSha !== undefined ? colOf.get(mainColSha) : undefined;
   if (mainCol !== undefined) visit(mainCol);
-  for (const id of columns.map((c) => c.id).sort(byTipRow)) visit(id);
+  for (const id of columns.map((c) => c.id).sort(byTip)) visit(id);
 
-  // ---- Phase 3: position commits and build edges. ----
+  // ---- Phase 3: position commits (row = structural level) and build edges. ----
   const positioned: PositionedCommit[] = [];
   const posBySha = new Map<string, PositionedCommit>();
   let maxLane = 0;
 
-  commits.forEach((commit, row) => {
+  commits.forEach((commit) => {
     const lane = laneOf.get(colOf.get(commit.sha)!) ?? 0;
     const pc: PositionedCommit = {
       ...commit,
-      row,
+      row: levelOf(commit.sha),
       lane,
       refs: refsBySha.get(commit.sha) ?? [],
     };
@@ -194,7 +239,8 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     commits: positioned,
     edges,
     laneCount: maxLane + 1,
-    rowCount: positioned.length,
+    // Rows are structural levels (0..maxGen), several commits may share one.
+    rowCount: commits.length > 0 ? maxGen + 1 : 0,
   };
 }
 

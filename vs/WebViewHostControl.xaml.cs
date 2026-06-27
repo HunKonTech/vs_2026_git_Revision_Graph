@@ -311,7 +311,9 @@ namespace RevisionGraph
             if (_git == null || string.IsNullOrEmpty(treeish)) return;
             try
             {
-                await _git.CheckoutAsync(treeish).ConfigureAwait(true);
+                // Resolve a branch to switch to instead of detaching HEAD on a commit —
+                // crucially, a remote-only branch becomes a new local tracking branch.
+                await _git.SmartCheckoutAsync(treeish).ConfigureAwait(true);
                 await RefreshAsync().ConfigureAwait(true);
             }
             catch (Exception ex)

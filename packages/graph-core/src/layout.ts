@@ -53,10 +53,11 @@ export interface LayoutOptions {
  *    branch line owns one column (its "trunk").
  *  - The chosen main branch is pinned to the leftmost lane (lane 0), the way
  *    TortoiseSVN keeps the trunk on the left.
- *  - Every other branch is laid out to the *right* of the branch it forked
- *    from: a column's lane is always greater than the lane of the column it
- *    diverged from, and children are placed in a depth-first order so a whole
- *    branch subtree stays contiguous and to the right of its origin.
+ *  - Other branches are packed into the leftmost free lane (>= 1) via interval
+ *    scheduling: two branches share a lane when their commit rows don't overlap,
+ *    and a branch is pushed one lane further right only when it would actually
+ *    collide with one already there. Earlier branches are placed first so they
+ *    tend to sit further left.
  *
  * The input `commits` must already be in display order — newest first
  * (`git log --date-order` style), so a child always appears above its parents.
@@ -129,6 +130,9 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     baseGen: number;
     /** Column this one diverged from, or null when it is an independent root. */
     forkParent: number | null;
+    /** Row span the column's commits occupy (filled in phase 2). */
+    minRow: number;
+    maxRow: number;
   }
   const columns: Column[] = [];
   const colOf = new Map<string, number>();
@@ -151,7 +155,7 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     if (colOf.has(seed)) continue;
     const col = nextCol++;
     const seedGen = genOf.get(seed) ?? 0;
-    columns[col] = { id: col, tipGen: seedGen, baseGen: seedGen, forkParent: null };
+    columns[col] = { id: col, tipGen: seedGen, baseGen: seedGen, forkParent: null, minRow: 0, maxRow: 0 };
     let cur: string | undefined = seed;
     while (cur !== undefined) {
       colOf.set(cur, col);
@@ -168,37 +172,51 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     }
   }
 
-  // ---- Phase 2: order columns left-to-right (main first, children right). ----
-  const children = new Map<number, number[]>();
+  // ---- Phase 2: assign lanes with column compaction. ----
+  // Each column's commits occupy a contiguous row span (tip = highest
+  // generation = topmost row; base = lowest = bottommost).
   for (const col of columns) {
-    if (col.forkParent !== null) {
-      const arr = children.get(col.forkParent) ?? [];
-      arr.push(col.id);
-      children.set(col.forkParent, arr);
-    }
+    col.minRow = maxGen - col.tipGen;
+    col.maxRow = maxGen - col.baseGen;
   }
-  // Newer tip first (higher generation) — used to order independent roots.
-  const byTip = (a: number, b: number) => columns[b]!.tipGen - columns[a]!.tipGen;
-  // Sibling branches are ordered by creation point: the branch created earlier
-  // (its base/fork point is at a lower generation) goes to the left, matching
-  // how TortoiseSVN orders copy columns.
+  // Order columns by creation point so earlier branches are placed first (and
+  // therefore tend to land further left); topmost tip breaks ties.
   const byCreation = (a: number, b: number) =>
-    columns[a]!.baseGen - columns[b]!.baseGen || byTip(a, b);
+    columns[a]!.baseGen - columns[b]!.baseGen || columns[a]!.minRow - columns[b]!.minRow;
 
   const laneOf = new Map<number, number>();
-  let nextLane = 0;
-  const visit = (id: number): void => {
-    if (laneOf.has(id)) return;
-    laneOf.set(id, nextLane++);
-    const kids = (children.get(id) ?? []).slice().sort(byCreation);
-    for (const k of kids) visit(k);
+  // laneSpans[lane] holds the [minRow, maxRow] intervals already placed there.
+  const laneSpans: Array<Array<[number, number]>> = [];
+  const place = (id: number, startLane: number): void => {
+    const lo = columns[id]!.minRow;
+    const hi = columns[id]!.maxRow;
+    let lane = startLane;
+    for (;;) {
+      const span = laneSpans[lane] ?? (laneSpans[lane] = []);
+      // Free when this column's row span touches none already in the lane.
+      if (span.every(([a, b]) => hi < a || lo > b)) {
+        span.push([lo, hi]);
+        laneOf.set(id, lane);
+        return;
+      }
+      lane++; // collision — try the next lane to the right
+    }
   };
 
-  // Pin the main branch's column to lane 0, then lay out its sub-branches, then
-  // any remaining columns (other roots / disconnected history) topmost-first.
-  const mainCol = mainColSha !== undefined ? colOf.get(mainColSha) : undefined;
-  if (mainCol !== undefined) visit(mainCol);
-  for (const id of columns.map((c) => c.id).sort(byTip)) visit(id);
+  // The trunk owns lane 0; everything else is packed into lanes >= 1.
+  let primary = mainColSha !== undefined ? colOf.get(mainColSha) : undefined;
+  if (primary === undefined && columns.length > 0) {
+    primary = columns
+      .map((c) => c.id)
+      .sort((a, b) => columns[a]!.minRow - columns[b]!.minRow || byCreation(a, b))[0];
+  }
+  if (primary !== undefined) place(primary, 0);
+  for (const id of columns
+    .map((c) => c.id)
+    .filter((id) => id !== primary)
+    .sort(byCreation)) {
+    place(id, 1);
+  }
 
   // ---- Phase 3: position commits (row = structural level) and build edges. ----
   const positioned: PositionedCommit[] = [];

@@ -139,14 +139,17 @@ describe("computeLayout", () => {
     expect(lane("E")).toBeGreaterThan(lane("B"));
   });
 
-  it("orders sibling branches by creation: earlier branch to the left", () => {
-    // trunk T3->T2->T1->T0 ; branchA created off T1 (earlier), branchB off T2.
-    // Input is topo-order (children before parents), newest first.
+  it("packs overlapping sibling branches into separate lanes, earlier on the left", () => {
+    // trunk T4..T0. branchA (A2,A1) off T1 ; branchB (B2,B1) off T2 — their rows
+    // overlap, so they cannot share a lane; the earlier branch (A) goes left.
     const layout = computeLayout(
       data(
         [
+          commit("B2", ["B1"]),
+          commit("A2", ["A1"]),
           commit("B1", ["T2"]),
           commit("A1", ["T1"]),
+          commit("T4", ["T3"]),
           commit("T3", ["T2"]),
           commit("T2", ["T1"]),
           commit("T1", ["T0"]),
@@ -154,20 +157,52 @@ describe("computeLayout", () => {
         ],
         {
           refs: [
-            { name: "main", type: "localBranch", targetSha: "T3", isCurrent: true },
-            { name: "branchA", type: "localBranch", targetSha: "A1" },
-            { name: "branchB", type: "localBranch", targetSha: "B1" },
+            { name: "main", type: "localBranch", targetSha: "T4", isCurrent: true },
+            { name: "branchA", type: "localBranch", targetSha: "A2" },
+            { name: "branchB", type: "localBranch", targetSha: "B2" },
           ],
-          head: "T3",
+          head: "T4",
         },
       ),
       { mainBranch: "main" },
     );
     const lane = (sha: string) => layout.commits.find((c) => c.sha === sha)!.lane;
-    expect(lane("T3")).toBe(0); // trunk left
-    // branchA forked from the older commit, so it sits left of branchB.
+    expect(lane("T4")).toBe(0); // trunk left
     expect(lane("A1")).toBeGreaterThan(0);
-    expect(lane("A1")).toBeLessThan(lane("B1"));
+    expect(lane("A1")).toBeLessThan(lane("B1")); // earlier branch further left
+  });
+
+  it("compacts non-overlapping branches into the same lane", () => {
+    // feature (F2,F1) lives high, side (S1) low — they never share a row, so
+    // both reuse the first free lane instead of each reserving its own.
+    const layout = computeLayout(
+      data(
+        [
+          commit("F2", ["F1"]),
+          commit("F1", ["T3"]),
+          commit("S1", ["T1"]),
+          commit("T4", ["T3"]),
+          commit("T3", ["T2"]),
+          commit("T2", ["T1"]),
+          commit("T1", ["T0"]),
+          commit("T0"),
+        ],
+        {
+          refs: [
+            { name: "main", type: "localBranch", targetSha: "T4", isCurrent: true },
+            { name: "feature", type: "localBranch", targetSha: "F2" },
+            { name: "side", type: "localBranch", targetSha: "S1" },
+          ],
+          head: "T4",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const lane = (sha: string) => layout.commits.find((c) => c.sha === sha)!.lane;
+    expect(lane("T4")).toBe(0);
+    expect(lane("F1")).toBe(1);
+    expect(lane("S1")).toBe(1); // reused the same lane — no overlap, no gap
+    expect(layout.laneCount).toBe(2); // only two columns total
   });
 
   it("anchors a side branch at its fork level instead of the top", () => {

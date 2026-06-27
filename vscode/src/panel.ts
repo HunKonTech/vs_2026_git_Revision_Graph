@@ -1,6 +1,14 @@
 import * as vscode from "vscode";
 import type { HostToWebview, WebviewToHost, ThemeTokens } from "@rev-graph/protocol";
-import { readGraphData, checkoutCli, fetchCli, pullCli, pushCli } from "./gitData";
+import {
+  readGraphData,
+  checkoutCli,
+  checkoutTrackingCli,
+  resolveCheckoutTarget,
+  fetchCli,
+  pullCli,
+  pushCli,
+} from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
 
@@ -175,12 +183,18 @@ export class GraphPanel {
     if (!treeish) return;
     const repo = await resolveRepository();
     if (!repo) return;
+    const root = repo.rootUri.fsPath;
     try {
-      await repo.checkout(treeish);
-    } catch {
-      await checkoutCli(repo.rootUri.fsPath, treeish).catch((err) =>
-        vscode.window.showErrorMessage(`Checkout failed: ${String(err)}`),
-      );
+      // Resolve a branch to switch to instead of detaching HEAD on a commit —
+      // crucially, a remote-only branch becomes a new local tracking branch.
+      const target = await resolveCheckoutTarget(root, treeish);
+      if (target.track) {
+        await checkoutTrackingCli(root, target.ref, target.track);
+      } else {
+        await repo.checkout(target.ref).catch(() => checkoutCli(root, target.ref));
+      }
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Checkout failed: ${String(err)}`);
     }
     await this.refresh();
   }

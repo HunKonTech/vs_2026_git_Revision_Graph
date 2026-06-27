@@ -161,6 +161,66 @@ namespace RevisionGraph.Git
 
         public Task CheckoutAsync(string treeish) => RunAsync(_repoRoot, "checkout", treeish);
 
+        /// <summary>
+        /// Checkout a commit, preferring a branch over a detached HEAD:
+        ///  - switch to a local branch that points at the commit;
+        ///  - else create a local tracking branch for a remote-only branch;
+        ///  - else fall back to the bare commit (intentional detached HEAD).
+        /// Mirrors resolveCheckoutTarget/checkoutTrackingCli in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task SmartCheckoutAsync(string sha)
+        {
+            var local = await TryRunAsync(
+                "branch", "--points-at", sha, "--format=%(refname:short)").ConfigureAwait(false);
+            var locals = SplitLines(local);
+            if (locals.Count > 0)
+            {
+                await CheckoutAsync(locals[0]).ConfigureAwait(false);
+                return;
+            }
+
+            var remote = await TryRunAsync(
+                "branch", "-r", "--points-at", sha, "--format=%(refname:short)").ConfigureAwait(false);
+            foreach (var remoteRef in SplitLines(remote)) // e.g. "origin/feature"
+            {
+                if (remoteRef.EndsWith("/HEAD", StringComparison.Ordinal)) continue;
+                var slash = remoteRef.IndexOf('/');
+                if (slash < 0 || slash == remoteRef.Length - 1) continue;
+                var localName = remoteRef.Substring(slash + 1); // "feature"
+                try
+                {
+                    await RunAsync(_repoRoot, "checkout", "-b", localName, "--track", remoteRef)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    // A local branch of that name already exists — just switch to it.
+                    await CheckoutAsync(localName).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            await CheckoutAsync(sha).ConfigureAwait(false);
+        }
+
+        private async Task<string> TryRunAsync(params string[] args)
+        {
+            try { return await RunAsync(_repoRoot, args).ConfigureAwait(false); }
+            catch { return string.Empty; }
+        }
+
+        private static List<string> SplitLines(string text)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(text)) return result;
+            foreach (var raw in text.Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.Length > 0) result.Add(line);
+            }
+            return result;
+        }
+
         /// <summary>Fetch all remotes and prune deleted remote branches.</summary>
         public Task FetchAsync() => RunAsync(_repoRoot, "fetch", "--all", "--prune");
 

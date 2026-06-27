@@ -119,6 +119,70 @@ export async function checkoutCli(repoRoot: string, treeish: string): Promise<vo
   await git(repoRoot, ["checkout", treeish]);
 }
 
+/** Where a checkout of a given commit should actually land. */
+export interface CheckoutTarget {
+  /** The branch name to switch to (or the bare sha for a detached checkout). */
+  ref: string;
+  /** When set, create a local branch tracking this remote ref (e.g. "origin/x"). */
+  track?: string;
+}
+
+/**
+ * Decide the best checkout target for a commit so we don't needlessly detach HEAD:
+ *  - prefer a local branch that points at the commit;
+ *  - else, if only a remote branch points at it, create a local tracking branch;
+ *  - else, fall back to the bare commit (intentional detached HEAD).
+ */
+export async function resolveCheckoutTarget(
+  repoRoot: string,
+  sha: string,
+): Promise<CheckoutTarget> {
+  const local = await git(repoRoot, [
+    "branch",
+    "--points-at",
+    sha,
+    "--format=%(refname:short)",
+  ]).catch(() => "");
+  const locals = local
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (locals.length > 0) return { ref: locals[0] };
+
+  const remote = await git(repoRoot, [
+    "branch",
+    "-r",
+    "--points-at",
+    sha,
+    "--format=%(refname:short)",
+  ]).catch(() => "");
+  const remotes = remote
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((r) => r && !r.endsWith("/HEAD"));
+  if (remotes.length > 0) {
+    const remoteRef = remotes[0]; // e.g. "origin/feature"
+    const localName = remoteRef.split("/").slice(1).join("/"); // "feature"
+    return { ref: localName, track: remoteRef };
+  }
+
+  return { ref: sha };
+}
+
+/**
+ * Create a local branch tracking a remote branch and switch to it. Falls back to
+ * a plain checkout if a local branch of that name already exists.
+ */
+export async function checkoutTrackingCli(
+  repoRoot: string,
+  localName: string,
+  remoteRef: string,
+): Promise<void> {
+  await git(repoRoot, ["checkout", "-b", localName, "--track", remoteRef]).catch(() =>
+    git(repoRoot, ["checkout", localName]),
+  );
+}
+
 /** Fetch all remotes (and prune deleted remote branches). */
 export async function fetchCli(repoRoot: string): Promise<void> {
   await git(repoRoot, ["fetch", "--all", "--prune"]);

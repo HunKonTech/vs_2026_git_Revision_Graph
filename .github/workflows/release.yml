@@ -574,14 +574,15 @@ jobs:
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
+          X_POST_TEMPLATE: |
+            Git Revision Graph {tag} megjelent!
+
+            Lathatova teszi az osszes agat es commitot VS Code-ban es Visual Studio-ban egyarant.
+
+            {release_url}
+            #git #vscode #VisualStudio #DevTools #GitHistory
         run: |
           python3 scripts/post_x_release.py \
             --app-name "Git Revision Graph" \
             --tag "v${NEW_VERSION}" \
-            --release-url "https://github.com/HunKonTech/git_Revision_Graph/releases/tag/v${NEW_VERSION}" \
-            --template "Git Revision Graph {tag} megjelent!
-
-Lathatova teszi az osszes agat es commitot VS Code-ban es Visual Studio-ban egyarant.
-
-{release_url}
-#git #vscode #VisualStudio #DevTools #GitHistory"
+            --release-url "https://github.com/HunKonTech/git_Revision_Graph/releases/tag/v${NEW_VERSION}"

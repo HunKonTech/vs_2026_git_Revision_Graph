@@ -5,7 +5,13 @@ A **TortoiseSVN-style Revision Graph** for **Git**, for both **Visual Studio
 drawn as connected boxes; right-click a commit to **create a branch from it**
 using the host's native Git.
 
-![reference](RevisionGraph.png)
+### Visual Studio
+
+![Visual Studio](RevisionGraph.png)
+
+### VS Code
+
+![VS Code](RevisionGraph_vs_code.png)
 
 ## What it does
 - Renders the git DAG as boxes-and-edges, with a column-per-branch layout.
@@ -15,6 +21,20 @@ using the host's native Git.
 - **Right-click → "Create branch from here…"** seeds a new branch at the clicked
   commit via the host's native Git, then refreshes.
 - Checkout a commit, copy its SHA, zoom & pan.
+
+## How to open the graph
+
+### VS Code
+1. Open a folder or workspace that contains a Git repository.
+2. Either:
+   - Open the **Command Palette** (`Ctrl+Shift+P`) and run **"Git Revision Graph: Open Revision Graph"**, or
+   - Click the **graph icon** in the Source Control title bar (top-right of the SCM panel).
+
+### Visual Studio (2022 / 2026)
+1. Open a folder or solution that is inside a Git repository.
+2. Go to **View → Other Windows → Revision Graph**.
+
+Right-click any commit node to **create a branch from it** or to copy its SHA.
 
 ## Architecture (monorepo)
 One shared web renderer, embedded by two thin hosts:

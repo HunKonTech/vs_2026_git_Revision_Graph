@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
@@ -49,7 +50,18 @@ namespace RevisionGraph
 
         private async Task InitializeAsync()
         {
-            await WebView.EnsureCoreWebView2Async().ConfigureAwait(true);
+            // WebView2's default user-data folder is created next to the host
+            // process — devenv.exe in Program Files — which is not writable.
+            // The runtime then fails to start and the panel stays blank. Point
+            // it at a writable per-user location instead.
+            var userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RevisionGraphVS", "WebView2");
+            Directory.CreateDirectory(userDataFolder);
+            var env = await CoreWebView2Environment
+                .CreateAsync(browserExecutableFolder: null, userDataFolder: userDataFolder, options: null)
+                .ConfigureAwait(true);
+            await WebView.EnsureCoreWebView2Async(env).ConfigureAwait(true);
 
             var assetDir = Path.Combine(
                 Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
@@ -92,10 +104,21 @@ namespace RevisionGraph
             }
         }
 
-        /// <summary>Point the host at a repository (called by the tool window).</summary>
-        public async Task SetRepositoryAsync(string startDir)
+        /// <summary>
+        /// Point the host at a repository (called by the tool window). Tries each
+        /// candidate directory in order; the first one inside a git work tree wins.
+        /// </summary>
+        public async Task SetRepositoryAsync(IReadOnlyList<string> startDirs)
         {
-            var root = await GitService.FindRepoRootAsync(startDir).ConfigureAwait(true);
+            string root = null;
+            if (startDirs != null)
+            {
+                foreach (var dir in startDirs)
+                {
+                    root = await GitService.FindRepoRootAsync(dir).ConfigureAwait(true);
+                    if (root != null) break;
+                }
+            }
             _git = root != null ? new GitService(root) : null;
             await RefreshAsync().ConfigureAwait(true);
         }

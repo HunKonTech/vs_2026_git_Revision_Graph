@@ -92,6 +92,10 @@
     <VSCTCompile Include="RevisionGraphPackage.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>
     </VSCTCompile>
+    <!-- Menu/command icon, embedded into the CTMENU by the VSCT compiler. -->
+    <Content Include="Resources\RevisionGraph.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

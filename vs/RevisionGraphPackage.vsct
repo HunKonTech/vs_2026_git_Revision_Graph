@@ -9,18 +9,28 @@
       <Button guid="guidRevisionGraphCmdSet" id="OpenGraphCommandId"
               priority="0x0100" type="Button">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="guidImages" id="bmpRevisionGraph" />
         <Strings>
           <ButtonText>Revision Graph</ButtonText>
           <CommandName>View.RevisionGraph</CommandName>
         </Strings>
       </Button>
     </Buttons>
+
+    <Bitmaps>
+      <!-- 16x16 PNG with alpha; the menu glyph mirrors the VS Code icon. -->
+      <Bitmap guid="guidImages" href="Resources\RevisionGraph.png"
+              usedList="bmpRevisionGraph" />
+    </Bitmaps>
   </Commands>
 
   <Symbols>
     <GuidSymbol name="guidRevisionGraphPackage" value="{b7e9c2a4-1f63-4d8e-9a2b-5c6d7e8f9a01}" />
     <GuidSymbol name="guidRevisionGraphCmdSet" value="{c1d2e3f4-a5b6-47c8-9d0e-1f2a3b4c5d6e}">
       <IDSymbol name="OpenGraphCommandId" value="0x0100" />
+    </GuidSymbol>
+    <GuidSymbol name="guidImages" value="{d4e5f6a7-b8c9-40d1-a2e3-f4a5b6c7d8e9}">
+      <IDSymbol name="bmpRevisionGraph" value="1" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

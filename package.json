@@ -16,7 +16,6 @@
     "build:vs-assets": "node scripts/copy-vs-assets.mjs",
     "build": "npm run build:core && npm run build:webview && npm run build:vscode && npm run build:vs-assets",
     "package:vscode": "node scripts/package-vscode.mjs",
-    "package:vscode-vs2026": "node scripts/package-vscode-vs2026.mjs",
     "package:all": "pwsh scripts/build-installers.ps1",
     "test": "vitest run",
     "test:watch": "vitest",

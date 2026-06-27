@@ -6,9 +6,8 @@
     Egyetlen szkript, amely az összes platformra előállítja a csomagokat:
 
       1. VS Code .vsix          (standard, VS Code 1.85+)
-      2. VS Code .vsix VS 2026  (VS 2026 beépített kódjához, engine 1.96+)
-      3. Visual Studio 2022 VSIX
-      4. Visual Studio 2026 VSIX
+      2. Visual Studio 2022 VSIX
+      3. Visual Studio 2026 VSIX
 
     A közös web renderert (packages/graph-webview) egyszer buildeli, majd
     minden host becsomagolja a saját igényei szerint.
@@ -30,9 +29,6 @@
 .PARAMETER SkipVSCode
     Átugorja a VS Code csomagokat; csak a Visual Studio VSIX-eket gyártja.
 
-.PARAMETER SkipVS2026Code
-    Átugorja a külön VS 2026-célzott VS Code .vsix csomagot.
-
 .EXAMPLE
     # Összes csomag egyszerre
     pwsh scripts\build-installers.ps1
@@ -47,8 +43,7 @@
 param(
     [string]$Configuration  = "Release",
     [switch]$VSCodeOnly,
-    [switch]$SkipVSCode,
-    [switch]$SkipVS2026Code
+    [switch]$SkipVSCode
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,18 +85,6 @@ if (-not $SkipVSCode) {
     Ok "VS Code (standard): $($vsixFile.Name)"
 }
 
-# ---------------------------------------------------------------------------
-# 3. VS Code .vsix VS 2026-hoz (engine ^1.96)
-# ---------------------------------------------------------------------------
-if (-not $SkipVSCode -and -not $SkipVS2026Code) {
-    Step "VS Code extension csomagolása VS 2026 célra (engine ^1.96)"
-    node scripts\package-vscode-vs2026.mjs
-    if ($LASTEXITCODE -ne 0) { Fail "VS 2026 VS Code csomag előállítása sikertelen." }
-    $vsix26 = Get-ChildItem "$installers\rev-graph-vscode-vs2026-*.vsix" |
-               Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    Ok "VS Code (VS 2026 célzott): $($vsix26.Name)"
-}
-
 if ($VSCodeOnly) {
     Step "Kész — csak VS Code csomagok."
     Get-ChildItem $installers | Format-Table Name, @{L="Méret (KB)";E={[math]::Round($_.Length/1KB,1)}}
@@ -109,7 +92,7 @@ if ($VSCodeOnly) {
 }
 
 # ---------------------------------------------------------------------------
-# 4. Visual Studio VSIX (2022 + 2026) MSBuild-del
+# 3. Visual Studio VSIX (2022 + 2026) MSBuild-del
 # ---------------------------------------------------------------------------
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $csproj   = Join-Path $root "vs\RevisionGraph.csproj"

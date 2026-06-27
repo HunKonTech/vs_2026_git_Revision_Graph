@@ -182,7 +182,6 @@ jobs:
             "| File | Description |",
             "|------|-------------|",
             "| rev-graph-vscode-$v.vsix | VS Code (engine ^1.85) |",
-            "| rev-graph-vscode-vs2026-$v.vsix | VS Code - VS 2026 built-in editor (engine ^1.96) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
             "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
           ) -join "`n"
@@ -262,26 +261,7 @@ jobs:
             --packagePath "$($vsix.FullName)"
 
       # -----------------------------------------------------------------------
-      # 8. VS Code Marketplace — VS 2026
-      # -----------------------------------------------------------------------
-      - name: Publish VS Code extension (VS 2026)
-        shell: powershell
-        env:
-          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
-        run: |
-          $vsix = Get-ChildItem dist/installers/rev-graph-vscode-vs2026-*.vsix |
-                  Select-Object -First 1
-          if (-not $vsix) {
-            Write-Warning "VS Code VS2026 VSIX not found - skipping."
-            exit 0
-          }
-          Write-Host "Publishing: $($vsix.Name)"
-          npx --yes @vscode/vsce publish `
-            --pat "$env:VSCE_PAT" `
-            --packagePath "$($vsix.FullName)"
-
-      # -----------------------------------------------------------------------
-      # 9. Visual Studio Marketplace (VsixPublisher.exe)
+      # 8. Visual Studio Marketplace (VsixPublisher.exe)
       # -----------------------------------------------------------------------
       - name: Publish Visual Studio extension
         shell: powershell

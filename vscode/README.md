@@ -32,3 +32,40 @@ Open a folder or workspace that contains a Git repository, then either:
 
 - Source code: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
 - License: **HunKon Personal Use License v1.0** — free for personal use.
+
+---
+
+# Git Revision Graph (Magyar)
+
+Egy **TortoiseSVN-stílusú revíziógraf** Git-hez **VS Code**-on belül.
+A commitok, helyi és távoli ágak, valamint tagek összekötött, színkódolt dobozokként jelennek meg.
+
+![Git Revision Graph](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
+
+## Megnyitás
+
+Nyiss meg egy mappát vagy munkaterületet, amely egy Git repozitóriumot tartalmaz, majd:
+
+- Nyisd meg a **Parancspalettát** (`Ctrl+Shift+P`) és futtasd a **"Git Revision Graph: Open Revision Graph"** parancsot, vagy
+- Kattints a **gráf ikonra** a Forráskezelő panel fejlécében (jobb felső sarok), vagy
+- Használd a **`Ctrl+Alt+G`** billentyűparancsot.
+
+## Funkciók
+
+- **DAG elrendezés** — a commitok áganként oszlopokba rendezve, összekötő vonalakkal.
+- **Színkódolt csomópontok** — HEAD/aktuális ág (piros), helyi ágak (zöld), távoli ágak (kék), tagek (sárga), sima commitok (szürke).
+- **Jobb klikk egy commitra** → *"Ág létrehozása innen…"* — új ágat hoz létre az adott committól a VS Code beépített Git-jén keresztül, majd frissíti a gráfot.
+- **Checkout** — commit közvetlen kivétele a gráfból.
+- **SHA másolása** bármely commithoz.
+- **Nagyítás és mozgatás** a gráf felületén.
+
+## Beállítások
+
+| Beállítás | Alapértelmezett | Leírás |
+|---|---|---|
+| `revGraph.maxCommits` | `1000` | A gráfba betöltendő commitok maximális száma. |
+
+## Forráskód és licenc
+
+- Forráskód: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
+- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes.

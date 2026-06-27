@@ -25,3 +25,33 @@ The graph loads automatically and shows the full commit DAG of the current repos
 
 - Source code: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
 - License: **HunKon Personal Use License v1.0** — free for personal use.
+
+---
+
+# Git Revision Graph (Magyar)
+
+Egy **TortoiseSVN-stílusú revíziógraf** Git-hez **Visual Studio 2022 és 2026** számára.
+A commitok, helyi és távoli ágak, valamint tagek összekötött, színkódolt dobozokként jelennek meg — pont úgy, mint az SVN klasszikus revíziógrafja.
+
+![Git Revision Graph](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
+
+## Megnyitás
+
+1. Nyiss meg egy mappát vagy megoldást, amely egy Git repozitóriumon belül van.
+2. Lépj a **Nézet → Egyéb ablakok → Revision Graph** menüpontba.
+
+A gráf automatikusan betölti az aktuális repozitórium teljes commit-fáját.
+
+## Funkciók
+
+- **DAG elrendezés** — a commitok áganként oszlopokba rendezve, összekötő vonalakkal.
+- **Színkódolt csomópontok** — HEAD/aktuális ág (piros), helyi ágak (zöld), távoli ágak (kék), tagek (sárga), sima commitok (szürke).
+- **Jobb klikk egy commitra** → *"Ág létrehozása innen…"* — új ágat hoz létre az adott committól a natív Git CLI-vel, majd frissíti a gráfot.
+- **Checkout** — commit közvetlen kivétele a gráfból.
+- **SHA másolása** bármely commithoz.
+- **Nagyítás és mozgatás** a gráf felületén.
+
+## Forráskód és licenc
+
+- Forráskód: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
+- Licenc: **HunKon Personal Use License v1.0** — személyes használatra ingyenes.

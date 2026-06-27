@@ -571,13 +571,10 @@ jobs:
           BUFFER_POST_MODE: ${{ secrets.BUFFER_POST_MODE }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
           BUFFER_POST_TEMPLATE: |
-            Git Revision Graph {tag} released!
-
-            Visualize git branches & commits in VS Code and Visual Studio.
-            Lathatova az osszes agat es commitot VS Code-ban.
+            Git Revision Graph: a TortoiseSVN-style Git history visualizer for VS Code & Visual Studio. See all branches, commits & tags as connected boxes, then right-click any commit to create a branch — using native Git.
+            Új build, friss funkciók — nézd meg! 🚀
 
             {release_url}
-            #git #vscode #VisualStudio #DevTools #GitHistory
         run: |
           python3 scripts/post_buffer_release.py \
             --app-name "Git Revision Graph" \

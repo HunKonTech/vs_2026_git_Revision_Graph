@@ -14,6 +14,8 @@ from typing import Any, Iterable
 
 API_URL = "https://api.buffer.com"
 MAX_POST_LENGTH = 280
+_URL_RE = re.compile(r"https?://\S+")
+_X_URL_LENGTH = 23  # X shortens every URL to a t.co link of this length
 DEFAULT_TEMPLATE = (
     "{app_name} scans photos offline, finds faces, and groups the same people locally. "
     "Label and organize identities with full privacy.\n\n"
@@ -158,9 +160,14 @@ def format_platform_list(platforms: list[str]) -> str:
     return f"{', '.join(cleaned[:-1])} es {cleaned[-1]}"
 
 
+def _x_weighted_length(text: str) -> int:
+    return len(_URL_RE.sub("x" * _X_URL_LENGTH, text))
+
+
 def ensure_post_length(text: str) -> None:
-    if len(text) > MAX_POST_LENGTH:
-        raise ValueError(f"Generated Buffer post is too long ({len(text)} characters).")
+    length = _x_weighted_length(text)
+    if length > MAX_POST_LENGTH:
+        raise ValueError(f"Generated Buffer post is too long ({length} weighted characters).")
 
 
 def validate_mode(value: str) -> str:

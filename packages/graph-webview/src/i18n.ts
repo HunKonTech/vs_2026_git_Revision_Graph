@@ -54,6 +54,7 @@ type Dict = {
   "legend.head": string;
   "legend.local": string;
   "legend.remote": string;
+  "legend.remoteOnly": string;
   "legend.tag": string;
   "legend.commit": string;
   "menu.createBranch": string;
@@ -121,6 +122,7 @@ const DICTS: Record<Lang, Dict> = {
     "legend.head": "HEAD / current branch",
     "legend.local": "Local branch",
     "legend.remote": "Remote branch",
+    "legend.remoteOnly": "Only in the cloud (not pulled)",
     "legend.tag": "Tag (version)",
     "legend.commit": "Commit",
     "menu.createBranch": "Create branch from here…",
@@ -186,6 +188,7 @@ const DICTS: Record<Lang, Dict> = {
     "legend.head": "HEAD / aktuális branch",
     "legend.local": "Lokális branch",
     "legend.remote": "Távoli branch (remote)",
+    "legend.remoteOnly": "Csak a felhőben (nincs pull-olva)",
     "legend.tag": "Tag (verzió)",
     "legend.commit": "Commit",
     "menu.createBranch": "Branch létrehozása innen…",

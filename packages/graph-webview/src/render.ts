@@ -24,7 +24,7 @@ const MARGIN = 28;
 type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit";
 
 export interface RenderCallbacks {
-  onNodeContextMenu(sha: string, clientX: number, clientY: number): void;
+  onNodeContextMenu(commit: PositionedCommit, clientX: number, clientY: number): void;
   onNodeDblClick(sha: string): void;
   onNodeClick(commit: PositionedCommit): void;
 }
@@ -43,12 +43,14 @@ export class GraphView {
   private mode: DisplayMode = "modern";
   /** Pixel height of each row = tallest box on it, indexed by row (level). */
   private rowHeights: number[] = [];
-  /** Own pixel height of each commit's box, by sha (grows with its ref count). */
+  /** Own pixel height of each box, by nodeId (grows with its ref count). */
   private readonly ownHeight = new Map<string, number>();
   /** Top Y of each row, indexed by row (cumulative — rows vary in height). */
   private rowTops: number[] = [];
   /** Sha of the currently checked-out commit (HEAD), if known. */
   private head: string | null = null;
+  /** Whether any ref in the current layout is flagged as the current branch. */
+  private hasCurrentRef = false;
 
   // pan/zoom state
   private scale = 1;
@@ -133,9 +135,10 @@ export class GraphView {
     // height is the tallest box on it (each box is sized to list all its refs).
     this.rowHeights = new Array(this.layout.rowCount).fill(CONTENT_H);
     this.ownHeight.clear();
+    this.hasCurrentRef = this.layout.commits.some((c) => c.refs.some((r) => r.isCurrent));
     for (const c of this.layout.commits) {
       const h = boxHeight(c);
-      this.ownHeight.set(c.sha, h);
+      this.ownHeight.set(c.nodeId, h);
       if (h > (this.rowHeights[c.row] ?? 0)) this.rowHeights[c.row] = h;
     }
     this.rowTops = [];
@@ -199,7 +202,7 @@ export class GraphView {
   private edgePath(e: LayoutEdge): SVGPathElement {
     const cx = this.boxX(e.fromLane) + BOX_W / 2;
     // Child bottom uses the child's own box height (rows can hold several boxes).
-    const cy = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromSha) ?? CONTENT_H);
+    const cy = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
     const px = this.boxX(e.toLane) + BOX_W / 2;
     const py = this.boxY(e.toRow); // parent top
     const isMerge = e.isMerge;
@@ -216,11 +219,22 @@ export class GraphView {
     const y = this.boxY(c.row);
     const h = boxHeight(c); // this box's own height (a row may hold taller boxes)
     const kind = nodeKind(c);
-    const isHead = this.head != null && c.sha === this.head;
+    // The HEAD marker belongs on the node carrying the current branch; when the
+    // checkout is detached (no current ref anywhere) it falls back to the commit
+    // whose sha is HEAD. This keeps it off the real commit when a freshly created
+    // current branch has been split into its own phantom node.
+    const isHead =
+      this.head != null &&
+      c.sha === this.head &&
+      (c.refs.some((r) => r.isCurrent) || !this.hasCurrentRef);
+
+    if (c.phantom) return this.phantomBox(c, x, y, h, kind, isHead);
 
     const g = document.createElementNS(SVG_NS, "g");
     g.classList.add("node", `node-${kind}`);
     if (isHead) g.classList.add("node-current");
+    // Fetched-but-not-pulled commits: stay in their lane, flagged by colour.
+    if (c.remoteOnly) g.classList.add("node-remote-only");
     g.dataset.sha = c.sha;
     g.setAttribute("transform", `translate(${x} ${y})`);
 
@@ -309,27 +323,77 @@ export class GraphView {
 
     // ref labels listed inside the box, one per row, so all stay visible and
     // none hang off the edge.
-    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i, dy)));
+    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i, CONTENT_H + dy)));
 
     // tooltip
     const title = document.createElementNS(SVG_NS, "title");
     title.textContent = `${c.sha}\n${c.summary}\n${c.author} <${c.authorEmail}>\n${c.date}`;
     g.appendChild(title);
 
+    this.wireNodeEvents(g, c);
+    return g;
+  }
+
+  /**
+   * Compact box for a phantom node: a branch with no commits of its own, drawn
+   * one lane right of (and branching up from) the commit it shares. Shows just
+   * the branch header and its ref chip(s) — no sha/summary/author/date, since
+   * those belong to the real commit it points at.
+   */
+  private phantomBox(
+    c: PositionedCommit,
+    x: number,
+    y: number,
+    h: number,
+    kind: NodeKind,
+    isHead: boolean,
+  ): SVGGElement {
+    const g = document.createElementNS(SVG_NS, "g");
+    g.classList.add("node", "node-phantom", `node-${kind}`);
+    if (isHead) g.classList.add("node-current");
+    g.dataset.sha = c.sha;
+    g.setAttribute("transform", `translate(${x} ${y})`);
+
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("width", String(BOX_W));
+    rect.setAttribute("height", String(h));
+    rect.setAttribute("rx", "6");
+    rect.classList.add("node-rect");
+    g.appendChild(rect);
+
+    if (c.branch) {
+      const branchEl = document.createElementNS(SVG_NS, "text");
+      branchEl.setAttribute("x", "10");
+      branchEl.setAttribute("y", "13");
+      branchEl.classList.add("node-branch");
+      branchEl.textContent = truncate(c.branch, 24);
+      g.appendChild(branchEl);
+    }
+
+    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i, BRANCH_HEADER_H)));
+
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = `${c.branch ?? ""}\n${c.sha}`;
+    g.appendChild(title);
+
+    this.wireNodeEvents(g, c);
+    return g;
+  }
+
+  /** Attach the shared context-menu / click / double-click handlers to a node. */
+  private wireNodeEvents(g: SVGGElement, c: PositionedCommit): void {
     g.addEventListener("contextmenu", (ev) => {
       ev.preventDefault();
-      this.cb.onNodeContextMenu(c.sha, ev.clientX, ev.clientY);
+      this.cb.onNodeContextMenu(c, ev.clientX, ev.clientY);
     });
     g.addEventListener("click", (ev) => {
       ev.stopPropagation();
       this.cb.onNodeClick(c);
     });
     g.addEventListener("dblclick", () => this.cb.onNodeDblClick(c.sha));
-
-    return g;
   }
 
-  private refRow(ref: GitRef, index: number, dy: number): SVGGElement {
+  private refRow(ref: GitRef, index: number, baseY: number): SVGGElement {
     const g = document.createElementNS(SVG_NS, "g");
     g.classList.add("ref-chip", `ref-${ref.type}`);
     const label = ref.type === "head" ? "HEAD" : ref.name;
@@ -341,7 +405,7 @@ export class GraphView {
     const innerChars = Math.max(3, Math.floor((maxW - 12) / 6.2));
     const text = truncate(label, innerChars);
     const w = Math.min(maxW, 12 + text.length * 6.2);
-    const yTop = CONTENT_H + dy + REF_PAD + index * REF_ROW_H;
+    const yTop = baseY + REF_PAD + index * REF_ROW_H;
     g.setAttribute("transform", `translate(${sideMargin} ${yTop})`);
 
     const r = document.createElementNS(SVG_NS, "rect");
@@ -413,21 +477,22 @@ export class GraphView {
   }
 }
 
-/** Returns the branch name to show at the top of the box, or null if none. */
+/**
+ * Branch name shown at the top of the box. Comes from the layout (the branch
+ * owning the commit's column), so it appears on *every* commit in the column,
+ * not only at the tip where a ref points.
+ */
 function primaryBranch(c: PositionedCommit): string | null {
-  const current = c.refs.find((r) => r.isCurrent && r.type !== "head");
-  if (current) return current.name;
-  const local = c.refs.find((r) => r.type === "localBranch");
-  if (local) return local.name;
-  const remote = c.refs.find((r) => r.type === "remoteBranch");
-  if (remote) return remote.name;
-  return null;
+  return c.branch;
 }
 
 /** Box height = branch header (if any) + fixed text area + one row per ref. */
 function boxHeight(c: PositionedCommit): number {
+  const refsH = c.refs.length > 0 ? REF_PAD + c.refs.length * REF_ROW_H : 0;
+  // Phantom nodes carry only a header + chips; no commit text area.
+  if (c.phantom) return BRANCH_HEADER_H + refsH + REF_PAD;
   const dy = primaryBranch(c) ? BRANCH_HEADER_H : 0;
-  return CONTENT_H + dy + (c.refs.length > 0 ? REF_PAD + c.refs.length * REF_ROW_H : 0);
+  return CONTENT_H + dy + refsH;
 }
 
 function nodeKind(c: PositionedCommit): NodeKind {

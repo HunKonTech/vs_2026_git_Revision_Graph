@@ -12,12 +12,38 @@ export interface PositionedCommit extends GitCommit {
   lane: number;
   /** Refs that point directly at this commit (branches, tags, HEAD). */
   refs: GitRef[];
+  /**
+   * Unique key for this node. Equals `sha` for real commits; phantom nodes (a
+   * branch that has no commits of its own yet) reuse their anchor's sha but get
+   * a distinct id so heights/edges don't collide with the real commit.
+   */
+  nodeId: string;
+  /**
+   * Branch name that owns this commit's column, or null when unlabeled. Shown as
+   * the box header on *every* commit in the column, not only at the tip.
+   */
+  branch: string | null;
+  /**
+   * True for a synthetic node standing in for a branch with no commits of its
+   * own (it points at the same commit as the branch it was created from).
+   */
+  phantom?: boolean;
+  /**
+   * True when the commit lives only on a remote: reachable from a remote-tracking
+   * branch but from no local branch or HEAD. These are fetched-but-not-pulled
+   * commits ("only in the cloud"). They stay in their branch's lane (no rightward
+   * shift) and the renderer flags them by colour instead.
+   */
+  remoteOnly: boolean;
 }
 
 /** A connection from a child commit down to one of its parents. */
 export interface LayoutEdge {
   fromSha: string;
   toSha: string;
+  /** Node ids of the endpoints (differ from the shas only for phantom nodes). */
+  fromId: string;
+  toId: string;
   fromRow: number;
   fromLane: number;
   toRow: number;
@@ -106,10 +132,6 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       }
     }
   }
-  // Level 0 is the top (highest generation). Generations are contiguous
-  // (a commit at gen g has an in-view parent at gen g-1), so every level is used.
-  const levelOf = (sha: string): number => maxGen - (genOf.get(sha) ?? 0);
-
   // refs grouped by the commit they point at, so render can label nodes.
   const refsBySha = new Map<string, GitRef[]>();
   for (const ref of data.refs) {
@@ -133,12 +155,25 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     /** Row span the column's commits occupy (filled in phase 2). */
     minRow: number;
     maxRow: number;
+    /** Commit that seeded the column (its tip). Empty for phantom columns. */
+    seed: string;
+    /** Branch name owning this column, or null when it is unlabeled. */
+    branch: string | null;
   }
   const columns: Column[] = [];
   const colOf = new Map<string, number>();
 
-  const mainTip = resolveMainTipSha(data, options.mainBranch);
-  const mainColSha = mainTip != null && present.has(mainTip) ? mainTip : undefined;
+  const main = resolveMain(data, options.mainBranch);
+  // When the trunk's remote-tracking branch is ahead of the local tip (fetched
+  // but not pulled), seed the trunk column from that remote tip so the un-pulled
+  // commits continue the trunk lane instead of forking off to the right. Only a
+  // fast-forward ahead on the same first-parent line qualifies, so a genuinely
+  // diverged remote still gets its own column.
+  const mainAnchor = main.sha != null && present.has(main.sha) ? main.sha : undefined;
+  const mainColSha =
+    mainAnchor !== undefined
+      ? aheadTip(mainAnchor, main.name, data, genOf, bySha, present)
+      : undefined;
 
   const seeds: string[] = [];
   const pushSeed = (sha: string | null | undefined): void => {
@@ -155,7 +190,23 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     if (colOf.has(seed)) continue;
     const col = nextCol++;
     const seedGen = genOf.get(seed) ?? 0;
-    columns[col] = { id: col, tipGen: seedGen, baseGen: seedGen, forkParent: null, minRow: 0, maxRow: 0 };
+    // The main column is always labeled with the main branch, even when another
+    // (e.g. the current) branch shares its tip; every other column takes the
+    // highest-priority branch ref sitting on its seed.
+    const branch =
+      seed === mainColSha
+        ? main.name ?? pickBranchName(refsBySha.get(seed))
+        : pickBranchName(refsBySha.get(seed));
+    columns[col] = {
+      id: col,
+      tipGen: seedGen,
+      baseGen: seedGen,
+      forkParent: null,
+      minRow: 0,
+      maxRow: 0,
+      seed,
+      branch,
+    };
     let cur: string | undefined = seed;
     while (cur !== undefined) {
       colOf.set(cur, col);
@@ -172,12 +223,47 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     }
   }
 
+  // ---- Phase 1b: phantom columns for branches with no commits of their own. --
+  // A freshly created branch points at the same commit as the branch it was made
+  // from (e.g. a new branch off `main`), so it never seeds a column — its tip is
+  // already claimed. Rather than pile its chip inside the owning branch's box, we
+  // give it a small synthetic node one lane to the right, branching off the
+  // shared commit, exactly where TortoiseSVN shows a branch copy.
+  interface Phantom {
+    branch: string;
+    refs: GitRef[];
+    anchorSha: string;
+    anchorGen: number;
+  }
+  const phantoms: Phantom[] = [];
+  const extraRefs = new Set<GitRef>();
+  for (const ref of data.refs) {
+    if (ref.type !== "localBranch") continue; // only local branches split off
+    const sha = ref.targetSha;
+    if (!present.has(sha)) continue;
+    const col = colOf.get(sha);
+    if (col === undefined) continue;
+    const owner = columns[col]!;
+    // Only split a branch that shares the column's *tip* (its seed) and is not
+    // itself the owner. Branches on older/interior commits keep their chip.
+    if (owner.seed !== sha || owner.branch === ref.name) continue;
+    extraRefs.add(ref);
+    phantoms.push({ branch: ref.name, refs: [ref], anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
+  }
+
+  // Phantoms sit one generation above their anchor, which can extend the grid.
+  let effMaxGen = maxGen;
+  for (const ph of phantoms) effMaxGen = Math.max(effMaxGen, ph.anchorGen + 1);
+  // Level 0 is the top (highest generation). Generations are contiguous, so a
+  // commit's level is just its distance from the top.
+  const levelOf = (sha: string): number => effMaxGen - (genOf.get(sha) ?? 0);
+
   // ---- Phase 2: assign lanes with column compaction. ----
   // Each column's commits occupy a contiguous row span (tip = highest
   // generation = topmost row; base = lowest = bottommost).
   for (const col of columns) {
-    col.minRow = maxGen - col.tipGen;
-    col.maxRow = maxGen - col.baseGen;
+    col.minRow = effMaxGen - col.tipGen;
+    col.maxRow = effMaxGen - col.baseGen;
   }
   // Order columns by creation point so earlier branches are placed first (and
   // therefore tend to land further left); topmost tip breaks ties.
@@ -218,18 +304,69 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     place(id, 1);
   }
 
+  // Phantom columns are placed last, always one lane to the right of their
+  // anchor so a new branch never lands left of the branch it came from.
+  interface PlacedPhantom {
+    ph: Phantom;
+    lane: number;
+    row: number;
+  }
+  const placedPhantoms: PlacedPhantom[] = [];
+  for (const ph of phantoms) {
+    const anchorCol = colOf.get(ph.anchorSha)!;
+    const anchorLane = laneOf.get(anchorCol) ?? 0;
+    const row = effMaxGen - (ph.anchorGen + 1);
+    const id = columns.length;
+    columns[id] = {
+      id,
+      tipGen: ph.anchorGen + 1,
+      baseGen: ph.anchorGen + 1,
+      forkParent: anchorCol,
+      minRow: row,
+      maxRow: row,
+      seed: "",
+      branch: ph.branch,
+    };
+    place(id, anchorLane + 1);
+    placedPhantoms.push({ ph, lane: laneOf.get(id)!, row });
+  }
+
   // ---- Phase 3: position commits (row = structural level) and build edges. ----
+  // Commits reachable only from a remote-tracking branch (not from any local
+  // branch or HEAD) are "in the cloud only" — fetched but not pulled. Marked so
+  // the renderer can tint them without shifting them out of their lane.
+  const localReach = reachableFrom(
+    [
+      ...data.refs.filter((r) => r.type === "localBranch").map((r) => r.targetSha),
+      ...(data.head != null ? [data.head] : []),
+    ],
+    bySha,
+    present,
+  );
+  const remoteReach = reachableFrom(
+    data.refs.filter((r) => r.type === "remoteBranch").map((r) => r.targetSha),
+    bySha,
+    present,
+  );
+  const isRemoteOnly = (sha: string): boolean => remoteReach.has(sha) && !localReach.has(sha);
+
   const positioned: PositionedCommit[] = [];
   const posBySha = new Map<string, PositionedCommit>();
   let maxLane = 0;
 
   commits.forEach((commit) => {
-    const lane = laneOf.get(colOf.get(commit.sha)!) ?? 0;
+    const col = colOf.get(commit.sha)!;
+    const lane = laneOf.get(col) ?? 0;
+    // Refs split off onto a phantom are dropped here so they show only there.
+    const refs = (refsBySha.get(commit.sha) ?? []).filter((r) => !extraRefs.has(r));
     const pc: PositionedCommit = {
       ...commit,
       row: levelOf(commit.sha),
       lane,
-      refs: refsBySha.get(commit.sha) ?? [],
+      refs,
+      nodeId: commit.sha,
+      branch: columns[col]!.branch,
+      remoteOnly: isRemoteOnly(commit.sha),
     };
     positioned.push(pc);
     posBySha.set(commit.sha, pc);
@@ -244,6 +381,8 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       edges.push({
         fromSha: c.sha,
         toSha: p,
+        fromId: c.nodeId,
+        toId: parent.nodeId,
         fromRow: c.row,
         fromLane: c.lane,
         toRow: parent.row,
@@ -253,35 +392,163 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     });
   }
 
+  // Append phantom nodes and the edge linking each back to its shared commit.
+  for (const { ph, lane, row } of placedPhantoms) {
+    const anchor = posBySha.get(ph.anchorSha)!;
+    const nodeId = `${ph.anchorSha}@${ph.branch}`;
+    positioned.push({
+      ...anchor,
+      refs: ph.refs,
+      row,
+      lane,
+      nodeId,
+      branch: ph.branch,
+      phantom: true,
+    });
+    if (lane > maxLane) maxLane = lane;
+    edges.push({
+      fromSha: anchor.sha,
+      toSha: anchor.sha,
+      fromId: nodeId,
+      toId: anchor.nodeId,
+      fromRow: row,
+      fromLane: lane,
+      toRow: anchor.row,
+      toLane: anchor.lane,
+      isMerge: false,
+    });
+  }
+
   return {
     commits: positioned,
     edges,
     laneCount: maxLane + 1,
-    // Rows are structural levels (0..maxGen), several commits may share one.
-    rowCount: commits.length > 0 ? maxGen + 1 : 0,
+    // Rows are structural levels (0..effMaxGen), several commits may share one.
+    rowCount: commits.length > 0 ? effMaxGen + 1 : 0,
   };
 }
 
 /**
- * Pick the commit sha that anchors the trunk (leftmost lane). Preference order:
- * the explicitly configured main branch, then main/master, then the current
- * branch, then HEAD. Returns undefined when none can be determined.
+ * Resolve the commit (and branch name) that anchors the trunk (leftmost lane).
+ * Preference order: the explicitly configured main branch, then main/master,
+ * then the current branch, then HEAD. `name` is undefined when the trunk could
+ * only be pinned by sha (e.g. a detached HEAD with no branch).
  */
-function resolveMainTipSha(data: GraphData, mainBranch: string | undefined): string | undefined {
+function resolveMain(
+  data: GraphData,
+  mainBranch: string | undefined,
+): { sha?: string; name?: string } {
   if (mainBranch) {
     const ref = data.refs.find(
       (r) => (r.type === "localBranch" || r.type === "remoteBranch") && r.name === mainBranch,
     );
-    if (ref) return ref.targetSha;
+    if (ref) return { sha: ref.targetSha, name: ref.name };
   }
 
   const mm = data.refs.find(
     (r) => r.type === "localBranch" && (r.name === "main" || r.name === "master"),
   );
-  if (mm) return mm.targetSha;
+  if (mm) return { sha: mm.targetSha, name: mm.name };
 
   const current = data.refs.find((r) => r.isCurrent);
-  if (current) return current.targetSha;
+  if (current) return { sha: current.targetSha, name: current.type !== "head" ? current.name : undefined };
 
-  return data.head ?? undefined;
+  return { sha: data.head ?? undefined };
+}
+
+/**
+ * Highest-priority branch name among the refs sitting on one commit: the current
+ * branch, then any local branch, then any remote branch. Null when none point
+ * here. Mirrors the renderer's box-header preference.
+ */
+function pickBranchName(refs: GitRef[] | undefined): string | null {
+  if (!refs) return null;
+  const current = refs.find((r) => r.isCurrent && r.type !== "head");
+  if (current) return current.name;
+  const local = refs.find((r) => r.type === "localBranch");
+  if (local) return local.name;
+  const remote = refs.find((r) => r.type === "remoteBranch");
+  if (remote) return remote.name;
+  return null;
+}
+
+/**
+ * If the trunk branch named `branchName` has a remote-tracking counterpart that
+ * is *ahead* of `anchor` on the same first-parent line — fetched but not yet
+ * pulled — return that remote tip so the un-pulled commits extend the trunk lane
+ * instead of forking right. Returns `anchor` unchanged when there is no such
+ * fast-forward (no remote, behind, or genuinely diverged).
+ */
+function aheadTip(
+  anchor: string,
+  branchName: string | undefined,
+  data: GraphData,
+  genOf: Map<string, number>,
+  bySha: Map<string, GitCommit>,
+  present: Set<string>,
+): string {
+  if (branchName === undefined) return anchor;
+  const anchorGen = genOf.get(anchor) ?? 0;
+  const candidates = data.refs
+    .filter(
+      (r) =>
+        (r.type === "localBranch" || r.type === "remoteBranch") &&
+        present.has(r.targetSha) &&
+        logicalBranchName(r) === branchName &&
+        (genOf.get(r.targetSha) ?? 0) > anchorGen,
+    )
+    .map((r) => r.targetSha)
+    .sort((a, b) => (genOf.get(b) ?? 0) - (genOf.get(a) ?? 0));
+  for (const tip of candidates) {
+    if (firstParentReaches(tip, anchor, bySha, present)) return tip;
+  }
+  return anchor;
+}
+
+/** Branch name without its remote prefix: "origin/main" -> "main", "main" -> "main". */
+function logicalBranchName(ref: GitRef): string {
+  if (ref.type === "remoteBranch") {
+    if (ref.remote && ref.name.startsWith(ref.remote + "/")) {
+      return ref.name.slice(ref.remote.length + 1);
+    }
+    const slash = ref.name.indexOf("/");
+    if (slash >= 0) return ref.name.slice(slash + 1);
+  }
+  return ref.name;
+}
+
+/** True when walking first parents from `from` reaches `target` (in view). */
+function firstParentReaches(
+  from: string,
+  target: string,
+  bySha: Map<string, GitCommit>,
+  present: Set<string>,
+): boolean {
+  let cur: string | undefined = from;
+  const seen = new Set<string>();
+  while (cur !== undefined && !seen.has(cur)) {
+    if (cur === target) return true;
+    seen.add(cur);
+    cur = bySha.get(cur)?.parents.filter((p) => present.has(p))[0];
+  }
+  return false;
+}
+
+/** Set of in-view commits reachable from any of `tips`, walking all parents. */
+function reachableFrom(
+  tips: string[],
+  bySha: Map<string, GitCommit>,
+  present: Set<string>,
+): Set<string> {
+  const seen = new Set<string>();
+  const stack = tips.filter((t) => present.has(t));
+  while (stack.length > 0) {
+    const sha = stack.pop()!;
+    if (seen.has(sha)) continue;
+    seen.add(sha);
+    for (const p of bySha.get(sha)?.parents ?? []) {
+      if (present.has(p) && !seen.has(p)) stack.push(p);
+    }
+  }
+  return seen;
 }

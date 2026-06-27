@@ -11,6 +11,8 @@
   --remote-bg: #2f6fb0;
   --tag-bg: #b9a23a;
   --head-bg: #b0473a;
+  /* Commits that exist only on the remote (fetched, not pulled) — "in the cloud". */
+  --remote-only-bg: #33506e;
   --edge: #8a8a8a;
   --edge-merge: #c08a3a;
 }
@@ -146,6 +148,21 @@ body,
   stroke: var(--accent);
   stroke-width: 2;
 }
+/* Phantom = a branch with no commits of its own; drawn as a dashed label box. */
+.node-phantom .node-rect {
+  stroke-dasharray: 4 3;
+  opacity: 0.97;
+}
+/* Fetched-but-not-pulled: lives only on the remote ("in the cloud"). Stays in
+   its branch lane — no rightward shift — and is flagged by a dashed, cloud-tinted
+   box instead. Applies whatever ref kind the node carries, so an un-pulled remote
+   tip and the plain commits below it read as one un-pulled run. */
+.node-remote-only .node-rect {
+  fill: var(--remote-only-bg);
+  stroke: var(--remote-bg);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
 
 .node-branch {
   fill: rgba(255, 255, 255, 0.95);
@@ -265,6 +282,10 @@ body,
 .legend-swatch.remote   { background: var(--remote-bg); }
 .legend-swatch.tag      { background: var(--tag-bg); }
 .legend-swatch.commit   { background: var(--commit-bg); }
+.legend-swatch.remote-only {
+  background: var(--remote-only-bg);
+  border: 1px dashed var(--remote-bg);
+}
 .legend[data-collapsed] .legend-body { display: none; }
 
 /* settings modal */

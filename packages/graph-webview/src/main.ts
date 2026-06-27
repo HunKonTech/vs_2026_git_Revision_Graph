@@ -59,14 +59,14 @@ function boot(): void {
   const bridge = createHostBridge();
 
   const view = new GraphView(canvas, {
-    onNodeContextMenu(sha, x, y) {
-      const commit = view.getPositionedCommit(sha);
-      const localBranches = (commit?.refs ?? []).filter((r) => r.type === "localBranch");
+    onNodeContextMenu(commit, x, y) {
+      const sha = commit.sha;
+      const localBranches = commit.refs.filter((r) => r.type === "localBranch");
 
       const items: MenuItem[] = [
         {
           label: t("menu.createBranch"),
-          action: () => startCreateBranch(sha, commit?.refs ?? []),
+          action: () => startCreateBranch(sha, commit.refs),
         },
         {
           label: t("menu.checkout"),
@@ -256,6 +256,7 @@ const LEGEND_ITEMS: { cls: string; key: MsgKey }[] = [
   { cls: "head", key: "legend.head" },
   { cls: "local", key: "legend.local" },
   { cls: "remote", key: "legend.remote" },
+  { cls: "remote-only", key: "legend.remoteOnly" },
   { cls: "tag", key: "legend.tag" },
   { cls: "commit", key: "legend.commit" },
 ];

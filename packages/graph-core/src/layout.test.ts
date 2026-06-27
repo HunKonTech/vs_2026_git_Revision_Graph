@@ -253,6 +253,64 @@ describe("computeLayout", () => {
     expect(merge.toRow - merge.fromRow).toBe(1); // exactly one level
   });
 
+  it("labels every commit in a column with its owning branch", () => {
+    // main: C -> B -> A ; the branch name should show on B and A too, not just C.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [{ name: "main", type: "localBranch", targetSha: "C", isCurrent: true }],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    const branchOf = (sha: string) => layout.commits.find((c) => c.sha === sha)!.branch;
+    expect(branchOf("C")).toBe("main");
+    expect(branchOf("B")).toBe("main");
+    expect(branchOf("A")).toBe("main");
+  });
+
+  it("splits a brand-new branch (no own commits) into its own lane", () => {
+    // `feature` was just created off main's tip C — both refs point at C.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "C" },
+          { name: "feature", type: "localBranch", targetSha: "C", isCurrent: true },
+        ],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    // A phantom node carries `feature`, to the right of main's lane.
+    const phantom = layout.commits.find((c) => c.phantom)!;
+    expect(phantom).toBeDefined();
+    expect(phantom.branch).toBe("feature");
+    expect(phantom.sha).toBe("C"); // points at the shared commit
+    const mainTip = layout.commits.find((c) => c.sha === "C" && !c.phantom)!;
+    expect(phantom.lane).toBeGreaterThan(mainTip.lane);
+    // The feature chip moved off main's box onto the phantom.
+    expect(mainTip.refs.map((r) => r.name)).not.toContain("feature");
+    expect(phantom.refs.map((r) => r.name)).toContain("feature");
+    // An edge connects the phantom back to the shared commit.
+    expect(layout.edges.some((e) => e.fromId === phantom.nodeId && e.toSha === "C")).toBe(true);
+  });
+
+  it("keeps a remote-tracking branch behind its local branch as an in-box chip", () => {
+    // origin/main sits on an older commit; it must NOT become a phantom lane.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "C", isCurrent: true },
+          { name: "origin/main", type: "remoteBranch", targetSha: "B", remote: "origin" },
+        ],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    expect(layout.commits.some((c) => c.phantom)).toBe(false);
+    const b = layout.commits.find((c) => c.sha === "B")!;
+    expect(b.refs.map((r) => r.name)).toContain("origin/main");
+  });
+
   it("attaches refs to the commit they point at", () => {
     const layout = computeLayout(
       data([commit("C", ["B"]), commit("B")], {
@@ -267,5 +325,54 @@ describe("computeLayout", () => {
     const b = layout.commits.find((x) => x.sha === "B")!;
     expect(c.refs.map((r) => r.name)).toContain("main");
     expect(b.refs.map((r) => r.name)).toContain("origin/main");
+  });
+
+  it("keeps fetched-but-not-pulled commits in the trunk lane, flagged remote-only", () => {
+    // origin/main is two commits ahead of local main (fetch ran, no pull):
+    //   R2 (origin/main) -> R1 -> M (main, current) -> A
+    const layout = computeLayout(
+      data([commit("R2", ["R1"]), commit("R1", ["M"]), commit("M", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "M", isCurrent: true },
+          { name: "origin/main", type: "remoteBranch", targetSha: "R2", remote: "origin" },
+        ],
+        head: "M",
+      }),
+      { mainBranch: "main" },
+    );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
+    // Un-pulled commits continue the trunk lane instead of forking right.
+    expect(at("R2").lane).toBe(0);
+    expect(at("R1").lane).toBe(0);
+    expect(at("M").lane).toBe(0);
+    expect(at("A").lane).toBe(0);
+    expect(layout.laneCount).toBe(1);
+    // ...and they are marked as living only in the cloud.
+    expect(at("R2").remoteOnly).toBe(true);
+    expect(at("R1").remoteOnly).toBe(true);
+    expect(at("M").remoteOnly).toBe(false);
+    expect(at("A").remoteOnly).toBe(false);
+  });
+
+  it("still forks a genuinely diverged remote into its own lane", () => {
+    // Both built on A but on different lines — origin/main is NOT a fast-forward
+    // of local main, so it must keep its own column.
+    //   M (main)   R2 (origin/main) -> R1
+    //        \      /
+    //           A
+    const layout = computeLayout(
+      data([commit("R2", ["R1"]), commit("R1", ["A"]), commit("M", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "M", isCurrent: true },
+          { name: "origin/main", type: "remoteBranch", targetSha: "R2", remote: "origin" },
+        ],
+        head: "M",
+      }),
+      { mainBranch: "main" },
+    );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
+    expect(at("M").lane).toBe(0); // local trunk stays left
+    expect(at("R2").lane).toBeGreaterThan(0); // diverged remote forks right
+    expect(at("R2").remoteOnly).toBe(true); // and is still cloud-only
   });
 });

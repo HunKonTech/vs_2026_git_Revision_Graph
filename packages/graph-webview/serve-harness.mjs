@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const PORT = 5599;
+const PORT = process.env.PORT ?? 5599;
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".map": "application/json" };
 
 const server = createServer(async (req, res) => {

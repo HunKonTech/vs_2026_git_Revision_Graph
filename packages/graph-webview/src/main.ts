@@ -4,6 +4,7 @@ import { showContextMenu, closeContextMenu } from "./contextMenu.js";
 import { toggleSettings, closeSettings } from "./settings.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
 import type { GraphData, ThemeTokens } from "@rev-graph/protocol";
+import type { PositionedCommit } from "@rev-graph/graph-core";
 import "./style.css";
 
 const DEFAULT_THEME: ThemeTokens = {
@@ -35,7 +36,14 @@ function boot(): void {
   const legend = buildLegend();
   canvas.appendChild(legend);
 
-  root.appendChild(canvas);
+  const detailsPanel = buildDetailsPanel();
+
+  const mainContent = document.createElement("div");
+  mainContent.className = "main-content";
+  mainContent.appendChild(canvas);
+  mainContent.appendChild(detailsPanel);
+
+  root.appendChild(mainContent);
   root.appendChild(statusBar);
 
   const bridge = createHostBridge();
@@ -60,6 +68,9 @@ function boot(): void {
     },
     onNodeDblClick(sha) {
       bridge.post({ type: "checkout", sha });
+    },
+    onNodeClick(commit) {
+      showCommitDetails(detailsPanel, commit);
     },
   });
 
@@ -90,6 +101,7 @@ function boot(): void {
 
   function renderData(data: GraphData): void {
     closeContextMenu();
+    detailsPanel.dataset.hidden = "";
     view.setData(data);
     renderStatus(() =>
       t("status.summary", {
@@ -113,7 +125,7 @@ function boot(): void {
     if (act === "reset") view.resetView();
     if (act === "settings") toggleSettings(toolbar);
   });
-  root.insertBefore(toolbar, canvas);
+  root.insertBefore(toolbar, mainContent);
 
   // Re-render all static text when the language changes.
   onLangChange(() => {
@@ -188,6 +200,67 @@ function relabelLegend(legend: HTMLElement): void {
     const el = labels[i];
     if (el) el.textContent = t(item.key);
   });
+}
+
+function buildDetailsPanel(): HTMLElement {
+  const panel = document.createElement("div");
+  panel.className = "details-panel";
+  panel.dataset.hidden = "";
+  return panel;
+}
+
+function showCommitDetails(panel: HTMLElement, commit: PositionedCommit): void {
+  delete panel.dataset.hidden;
+  panel.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "details-header";
+  header.textContent = "Commit Details";
+  panel.appendChild(header);
+
+  addDetailRow(panel, "SHA", commit.sha, "details-sha");
+  addDetailRow(panel, "Message", commit.summary, "details-message");
+  addDetailRow(panel, "Author", `${commit.author} <${commit.authorEmail}>`);
+  addDetailRow(panel, "Date", formatDetailDate(commit.date));
+
+  if (commit.refs.length > 0) {
+    const section = document.createElement("div");
+    section.className = "details-section";
+    const lbl = document.createElement("div");
+    lbl.className = "details-label";
+    lbl.textContent = "Labels";
+    section.appendChild(lbl);
+    const chips = document.createElement("div");
+    chips.className = "details-chips";
+    for (const ref of commit.refs) {
+      const chip = document.createElement("span");
+      chip.className = `details-chip details-chip-${ref.type}`;
+      if (ref.isCurrent) chip.classList.add("details-chip-current");
+      chip.textContent = ref.type === "head" ? "HEAD" : ref.name;
+      chips.appendChild(chip);
+    }
+    section.appendChild(chips);
+    panel.appendChild(section);
+  }
+}
+
+function addDetailRow(panel: HTMLElement, label: string, value: string, extraClass?: string): void {
+  const section = document.createElement("div");
+  section.className = "details-section";
+  const lbl = document.createElement("div");
+  lbl.className = "details-label";
+  lbl.textContent = label;
+  const val = document.createElement("div");
+  val.className = extraClass ? `details-value ${extraClass}` : "details-value";
+  val.textContent = value;
+  section.appendChild(lbl);
+  section.appendChild(val);
+  panel.appendChild(section);
+}
+
+function formatDetailDate(isoDate: string): string {
+  if (!isoDate) return "";
+  return isoDate.slice(0, 19).replace("T", " ");
 }
 
 if (document.readyState === "loading") {

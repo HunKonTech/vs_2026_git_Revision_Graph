@@ -35,6 +35,13 @@ body,
   flex-direction: column;
 }
 
+.main-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
 .toolbar {
   display: flex;
   gap: 6px;
@@ -60,6 +67,7 @@ body,
   flex: 1 1 auto;
   overflow: hidden;
   position: relative;
+  min-width: 0;
 }
 
 .status-bar {
@@ -75,6 +83,7 @@ body,
   width: 100%;
   height: 100%;
   cursor: grab;
+  user-select: none;
 }
 .rev-graph-svg.panning {
   cursor: grabbing;
@@ -245,6 +254,74 @@ body,
   background: var(--bg);
   color: var(--fg);
 }
+
+/* details panel */
+.details-panel {
+  flex: 0 0 270px;
+  width: 270px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+}
+.details-panel[data-hidden] {
+  display: none;
+}
+.details-header {
+  padding: 8px 12px 6px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  user-select: none;
+}
+.details-section {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+.details-label {
+  font-size: 10px;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 3px;
+  user-select: none;
+}
+.details-value {
+  color: var(--fg);
+  word-break: break-word;
+  line-height: 1.5;
+}
+.details-sha {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.details-message {
+  font-size: 12px;
+}
+.details-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.details-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+.details-chip-head      { background: var(--head-bg); }
+.details-chip-localBranch  { background: var(--local-bg); }
+.details-chip-remoteBranch { background: var(--remote-bg); }
+.details-chip-tag       { background: var(--tag-bg); color: #000; }
+.details-chip-current   { border-color: #ffffff; border-width: 1.5px; }
 
 /* context menu */
 .ctx-menu {

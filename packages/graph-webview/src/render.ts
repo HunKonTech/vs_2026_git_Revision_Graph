@@ -6,10 +6,11 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Pixel geometry of the grid. Tuned to resemble the TortoiseSVN graph. */
 const LANE_W = 210;
-const ROW_H = 92;
+const BASE_ROW_H = 92; // minimum row height — scales up when commits carry many chips
 const BOX_W = 170;
 const BOX_H = 68;
 const MARGIN = 28;
+const CHIP_STEP = 18; // vertical distance between consecutive chip tops
 
 /** Distinct hues per ref kind, echoing the SVN graph (grey trunk, green branch, yellow tag). */
 type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit";
@@ -17,6 +18,7 @@ type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit";
 export interface RenderCallbacks {
   onNodeContextMenu(sha: string, clientX: number, clientY: number): void;
   onNodeDblClick(sha: string): void;
+  onNodeClick(commit: PositionedCommit): void;
 }
 
 /** Renders a git DAG as connected boxes inside an SVG, with zoom & pan. */
@@ -24,6 +26,7 @@ export class GraphView {
   private readonly svg: SVGSVGElement;
   private readonly viewport: SVGGElement;
   private layout: GraphLayout | null = null;
+  private rowH = BASE_ROW_H;
 
   // pan/zoom state
   private scale = 1;
@@ -41,6 +44,8 @@ export class GraphView {
     this.svg.classList.add("rev-graph-svg");
     this.svg.setAttribute("width", "100%");
     this.svg.setAttribute("height", "100%");
+    // Prevent accidental text selection when clicking/dragging in the graph.
+    (this.svg.style as CSSStyleDeclaration & { userSelect: string }).userSelect = "none";
     this.viewport = document.createElementNS(SVG_NS, "g");
     this.svg.appendChild(this.viewport);
     this.container.appendChild(this.svg);
@@ -58,7 +63,14 @@ export class GraphView {
 
   setData(data: GraphData): void {
     this.layout = computeLayout(data);
+    // Scale row height so chip stacks never overlap the node above.
+    const maxChips = this.layout.commits.reduce((m, c) => Math.max(m, c.refs.length), 0);
+    this.rowH = Math.max(BASE_ROW_H, BASE_ROW_H + (maxChips - 1) * CHIP_STEP);
     this.draw();
+  }
+
+  getPositionedCommit(sha: string): PositionedCommit | undefined {
+    return this.layout?.commits.find((c) => c.sha === sha);
   }
 
   /** Reset zoom/pan to show the top-left of the graph. */
@@ -95,7 +107,7 @@ export class GraphView {
     return MARGIN + lane * LANE_W;
   }
   private boxY(row: number): number {
-    return MARGIN + row * ROW_H;
+    return MARGIN + row * this.rowH;
   }
 
   private edgePath(
@@ -177,6 +189,10 @@ export class GraphView {
     g.addEventListener("contextmenu", (ev) => {
       ev.preventDefault();
       this.cb.onNodeContextMenu(c.sha, ev.clientX, ev.clientY);
+    });
+    g.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this.cb.onNodeClick(c);
     });
     g.addEventListener("dblclick", () => this.cb.onNodeDblClick(c.sha));
 
@@ -262,8 +278,8 @@ function nodeKind(c: PositionedCommit): NodeKind {
 }
 
 function formatDate(isoDate: string): string {
-  // Extract YYYY-MM-DD from ISO 8601 (e.g. "2026-06-26T10:30:00+02:00")
-  return isoDate ? isoDate.slice(0, 10) : "";
+  // "2026-06-26T10:30:00+02:00" → "2026-06-26 10:30:00"
+  return isoDate ? isoDate.slice(0, 19).replace("T", " ") : "";
 }
 
 function truncate(s: string, n: number): string {

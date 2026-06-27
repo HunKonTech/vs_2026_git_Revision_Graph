@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using EnvDTE;
 using EnvDTE80;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace RevisionGraph
 {
@@ -27,35 +30,76 @@ namespace RevisionGraph
         public void Initialize(IServiceProvider serviceProvider)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
-            var startDir = ResolveStartDirectory(serviceProvider);
-            _ = _control.SetRepositoryAsync(startDir);
+            var startDirs = ResolveStartDirectories(serviceProvider);
+            _ = _control.SetRepositoryAsync(startDirs);
         }
 
-        private static string ResolveStartDirectory(IServiceProvider serviceProvider)
+        /// <summary>
+        /// Collect candidate directories that may sit inside the active
+        /// repository, most-specific first. Any directory inside the work tree
+        /// is enough — <see cref="GitService.FindRepoRootAsync"/> walks up to the
+        /// root with <c>git rev-parse</c>. We gather from several sources because
+        /// no single API covers both classic solutions and Open Folder mode.
+        /// </summary>
+        private static IReadOnlyList<string> ResolveStartDirectories(IServiceProvider serviceProvider)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            var dirs = new List<string>();
+            void Add(string path)
+            {
+                var d = ToExistingDirectory(path);
+                if (d != null && !dirs.Contains(d)) dirs.Add(d);
+            }
+
+            // 1. IVsSolution reports the solution/workspace directory in BOTH
+            //    classic-solution and Open Folder modes.
+            try
+            {
+                if (serviceProvider.GetService(typeof(SVsSolution)) is IVsSolution sol &&
+                    sol.GetSolutionInfo(out string slnDir, out string slnFile, out _) == VSConstants.S_OK)
+                {
+                    Add(slnDir);
+                    Add(slnFile);
+                }
+            }
+            catch { /* fall through to DTE */ }
+
+            // 2. DTE fallbacks: solution file, loaded projects, active document.
             try
             {
                 if (serviceProvider.GetService(typeof(DTE)) is DTE2 dte)
                 {
-                    var solutionPath = dte.Solution?.FullName;
-                    if (!string.IsNullOrEmpty(solutionPath))
-                        return Path.GetDirectoryName(solutionPath);
-
-                    // Folder-open ("Open Folder") mode: use the first project dir.
+                    Add(dte.Solution?.FullName);
                     if (dte.Solution?.Projects?.Count > 0)
                     {
-                        var first = dte.Solution.Projects.Item(1)?.FullName;
-                        if (!string.IsNullOrEmpty(first))
-                            return Path.GetDirectoryName(first);
+                        for (int i = 1; i <= dte.Solution.Projects.Count && i <= 5; i++)
+                        {
+                            try { Add(dte.Solution.Projects.Item(i)?.FullName); } catch { }
+                        }
                     }
+                    try { Add(dte.ActiveDocument?.FullName); } catch { }
                 }
+            }
+            catch { /* fall through */ }
+
+            Add(Environment.CurrentDirectory);
+            return dirs;
+        }
+
+        /// <summary>Resolve a file or directory path to an existing directory.</summary>
+        private static string ToExistingDirectory(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            try
+            {
+                if (Directory.Exists(path)) return path;
+                var dir = Path.GetDirectoryName(path);
+                return (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) ? dir : null;
             }
             catch
             {
-                // fall through
+                return null;
             }
-            return Environment.CurrentDirectory;
         }
     }
 }

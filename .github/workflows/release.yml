@@ -186,8 +186,8 @@ jobs:
             "### Packages",
             "| File | Description |",
             "|------|-------------|",
-            "| git-revision-graph-$v.vsix | VS Code stable (engine ^1.85) |",
-            "| git-revision-graph-vs2026-$pv.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
+            "| rev-graph-vscode-$v.vsix | VS Code stable (engine ^1.85) |",
+            "| rev-graph-vscode-vs2026-$pv.vsix | VS Code pre-release - VS 2026 built-in editor (engine ^1.96) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
             "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
           ) -join "`n"
@@ -254,7 +254,7 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
         run: |
-          $vsix = Get-ChildItem dist/installers/git-revision-graph-*.vsix |
+          $vsix = Get-ChildItem dist/installers/rev-graph-vscode-*.vsix |
                   Where-Object { $_.Name -notmatch 'vs2026' } |
                   Select-Object -First 1
           if (-not $vsix) {
@@ -274,7 +274,7 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
         run: |
-          $vsix = Get-ChildItem dist/installers/git-revision-graph-vs2026-*.vsix |
+          $vsix = Get-ChildItem dist/installers/rev-graph-vscode-vs2026-*.vsix |
                   Select-Object -First 1
           if (-not $vsix) {
             Write-Warning "VS Code VS2026 VSIX not found - skipping."

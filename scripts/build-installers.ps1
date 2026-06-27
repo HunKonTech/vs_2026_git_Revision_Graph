@@ -84,7 +84,7 @@ if (-not $SkipVSCode) {
     Step "VS Code extension csomagolása (standard)"
     node scripts\package-vscode.mjs
     if ($LASTEXITCODE -ne 0) { Fail "VS Code csomag előállítása sikertelen." }
-    $vsixFile = Get-ChildItem "$installers\git-revision-graph-*.vsix" |
+    $vsixFile = Get-ChildItem "$installers\rev-graph-vscode-*.vsix" |
                 Where-Object { $_.Name -notmatch "vs2026" } |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
     Ok "VS Code (standard): $($vsixFile.Name)"
@@ -97,7 +97,7 @@ if (-not $SkipVSCode -and -not $SkipVS2026Code) {
     Step "VS Code extension csomagolása VS 2026 célra (engine ^1.96)"
     node scripts\package-vscode-vs2026.mjs
     if ($LASTEXITCODE -ne 0) { Fail "VS 2026 VS Code csomag előállítása sikertelen." }
-    $vsix26 = Get-ChildItem "$installers\git-revision-graph-vs2026-*.vsix" |
+    $vsix26 = Get-ChildItem "$installers\rev-graph-vscode-vs2026-*.vsix" |
                Sort-Object LastWriteTime -Descending | Select-Object -First 1
     Ok "VS Code (VS 2026 célzott): $($vsix26.Name)"
 }

@@ -59,7 +59,7 @@ Windows-only. See [vs/BUILD.md](vs/BUILD.md).
 
 ```bash
 # VS Code .vsix only (cross-platform)
-npm run package:vscode      # -> dist/installers/git-revision-graph-<version>.vsix
+npm run package:vscode      # -> dist/installers/rev-graph-vscode-<version>.vsix
 ```
 
 ```powershell

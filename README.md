@@ -53,7 +53,16 @@ Run **"Git Revision Graph: Open Revision Graph"** from the command palette, or
 use the source-control title-bar button. Requires a workspace with a Git repo.
 
 ### Visual Studio extension
-Windows-only. See [vs/BUILD.md](vs/BUILD.md).
+Windows-only (2022 / 2026). See [vs/BUILD.md](vs/BUILD.md) for complete prerequisites and build steps.
+
+Quick start:
+```bash
+npm install
+npm run build:webview
+npm run build:vs-assets
+```
+
+Then open `vs/RevisionGraph.csproj` in Visual Studio (with the extension development workload installed), restore NuGet packages, and press **F5** to launch an experimental instance. Open a folder or solution inside a Git repo, then go to **View → Other Windows → Revision Graph** to open the tool window. Right-click a commit to create a branch from it using the native Git CLI.
 
 ## Building the installers
 

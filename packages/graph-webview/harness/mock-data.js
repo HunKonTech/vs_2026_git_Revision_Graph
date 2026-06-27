@@ -2,7 +2,7 @@
 // a merge, a tag, and local + remote refs, to exercise the layout & colors.
 window.__MOCK_GRAPH__ = {
   repoName: "demo-repo",
-  head: "h7",
+  head: "h7777777",
   commits: [
     { sha: "h7777777", parents: ["h6666666", "f2222222"], summary: "Merge feature/login", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-25T10:00:00Z" },
     { sha: "f2222222", parents: ["f1111111"], summary: "Add login form validation", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-24T15:00:00Z" },
@@ -19,5 +19,7 @@ window.__MOCK_GRAPH__ = {
     { name: "feature/login", type: "localBranch", targetSha: "f2222222" },
     { name: "origin/feature/login", type: "remoteBranch", targetSha: "f1111111", remote: "origin" },
     { name: "v1.0.0", type: "tag", targetSha: "h5555555" },
+    { name: "release/1.0", type: "localBranch", targetSha: "h5555555" },
+    { name: "origin/release/1.0", type: "remoteBranch", targetSha: "h5555555", remote: "origin" },
   ],
 };

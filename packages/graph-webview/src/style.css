@@ -147,10 +147,22 @@ body,
   font-size: 10px;
 }
 
-/* ref chips */
+/* ref pills (listed inside each box) */
 .chip-rect {
   fill: rgba(0, 0, 0, 0.45);
   stroke: rgba(255, 255, 255, 0.4);
+}
+.ref-localBranch .chip-rect {
+  fill: var(--local-bg);
+}
+.ref-remoteBranch .chip-rect {
+  fill: var(--remote-bg);
+}
+.ref-tag .chip-rect {
+  fill: var(--tag-bg);
+}
+.ref-head .chip-rect {
+  fill: var(--head-bg);
 }
 .chip-current {
   stroke: #ffffff;
@@ -160,6 +172,22 @@ body,
   fill: #ffffff;
   font-size: 10px;
   font-family: ui-monospace, "Cascadia Mono", monospace;
+}
+.ref-tag .chip-text {
+  fill: #000000;
+}
+
+/* current HEAD marker */
+.current-head-bar {
+  fill: var(--accent);
+}
+.current-head-marker {
+  fill: var(--accent);
+  font-size: 12px;
+}
+.node-current .node-rect {
+  stroke: var(--accent);
+  stroke-width: 2;
 }
 
 /* legend */
@@ -322,6 +350,20 @@ body,
 .details-chip-remoteBranch { background: var(--remote-bg); }
 .details-chip-tag       { background: var(--tag-bg); color: #000; }
 .details-chip-current   { border-color: #ffffff; border-width: 1.5px; }
+
+.details-shortsha {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 12px;
+}
+.details-current {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: #fff;
+  background: var(--accent);
+}
 
 /* context menu */
 .ctx-menu {

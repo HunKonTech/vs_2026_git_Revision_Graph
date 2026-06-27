@@ -115,3 +115,18 @@ export async function createBranchCli(
 export async function checkoutCli(repoRoot: string, treeish: string): Promise<void> {
   await git(repoRoot, ["checkout", treeish]);
 }
+
+/** Fetch all remotes (and prune deleted remote branches). */
+export async function fetchCli(repoRoot: string): Promise<void> {
+  await git(repoRoot, ["fetch", "--all", "--prune"]);
+}
+
+/** Pull the current branch from its upstream. */
+export async function pullCli(repoRoot: string): Promise<void> {
+  await git(repoRoot, ["pull"]);
+}
+
+/** Push the current branch to its upstream. */
+export async function pushCli(repoRoot: string): Promise<void> {
+  await git(repoRoot, ["push"]);
+}

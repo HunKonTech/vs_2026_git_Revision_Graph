@@ -37,6 +37,9 @@ function boot(): void {
   canvas.appendChild(legend);
 
   const detailsPanel = buildDetailsPanel();
+  // Sha of the currently checked-out commit, kept so the details panel can flag
+  // the commit the working tree is on.
+  let currentHead: string | null = null;
 
   const mainContent = document.createElement("div");
   mainContent.className = "main-content";
@@ -70,7 +73,7 @@ function boot(): void {
       bridge.post({ type: "checkout", sha });
     },
     onNodeClick(commit) {
-      showCommitDetails(detailsPanel, commit);
+      showCommitDetails(detailsPanel, commit, currentHead);
     },
   });
 
@@ -102,6 +105,7 @@ function boot(): void {
   function renderData(data: GraphData): void {
     closeContextMenu();
     detailsPanel.dataset.hidden = "";
+    currentHead = data.head ?? null;
     view.setData(data);
     renderStatus(() =>
       t("status.summary", {
@@ -112,16 +116,36 @@ function boot(): void {
     );
   }
 
-  // Toolbar: refresh + reset view + settings.
+  // Toolbar: refresh + remote ops (fetch/pull/push/sync) + reset view + settings.
   const toolbar = document.createElement("div");
   toolbar.className = "toolbar";
   const refreshBtn = makeButton("refresh", "toolbar.refresh");
+  const fetchBtn = makeButton("fetch", "toolbar.fetch");
+  const pullBtn = makeButton("pull", "toolbar.pull");
+  const pushBtn = makeButton("push", "toolbar.push");
+  const syncBtn = makeButton("sync", "toolbar.sync");
   const resetBtn = makeButton("reset", "toolbar.reset");
   const settingsBtn = makeButton("settings", "toolbar.settings");
-  toolbar.append(refreshBtn, resetBtn, settingsBtn);
+  toolbar.append(refreshBtn, fetchBtn, pullBtn, pushBtn, syncBtn, resetBtn, settingsBtn);
   toolbar.addEventListener("click", (e) => {
     const act = (e.target as HTMLElement).dataset.act;
     if (act === "refresh") bridge.post({ type: "requestRefresh" });
+    if (act === "fetch") {
+      renderStatus(() => t("status.fetching"));
+      bridge.post({ type: "fetch" });
+    }
+    if (act === "pull") {
+      renderStatus(() => t("status.pulling"));
+      bridge.post({ type: "pull" });
+    }
+    if (act === "push") {
+      renderStatus(() => t("status.pushing"));
+      bridge.post({ type: "push" });
+    }
+    if (act === "sync") {
+      renderStatus(() => t("status.syncing"));
+      bridge.post({ type: "sync" });
+    }
     if (act === "reset") view.resetView();
     if (act === "settings") toggleSettings(toolbar);
   });
@@ -132,6 +156,10 @@ function boot(): void {
     closeSettings();
     closeContextMenu();
     refreshBtn.textContent = t("toolbar.refresh");
+    fetchBtn.textContent = t("toolbar.fetch");
+    pullBtn.textContent = t("toolbar.pull");
+    pushBtn.textContent = t("toolbar.push");
+    syncBtn.textContent = t("toolbar.sync");
     resetBtn.textContent = t("toolbar.reset");
     settingsBtn.textContent = t("toolbar.settings");
     relabelLegend(legend);
@@ -209,26 +237,46 @@ function buildDetailsPanel(): HTMLElement {
   return panel;
 }
 
-function showCommitDetails(panel: HTMLElement, commit: PositionedCommit): void {
+function showCommitDetails(
+  panel: HTMLElement,
+  commit: PositionedCommit,
+  currentHead: string | null,
+): void {
   delete panel.dataset.hidden;
   panel.innerHTML = "";
 
   const header = document.createElement("div");
   header.className = "details-header";
-  header.textContent = "Commit Details";
+  header.textContent = t("details.header");
   panel.appendChild(header);
 
-  addDetailRow(panel, "SHA", commit.sha, "details-sha");
-  addDetailRow(panel, "Message", commit.summary, "details-message");
-  addDetailRow(panel, "Author", `${commit.author} <${commit.authorEmail}>`);
-  addDetailRow(panel, "Date", formatDetailDate(commit.date));
+  addDetailRow(panel, t("details.sha"), commit.sha, "details-sha");
+  addDetailRow(panel, t("details.shortSha"), commit.sha.slice(0, 7), "details-shortsha");
+  addDetailRow(panel, t("details.message"), commit.summary, "details-message");
+  addDetailRow(panel, t("details.author"), `${commit.author} <${commit.authorEmail}>`);
+  addDetailRow(panel, t("details.date"), formatDetailDate(commit.date));
+
+  // Flag the commit the working tree is currently checked out on.
+  if (currentHead && commit.sha === currentHead) {
+    const section = document.createElement("div");
+    section.className = "details-section";
+    const lbl = document.createElement("div");
+    lbl.className = "details-label";
+    lbl.textContent = t("details.location");
+    section.appendChild(lbl);
+    const badge = document.createElement("span");
+    badge.className = "details-current";
+    badge.textContent = t("details.currentHead");
+    section.appendChild(badge);
+    panel.appendChild(section);
+  }
 
   if (commit.refs.length > 0) {
     const section = document.createElement("div");
     section.className = "details-section";
     const lbl = document.createElement("div");
     lbl.className = "details-label";
-    lbl.textContent = "Labels";
+    lbl.textContent = t("details.labels");
     section.appendChild(lbl);
     const chips = document.createElement("div");
     chips.className = "details-chips";

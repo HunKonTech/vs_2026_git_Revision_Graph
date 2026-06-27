@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { HostToWebview, WebviewToHost, ThemeTokens } from "@rev-graph/protocol";
-import { readGraphData, checkoutCli } from "./gitData";
+import { readGraphData, checkoutCli, fetchCli, pullCli, pushCli } from "./gitData";
 import { resolveRepository } from "./repo";
 import { createBranchFromCommit } from "./branch";
 
@@ -74,7 +74,46 @@ export class GraphPanel {
         await vscode.env.clipboard.writeText(msg.sha);
         void vscode.window.showInformationMessage(`Copied ${msg.sha.slice(0, 10)}`);
         break;
+      case "fetch":
+        await this.runRemoteOp("Fetch", fetchCli);
+        break;
+      case "pull":
+        await this.runRemoteOp("Pull", pullCli);
+        break;
+      case "push":
+        await this.runRemoteOp("Push", pushCli);
+        break;
+      case "sync":
+        // Sync = pull then push, the common "sync changes" gesture.
+        await this.runRemoteOp("Sync", async (root) => {
+          await pullCli(root);
+          await pushCli(root);
+        });
+        break;
     }
+  }
+
+  /** Run a remote git operation with progress, then refresh the graph. */
+  private async runRemoteOp(
+    label: string,
+    op: (repoRoot: string) => Promise<void>,
+  ): Promise<void> {
+    const repo = await resolveRepository();
+    if (!repo) {
+      this.post({ type: "error", message: "No Git repository found in this workspace." });
+      return;
+    }
+    try {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `${label}…`, cancellable: false },
+        () => op(repo.rootUri.fsPath),
+      );
+      void vscode.window.showInformationMessage(`${label} completed.`);
+    } catch (err) {
+      this.post({ type: "error", message: `${label} failed: ${String(err)}` });
+      void vscode.window.showErrorMessage(`${label} failed: ${String(err)}`);
+    }
+    await this.refresh();
   }
 
   private async refresh(): Promise<void> {

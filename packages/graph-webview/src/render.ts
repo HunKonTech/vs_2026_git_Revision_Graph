@@ -6,11 +6,16 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 /** Pixel geometry of the grid. Tuned to resemble the TortoiseSVN graph. */
 const LANE_W = 210;
-const BASE_ROW_H = 92; // minimum row height — scales up when commits carry many chips
 const BOX_W = 170;
-const BOX_H = 68;
+/** Height of the fixed text area (sha / summary / author / date). */
+const CONTENT_H = 68;
+/** Height of one ref pill listed inside a box. */
+const REF_ROW_H = 17;
+/** Padding above the first ref pill inside a box. */
+const REF_PAD = 6;
+/** Vertical gap between a box's bottom and the next box's top. */
+const ROW_GAP = 26;
 const MARGIN = 28;
-const CHIP_STEP = 18; // vertical distance between consecutive chip tops
 
 /** Distinct hues per ref kind, echoing the SVN graph (grey trunk, green branch, yellow tag). */
 type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit";
@@ -26,7 +31,12 @@ export class GraphView {
   private readonly svg: SVGSVGElement;
   private readonly viewport: SVGGElement;
   private layout: GraphLayout | null = null;
-  private rowH = BASE_ROW_H;
+  /** Pixel height of each box, indexed by row (grows with its ref count). */
+  private boxHeights: number[] = [];
+  /** Top Y of each box, indexed by row (cumulative — boxes vary in height). */
+  private rowTops: number[] = [];
+  /** Sha of the currently checked-out commit (HEAD), if known. */
+  private head: string | null = null;
 
   // pan/zoom state
   private scale = 1;
@@ -63,9 +73,16 @@ export class GraphView {
 
   setData(data: GraphData): void {
     this.layout = computeLayout(data);
-    // Scale row height so chip stacks never overlap the node above.
-    const maxChips = this.layout.commits.reduce((m, c) => Math.max(m, c.refs.length), 0);
-    this.rowH = Math.max(BASE_ROW_H, BASE_ROW_H + (maxChips - 1) * CHIP_STEP);
+    this.head = data.head ?? null;
+    // Each box is sized to list all of its refs inside, so nothing overlaps or
+    // hangs off; box tops are accumulated since heights vary row to row.
+    this.boxHeights = this.layout.commits.map((c) => boxHeight(c));
+    this.rowTops = [];
+    let y = MARGIN;
+    for (let r = 0; r < this.boxHeights.length; r++) {
+      this.rowTops[r] = y;
+      y += this.boxHeights[r]! + ROW_GAP;
+    }
     this.draw();
   }
 
@@ -107,7 +124,10 @@ export class GraphView {
     return MARGIN + lane * LANE_W;
   }
   private boxY(row: number): number {
-    return MARGIN + row * this.rowH;
+    return this.rowTops[row] ?? MARGIN;
+  }
+  private boxH(row: number): number {
+    return this.boxHeights[row] ?? CONTENT_H;
   }
 
   private edgePath(
@@ -118,7 +138,7 @@ export class GraphView {
     isMerge: boolean,
   ): SVGPathElement {
     const cx = this.boxX(fromLane) + BOX_W / 2;
-    const cy = this.boxY(fromRow) + BOX_H; // child bottom
+    const cy = this.boxY(fromRow) + this.boxH(fromRow); // child bottom
     const px = this.boxX(toLane) + BOX_W / 2;
     const py = this.boxY(toRow); // parent top
     const midY = (cy + py) / 2;
@@ -132,19 +152,46 @@ export class GraphView {
   private nodeBox(c: PositionedCommit): SVGGElement {
     const x = this.boxX(c.lane);
     const y = this.boxY(c.row);
+    const h = this.boxH(c.row);
     const kind = nodeKind(c);
+    const isHead = this.head != null && c.sha === this.head;
 
     const g = document.createElementNS(SVG_NS, "g");
     g.classList.add("node", `node-${kind}`);
+    if (isHead) g.classList.add("node-current");
     g.dataset.sha = c.sha;
     g.setAttribute("transform", `translate(${x} ${y})`);
 
     const rect = document.createElementNS(SVG_NS, "rect");
     rect.setAttribute("width", String(BOX_W));
-    rect.setAttribute("height", String(BOX_H));
+    rect.setAttribute("height", String(h));
     rect.setAttribute("rx", "6");
     rect.classList.add("node-rect");
     g.appendChild(rect);
+
+    // Mark the commit the working tree is currently on (HEAD), even when it is
+    // detached and no branch chip points at it.
+    if (isHead) {
+      const bar = document.createElementNS(SVG_NS, "rect");
+      bar.setAttribute("x", "-7");
+      bar.setAttribute("y", "0");
+      bar.setAttribute("width", "4");
+      bar.setAttribute("height", String(h));
+      bar.setAttribute("rx", "2");
+      bar.classList.add("current-head-bar");
+      g.appendChild(bar);
+
+      const marker = document.createElementNS(SVG_NS, "text");
+      marker.setAttribute("x", "-12");
+      marker.setAttribute("y", String(h / 2 + 4));
+      marker.setAttribute("text-anchor", "end");
+      marker.classList.add("current-head-marker");
+      marker.textContent = "▶";
+      const mTitle = document.createElementNS(SVG_NS, "title");
+      mTitle.textContent = "HEAD — current checkout";
+      marker.appendChild(mTitle);
+      g.appendChild(marker);
+    }
 
     // short sha (top-left)
     const sha = document.createElementNS(SVG_NS, "text");
@@ -178,8 +225,9 @@ export class GraphView {
     dateEl.textContent = formatDate(c.date);
     g.appendChild(dateEl);
 
-    // ref chips stacked above the box
-    c.refs.forEach((ref, i) => g.appendChild(this.refChip(ref, i)));
+    // ref labels listed inside the box, one per row, so all stay visible and
+    // none hang off the edge.
+    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i)));
 
     // tooltip
     const title = document.createElementNS(SVG_NS, "title");
@@ -199,28 +247,39 @@ export class GraphView {
     return g;
   }
 
-  private refChip(ref: GitRef, index: number): SVGGElement {
+  private refRow(ref: GitRef, index: number): SVGGElement {
     const g = document.createElementNS(SVG_NS, "g");
     g.classList.add("ref-chip", `ref-${ref.type}`);
     const label = ref.type === "head" ? "HEAD" : ref.name;
-    const w = Math.min(BOX_W, 14 + label.length * 6.2);
-    const yOff = -22 - index * 18;
-    g.setAttribute("transform", `translate(0 ${yOff})`);
+
+    // Pills sit inside the box; width is clamped so the pill never overflows the
+    // box, and the label is truncated to whatever fits that width.
+    const sideMargin = 10;
+    const maxW = BOX_W - sideMargin * 2;
+    const innerChars = Math.max(3, Math.floor((maxW - 12) / 6.2));
+    const text = truncate(label, innerChars);
+    const w = Math.min(maxW, 12 + text.length * 6.2);
+    const yTop = CONTENT_H + REF_PAD + index * REF_ROW_H;
+    g.setAttribute("transform", `translate(${sideMargin} ${yTop})`);
 
     const r = document.createElementNS(SVG_NS, "rect");
     r.setAttribute("width", String(w));
-    r.setAttribute("height", "16");
-    r.setAttribute("rx", "8");
+    r.setAttribute("height", "14");
+    r.setAttribute("rx", "7");
     r.classList.add("chip-rect");
     if (ref.isCurrent) r.classList.add("chip-current");
     g.appendChild(r);
 
     const t = document.createElementNS(SVG_NS, "text");
-    t.setAttribute("x", "7");
-    t.setAttribute("y", "12");
+    t.setAttribute("x", "6");
+    t.setAttribute("y", "11");
     t.classList.add("chip-text");
-    t.textContent = truncate(label, 22);
+    t.textContent = text;
     g.appendChild(t);
+
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = label;
+    g.appendChild(title);
     return g;
   }
 
@@ -267,6 +326,11 @@ export class GraphView {
       `translate(${this.tx} ${this.ty}) scale(${this.scale})`,
     );
   }
+}
+
+/** Box height = fixed text area plus one row per ref listed inside it. */
+function boxHeight(c: PositionedCommit): number {
+  return CONTENT_H + (c.refs.length > 0 ? REF_PAD + c.refs.length * REF_ROW_H : 0);
 }
 
 function nodeKind(c: PositionedCommit): NodeKind {

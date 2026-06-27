@@ -160,7 +160,38 @@ namespace RevisionGraph
                 case "copySha":
                     if (!string.IsNullOrEmpty(msg.Sha)) Clipboard.SetText(msg.Sha);
                     break;
+                case "fetch":
+                    await RunRemoteOpAsync("Fetch", g => g.FetchAsync()).ConfigureAwait(true);
+                    break;
+                case "pull":
+                    await RunRemoteOpAsync("Pull", g => g.PullAsync()).ConfigureAwait(true);
+                    break;
+                case "push":
+                    await RunRemoteOpAsync("Push", g => g.PushAsync()).ConfigureAwait(true);
+                    break;
+                case "sync":
+                    await RunRemoteOpAsync("Sync", g => g.SyncAsync()).ConfigureAwait(true);
+                    break;
             }
+        }
+
+        /// <summary>Run a remote git operation, then refresh the graph.</summary>
+        private async Task RunRemoteOpAsync(string label, Func<GitService, Task> op)
+        {
+            if (_git == null)
+            {
+                PostToWebview(new { type = "error", message = "No Git repository found for the current solution." });
+                return;
+            }
+            try
+            {
+                await op(_git).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = label + " failed: " + ex.Message });
+            }
+            await RefreshAsync().ConfigureAwait(true);
         }
 
         /// <summary>

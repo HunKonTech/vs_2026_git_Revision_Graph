@@ -158,6 +158,22 @@ namespace RevisionGraph.Git
 
         public Task CheckoutAsync(string treeish) => RunAsync(_repoRoot, "checkout", treeish);
 
+        /// <summary>Fetch all remotes and prune deleted remote branches.</summary>
+        public Task FetchAsync() => RunAsync(_repoRoot, "fetch", "--all", "--prune");
+
+        /// <summary>Pull the current branch from its upstream.</summary>
+        public Task PullAsync() => RunAsync(_repoRoot, "pull");
+
+        /// <summary>Push the current branch to its upstream.</summary>
+        public Task PushAsync() => RunAsync(_repoRoot, "push");
+
+        /// <summary>Sync = pull then push, the common "sync changes" gesture.</summary>
+        public async Task SyncAsync()
+        {
+            await PullAsync().ConfigureAwait(false);
+            await PushAsync().ConfigureAwait(false);
+        }
+
         private static async Task<string> RunSafeAsync(string cwd, params string[] args)
         {
             try { return await RunAsync(cwd, args).ConfigureAwait(false); }

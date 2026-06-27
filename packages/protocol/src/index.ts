@@ -76,7 +76,11 @@ export type WebviewToHost =
   | { type: "requestRefresh" }
   | { type: "createBranch"; sha: string }
   | { type: "checkout"; sha?: string; ref?: string }
-  | { type: "copySha"; sha: string };
+  | { type: "copySha"; sha: string }
+  | { type: "fetch" }
+  | { type: "pull" }
+  | { type: "push" }
+  | { type: "sync" };
 
 /** Type guard helper used by hosts when handling untyped postMessage data. */
 export function isWebviewToHost(value: unknown): value is WebviewToHost {

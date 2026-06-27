@@ -20,8 +20,21 @@ export const LANGUAGES: { code: Lang; label: string }[] = [
 /** All user-facing strings. `{n}` style placeholders are filled by t(). */
 type Dict = {
   "toolbar.refresh": string;
+  "toolbar.fetch": string;
+  "toolbar.pull": string;
+  "toolbar.push": string;
+  "toolbar.sync": string;
   "toolbar.reset": string;
   "toolbar.settings": string;
+  "details.header": string;
+  "details.sha": string;
+  "details.shortSha": string;
+  "details.message": string;
+  "details.author": string;
+  "details.date": string;
+  "details.labels": string;
+  "details.location": string;
+  "details.currentHead": string;
   "settings.title": string;
   "settings.language": string;
   "settings.close": string;
@@ -38,13 +51,30 @@ type Dict = {
   "status.summary": string;
   "status.branchCreated": string;
   "status.error": string;
+  "status.fetching": string;
+  "status.pulling": string;
+  "status.pushing": string;
+  "status.syncing": string;
 };
 
 const DICTS: Record<Lang, Dict> = {
   en: {
     "toolbar.refresh": "⟳ Refresh",
+    "toolbar.fetch": "⤓ Fetch",
+    "toolbar.pull": "⇩ Pull",
+    "toolbar.push": "⇧ Push",
+    "toolbar.sync": "⇅ Sync",
     "toolbar.reset": "⤢ Reset view",
     "toolbar.settings": "⚙ Settings",
+    "details.header": "Commit Details",
+    "details.sha": "SHA",
+    "details.shortSha": "Short SHA",
+    "details.message": "Message",
+    "details.author": "Author",
+    "details.date": "Date",
+    "details.labels": "Labels",
+    "details.location": "Location",
+    "details.currentHead": "HEAD — current checkout",
     "settings.title": "Settings",
     "settings.language": "Language",
     "settings.close": "Close",
@@ -61,11 +91,28 @@ const DICTS: Record<Lang, Dict> = {
     "status.summary": "{repo}Showing {commits} commits, {refs} refs",
     "status.branchCreated": 'Created branch "{name}" at {sha}',
     "status.error": "Error: {message}",
+    "status.fetching": "Fetching…",
+    "status.pulling": "Pulling…",
+    "status.pushing": "Pushing…",
+    "status.syncing": "Syncing…",
   },
   hu: {
     "toolbar.refresh": "⟳ Frissítés",
+    "toolbar.fetch": "⤓ Fetch",
+    "toolbar.pull": "⇩ Pull",
+    "toolbar.push": "⇧ Push",
+    "toolbar.sync": "⇅ Szinkron",
     "toolbar.reset": "⤢ Nézet visszaállítása",
     "toolbar.settings": "⚙ Beállítások",
+    "details.header": "Commit részletei",
+    "details.sha": "SHA",
+    "details.shortSha": "Rövid SHA",
+    "details.message": "Üzenet",
+    "details.author": "Szerző",
+    "details.date": "Dátum",
+    "details.labels": "Címkék",
+    "details.location": "Elhelyezkedés",
+    "details.currentHead": "HEAD — itt áll a kód",
     "settings.title": "Beállítások",
     "settings.language": "Nyelv",
     "settings.close": "Bezárás",
@@ -82,6 +129,10 @@ const DICTS: Record<Lang, Dict> = {
     "status.summary": "{repo}{commits} commit, {refs} ref látható",
     "status.branchCreated": '"{name}" branch létrehozva itt: {sha}',
     "status.error": "Hiba: {message}",
+    "status.fetching": "Fetch folyamatban…",
+    "status.pulling": "Pull folyamatban…",
+    "status.pushing": "Push folyamatban…",
+    "status.syncing": "Szinkronizálás…",
   },
 };
 

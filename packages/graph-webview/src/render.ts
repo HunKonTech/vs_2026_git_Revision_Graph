@@ -9,6 +9,8 @@ const LANE_W = 210;
 const BOX_W = 170;
 /** Height of the fixed text area (sha / summary / author / date). */
 const CONTENT_H = 68;
+/** Extra height added at the top of the content area when a branch header is shown. */
+const BRANCH_HEADER_H = 18;
 /** Height of one ref pill listed inside a box. */
 const REF_ROW_H = 17;
 /** Padding above the first ref pill inside a box. */
@@ -194,10 +196,30 @@ export class GraphView {
       g.appendChild(marker);
     }
 
+    // branch name header (top of box, only when a branch ref points here)
+    const branch = primaryBranch(c);
+    const dy = branch ? BRANCH_HEADER_H : 0;
+    if (branch) {
+      const branchEl = document.createElementNS(SVG_NS, "text");
+      branchEl.setAttribute("x", "10");
+      branchEl.setAttribute("y", "13");
+      branchEl.classList.add("node-branch");
+      branchEl.textContent = truncate(branch, 24);
+      g.appendChild(branchEl);
+
+      const sep = document.createElementNS(SVG_NS, "line");
+      sep.setAttribute("x1", "0");
+      sep.setAttribute("y1", String(dy));
+      sep.setAttribute("x2", String(BOX_W));
+      sep.setAttribute("y2", String(dy));
+      sep.classList.add("node-branch-sep");
+      g.appendChild(sep);
+    }
+
     // short sha (top-left)
     const sha = document.createElementNS(SVG_NS, "text");
     sha.setAttribute("x", "10");
-    sha.setAttribute("y", "14");
+    sha.setAttribute("y", String(14 + dy));
     sha.classList.add("node-sha");
     sha.textContent = c.sha.slice(0, 7);
     g.appendChild(sha);
@@ -205,7 +227,7 @@ export class GraphView {
     // summary (clipped)
     const summary = document.createElementNS(SVG_NS, "text");
     summary.setAttribute("x", "10");
-    summary.setAttribute("y", "28");
+    summary.setAttribute("y", String(28 + dy));
     summary.classList.add("node-summary");
     summary.textContent = truncate(c.summary, 24);
     g.appendChild(summary);
@@ -213,7 +235,7 @@ export class GraphView {
     // author
     const author = document.createElementNS(SVG_NS, "text");
     author.setAttribute("x", "10");
-    author.setAttribute("y", "44");
+    author.setAttribute("y", String(44 + dy));
     author.classList.add("node-author");
     author.textContent = truncate(c.author, 22);
     g.appendChild(author);
@@ -221,14 +243,14 @@ export class GraphView {
     // commit date
     const dateEl = document.createElementNS(SVG_NS, "text");
     dateEl.setAttribute("x", "10");
-    dateEl.setAttribute("y", "60");
+    dateEl.setAttribute("y", String(60 + dy));
     dateEl.classList.add("node-date");
     dateEl.textContent = formatDate(c.date);
     g.appendChild(dateEl);
 
     // ref labels listed inside the box, one per row, so all stay visible and
     // none hang off the edge.
-    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i)));
+    c.refs.forEach((ref, i) => g.appendChild(this.refRow(ref, i, dy)));
 
     // tooltip
     const title = document.createElementNS(SVG_NS, "title");
@@ -248,7 +270,7 @@ export class GraphView {
     return g;
   }
 
-  private refRow(ref: GitRef, index: number): SVGGElement {
+  private refRow(ref: GitRef, index: number, dy: number): SVGGElement {
     const g = document.createElementNS(SVG_NS, "g");
     g.classList.add("ref-chip", `ref-${ref.type}`);
     const label = ref.type === "head" ? "HEAD" : ref.name;
@@ -260,7 +282,7 @@ export class GraphView {
     const innerChars = Math.max(3, Math.floor((maxW - 12) / 6.2));
     const text = truncate(label, innerChars);
     const w = Math.min(maxW, 12 + text.length * 6.2);
-    const yTop = CONTENT_H + REF_PAD + index * REF_ROW_H;
+    const yTop = CONTENT_H + dy + REF_PAD + index * REF_ROW_H;
     g.setAttribute("transform", `translate(${sideMargin} ${yTop})`);
 
     const r = document.createElementNS(SVG_NS, "rect");
@@ -329,9 +351,21 @@ export class GraphView {
   }
 }
 
-/** Box height = fixed text area plus one row per ref listed inside it. */
+/** Returns the branch name to show at the top of the box, or null if none. */
+function primaryBranch(c: PositionedCommit): string | null {
+  const current = c.refs.find((r) => r.isCurrent && r.type !== "head");
+  if (current) return current.name;
+  const local = c.refs.find((r) => r.type === "localBranch");
+  if (local) return local.name;
+  const remote = c.refs.find((r) => r.type === "remoteBranch");
+  if (remote) return remote.name;
+  return null;
+}
+
+/** Box height = branch header (if any) + fixed text area + one row per ref. */
 function boxHeight(c: PositionedCommit): number {
-  return CONTENT_H + (c.refs.length > 0 ? REF_PAD + c.refs.length * REF_ROW_H : 0);
+  const dy = primaryBranch(c) ? BRANCH_HEADER_H : 0;
+  return CONTENT_H + dy + (c.refs.length > 0 ? REF_PAD + c.refs.length * REF_ROW_H : 0);
 }
 
 function nodeKind(c: PositionedCommit): NodeKind {

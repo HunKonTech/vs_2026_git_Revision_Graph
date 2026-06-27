@@ -128,6 +128,15 @@ body,
   stroke-width: 2;
 }
 
+.node-branch {
+  fill: rgba(255, 255, 255, 0.95);
+  font-size: 11px;
+  font-weight: 600;
+}
+.node-branch-sep {
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1;
+}
 .node-sha {
   fill: rgba(255, 255, 255, 0.7);
   font-family: ui-monospace, "Cascadia Mono", monospace;

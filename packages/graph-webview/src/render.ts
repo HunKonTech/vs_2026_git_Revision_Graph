@@ -198,6 +198,10 @@ export class GraphView {
   private boxY(row: number): number {
     return this.rowTops[row] ?? MARGIN;
   }
+  /** Bottom Y of a row = its top plus the row's height (tallest box on it). */
+  private rowBottom(row: number): number {
+    return (this.rowTops[row] ?? MARGIN) + (this.rowHeights[row] ?? CONTENT_H);
+  }
 
   private edgePath(e: LayoutEdge): SVGPathElement {
     const cx = this.boxX(e.fromLane) + BOX_W / 2;
@@ -205,12 +209,37 @@ export class GraphView {
     const cy = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
     const px = this.boxX(e.toLane) + BOX_W / 2;
     const py = this.boxY(e.toRow); // parent top
-    const isMerge = e.isMerge;
-    const midY = (cy + py) / 2;
     const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", `M ${cx} ${cy} C ${cx} ${midY}, ${px} ${midY}, ${px} ${py}`);
     path.classList.add("edge");
-    if (isMerge) path.classList.add("edge-merge");
+    if (e.isMerge) path.classList.add("edge-merge");
+
+    if (e.fromLane === e.toLane) {
+      // Same column: a straight drop with a gentle S-curve. A column reserves its
+      // whole row span, so nothing else sits between the two boxes — it can never
+      // pass under another box.
+      const midY = (cy + py) / 2;
+      path.setAttribute("d", `M ${cx} ${cy} C ${cx} ${midY}, ${px} ${midY}, ${px} ${py}`);
+      return path;
+    }
+
+    // Cross-lane: route orthogonally through the empty corridors so the line
+    // never crosses a box. Horizontal runs stay in the row gaps (the box-free
+    // bands between rows); the vertical run stays in a gutter (the box-free strip
+    // between two box columns). Corners are rounded for a softer look.
+    const y1 = this.rowBottom(e.fromRow) + ROW_GAP / 2; // gap just below the child's row
+    const y2 = this.boxY(e.toRow) - ROW_GAP / 2; // gap just above the parent's row
+    const rightLane = Math.max(e.fromLane, e.toLane);
+    const xCorr = this.boxX(rightLane) - (LANE_W - BOX_W) / 2; // gutter left of the right column
+
+    const pts: Array<[number, number]> = [
+      [cx, cy],
+      [cx, y1],
+      [xCorr, y1],
+      [xCorr, y2],
+      [px, y2],
+      [px, py],
+    ];
+    path.setAttribute("d", roundedPath(pts, 8));
     return path;
   }
 
@@ -510,6 +539,38 @@ function formatDate(isoDate: string): string {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+/**
+ * Build an SVG path through `pts` (an orthogonal polyline) with corners rounded
+ * by up to radius `r`. Consecutive duplicate points are dropped so collapsed
+ * corners (zero-length segments, e.g. when two routing rows coincide) don't
+ * emit stray arcs.
+ */
+function roundedPath(pts: Array<[number, number]>, r: number): string {
+  const p: Array<[number, number]> = [];
+  for (const q of pts) {
+    const last = p[p.length - 1];
+    if (!last || last[0] !== q[0] || last[1] !== q[1]) p.push(q);
+  }
+  if (p.length < 2) return "";
+  let d = `M ${p[0]![0]} ${p[0]![1]}`;
+  for (let i = 1; i < p.length - 1; i++) {
+    const [x0, y0] = p[i - 1]!;
+    const [x1, y1] = p[i]!;
+    const [x2, y2] = p[i + 1]!;
+    const inLen = Math.hypot(x1 - x0, y1 - y0) || 1;
+    const outLen = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const ri = Math.min(r, inLen / 2, outLen / 2);
+    const ax = x1 - ((x1 - x0) / inLen) * ri;
+    const ay = y1 - ((y1 - y0) / inLen) * ri;
+    const bx = x1 + ((x2 - x1) / outLen) * ri;
+    const by = y1 + ((y2 - y1) / outLen) * ri;
+    d += ` L ${ax} ${ay} Q ${x1} ${y1}, ${bx} ${by}`;
+  }
+  const end = p[p.length - 1]!;
+  d += ` L ${end[0]} ${end[1]}`;
+  return d;
 }
 
 function clamp(v: number, lo: number, hi: number): number {

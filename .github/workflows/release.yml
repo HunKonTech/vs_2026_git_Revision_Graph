@@ -578,10 +578,10 @@ jobs:
           python3 scripts/post_x_release.py \
             --app-name "Git Revision Graph" \
             --tag "v${NEW_VERSION}" \
-            --release-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${NEW_VERSION}" \
+            --release-url "https://github.com/HunKonTech/git_Revision_Graph/releases" \
             --template "Git Revision Graph {tag} megjelent!
 
-Vizualizáld a git branch történetét VS Code-ban és Visual Studióban.
+Lathatova teszi az osszes agat es commitot VS Code-ban es Visual Studio-ban egyarant.
 
 {release_url}
-#git #vscode #VisualStudio #DevTools"
+#git #vscode #VisualStudio #DevTools #GitHistory"

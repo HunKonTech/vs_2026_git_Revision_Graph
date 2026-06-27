@@ -577,9 +577,10 @@ jobs:
           BUFFER_POST_MODE: ${{ secrets.BUFFER_POST_MODE }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
           BUFFER_POST_TEMPLATE: |
-            Git Revision Graph {tag} megjelent!
+            Git Revision Graph {tag} released!
 
-            Lathatova teszi az osszes agat es commitot VS Code-ban es Visual Studio-ban egyarant.
+            Visualize git branches & commits in VS Code and Visual Studio.
+            Lathatova az osszes agat es commitot VS Code-ban.
 
             {release_url}
             #git #vscode #VisualStudio #DevTools #GitHistory

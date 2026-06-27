@@ -294,6 +294,35 @@ describe("computeLayout", () => {
     expect(layout.edges.some((e) => e.fromId === phantom.nodeId && e.toSha === "C")).toBe(true);
   });
 
+  it("splits a brand-new branch created on an interior commit into its own lane", () => {
+    // `feature` was just created on main's *older* commit B (not the tip C) —
+    // it has no commits of its own, so it must split off rather than tint B.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "C", isCurrent: false },
+          { name: "feature", type: "localBranch", targetSha: "B", isCurrent: true },
+        ],
+        head: "B",
+      }),
+      { mainBranch: "main" },
+    );
+    const phantom = layout.commits.find((c) => c.phantom)!;
+    expect(phantom).toBeDefined();
+    expect(phantom.branch).toBe("feature");
+    expect(phantom.sha).toBe("B"); // points at the interior commit it was made from
+    const realB = layout.commits.find((c) => c.sha === "B" && !c.phantom)!;
+    expect(phantom.lane).toBeGreaterThan(realB.lane); // one lane to the right
+    // The feature chip moved off main's interior box onto the phantom.
+    expect(realB.refs.map((r) => r.name)).not.toContain("feature");
+    expect(phantom.refs.map((r) => r.name)).toContain("feature");
+    // B stays owned by main's column (its commits don't move).
+    expect(realB.branch).toBe("main");
+    expect(realB.lane).toBe(0);
+    // An edge connects the phantom back to the interior commit.
+    expect(layout.edges.some((e) => e.fromId === phantom.nodeId && e.toSha === "B")).toBe(true);
+  });
+
   it("keeps a remote-tracking branch behind its local branch as an in-box chip", () => {
     // origin/main sits on an older commit; it must NOT become a phantom lane.
     const layout = computeLayout(

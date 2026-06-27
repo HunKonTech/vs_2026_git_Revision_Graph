@@ -224,11 +224,13 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   }
 
   // ---- Phase 1b: phantom columns for branches with no commits of their own. --
-  // A freshly created branch points at the same commit as the branch it was made
-  // from (e.g. a new branch off `main`), so it never seeds a column — its tip is
-  // already claimed. Rather than pile its chip inside the owning branch's box, we
-  // give it a small synthetic node one lane to the right, branching off the
-  // shared commit, exactly where TortoiseSVN shows a branch copy.
+  // A freshly created branch points at a commit that already belongs to another
+  // branch's column (e.g. a new branch off `main`), so it never seeds a column of
+  // its own — its target is already claimed. This holds whether it sits on the
+  // column's tip OR on an interior/older commit. Rather than pile its chip inside
+  // the owning branch's box (which would, for the current branch, tint that whole
+  // box), we give it a small synthetic node one lane to the right, branching off
+  // the shared commit, exactly where TortoiseSVN shows a branch copy.
   interface Phantom {
     branch: string;
     refs: GitRef[];
@@ -244,9 +246,11 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     const col = colOf.get(sha);
     if (col === undefined) continue;
     const owner = columns[col]!;
-    // Only split a branch that shares the column's *tip* (its seed) and is not
-    // itself the owner. Branches on older/interior commits keep their chip.
-    if (owner.seed !== sha || owner.branch === ref.name) continue;
+    // Split any local branch that does not own its column — it has no commits of
+    // its own, so it is just a label on another branch's commit. This covers both
+    // a branch sharing the column's tip and one sitting on an interior/older
+    // commit. The branch that actually owns the column keeps its commits in place.
+    if (owner.branch === ref.name) continue;
     extraRefs.add(ref);
     phantoms.push({ branch: ref.name, refs: [ref], anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
   }

@@ -552,3 +552,36 @@ jobs:
             exit $LASTEXITCODE
           }
           Write-Host "Successfully published to Visual Studio Marketplace."
+
+  # -------------------------------------------------------------------------
+  # X (Twitter) release announcement
+  # -------------------------------------------------------------------------
+  post-to-x:
+    if: ${{ needs.release.result == 'success' && github.event_name == 'push' }}
+    needs:
+      - release
+      - build-vs-vsix
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Post release announcement to X
+        continue-on-error: true
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          NEW_VERSION: ${{ needs.release.outputs.new_version }}
+        run: |
+          python3 scripts/post_x_release.py \
+            --app-name "Git Revision Graph" \
+            --tag "v${NEW_VERSION}" \
+            --release-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${NEW_VERSION}" \
+            --template "Git Revision Graph {tag} megjelent!
+
+Vizualizáld a git branch történetét VS Code-ban és Visual Studióban.
+
+{release_url}
+#git #vscode #VisualStudio #DevTools"

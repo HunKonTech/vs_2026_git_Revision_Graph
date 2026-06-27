@@ -1,4 +1,11 @@
 import { LANGUAGES, getLang, setLang, t } from "./i18n.js";
+import { getMainBranch, setMainBranch } from "./mainBranch.js";
+
+/** Context the settings panel needs from the app. */
+export interface SettingsContext {
+  /** Branch names available to pick as the main branch (trunk). */
+  branches: string[];
+}
 
 let openPanel: HTMLElement | null = null;
 
@@ -14,7 +21,7 @@ export function closeSettings(): void {
  * Toggle a small settings popover anchored near the toolbar. Currently holds
  * the language picker; structured so more options can be added later.
  */
-export function toggleSettings(anchor: HTMLElement): void {
+export function toggleSettings(anchor: HTMLElement, ctx: SettingsContext): void {
   if (openPanel) {
     closeSettings();
     return;
@@ -48,6 +55,44 @@ export function toggleSettings(anchor: HTMLElement): void {
   select.addEventListener("change", () => setLang(select.value as never));
   row.appendChild(select);
   panel.appendChild(row);
+
+  // Main branch (trunk) row — pins the chosen branch to the leftmost lane.
+  const branchRow = document.createElement("label");
+  branchRow.className = "settings-row";
+
+  const branchLabel = document.createElement("span");
+  branchLabel.textContent = t("settings.mainBranch");
+  branchRow.appendChild(branchLabel);
+
+  const branchSelect = document.createElement("select");
+  branchSelect.className = "settings-select";
+  const auto = document.createElement("option");
+  auto.value = "";
+  auto.textContent = t("settings.mainBranchAuto");
+  branchSelect.appendChild(auto);
+  const chosen = getMainBranch();
+  let chosenSeen = false;
+  for (const name of ctx.branches) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if (name === chosen) {
+      opt.selected = true;
+      chosenSeen = true;
+    }
+    branchSelect.appendChild(opt);
+  }
+  // Keep a stored choice visible even if it is not in the current ref list.
+  if (chosen && !chosenSeen) {
+    const opt = document.createElement("option");
+    opt.value = chosen;
+    opt.textContent = chosen;
+    opt.selected = true;
+    branchSelect.appendChild(opt);
+  }
+  branchSelect.addEventListener("change", () => setMainBranch(branchSelect.value));
+  branchRow.appendChild(branchSelect);
+  panel.appendChild(branchRow);
 
   // Anchor below the toolbar, aligned to the toolbar's left edge.
   const rect = anchor.getBoundingClientRect();

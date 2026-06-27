@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Microsoft.VisualStudio.PlatformUI;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.Web.WebView2.Core;
@@ -32,6 +33,8 @@ namespace RevisionGraph
         private const int MaxCommits = 1000;
 
         private GitService _git;
+        private FileSystemWatcher _watcher;
+        private DispatcherTimer _refreshTimer;
 
         public WebViewHostControl()
         {
@@ -43,6 +46,9 @@ namespace RevisionGraph
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             VSColorTheme.ThemeChanged -= OnVsThemeChanged;
+            _watcher?.Dispose();
+            _watcher = null;
+            _refreshTimer?.Stop();
         }
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -210,7 +216,55 @@ namespace RevisionGraph
                 }
             }
             _git = root != null ? new GitService(root) : null;
+            SetupWatcher(root);
             await RefreshAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Watch the repository's .git directory so the graph refreshes itself
+        /// on commits, checkouts, fetch/pull/push, etc. — like the SVN graph.
+        /// </summary>
+        private void SetupWatcher(string repoRoot)
+        {
+            _watcher?.Dispose();
+            _watcher = null;
+
+            if (string.IsNullOrEmpty(repoRoot)) return;
+            var gitDir = Path.Combine(repoRoot, ".git");
+            // Worktrees/submodules use a .git *file*; skip auto-watch there.
+            if (!Directory.Exists(gitDir)) return;
+
+            _watcher = new FileSystemWatcher(gitDir)
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                EnableRaisingEvents = true,
+            };
+            FileSystemEventHandler onChange = (s, e) => ScheduleRefresh();
+            _watcher.Changed += onChange;
+            _watcher.Created += onChange;
+            _watcher.Deleted += onChange;
+            _watcher.Renamed += (s, e) => ScheduleRefresh();
+        }
+
+        /// <summary>Coalesce rapid .git changes into a single refresh on the UI thread.</summary>
+        private void ScheduleRefresh()
+        {
+            // FileSystemWatcher events arrive on a thread-pool thread.
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_refreshTimer == null)
+                {
+                    _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                    _refreshTimer.Tick += async (s, e) =>
+                    {
+                        _refreshTimer.Stop();
+                        await RefreshAsync().ConfigureAwait(true);
+                    };
+                }
+                _refreshTimer.Stop();
+                _refreshTimer.Start();
+            }));
         }
 
         private async Task RefreshAsync()

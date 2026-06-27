@@ -72,6 +72,73 @@ describe("computeLayout", () => {
     expect(layout.commits).toHaveLength(1);
   });
 
+  it("pins the configured main branch to the leftmost lane", () => {
+    //   F (feature tip)        M (main tip)
+    //   |                      |
+    //   E                      C
+    //    \                    /
+    //     B ------------------
+    //     |
+    //     A
+    // feature (F,E) forks from B; main (M,C) continues the trunk.
+    const layout = computeLayout(
+      data(
+        [
+          commit("F", ["E"]),
+          commit("M", ["C"]),
+          commit("E", ["B"]),
+          commit("C", ["B"]),
+          commit("B", ["A"]),
+          commit("A"),
+        ],
+        {
+          refs: [
+            { name: "feature", type: "localBranch", targetSha: "F" },
+            { name: "main", type: "localBranch", targetSha: "M", isCurrent: true },
+          ],
+          head: "M",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const lane = (sha: string) => layout.commits.find((c) => c.sha === sha)!.lane;
+    // The main line sits in lane 0; the feature column is to its right.
+    expect(lane("M")).toBe(0);
+    expect(lane("C")).toBe(0);
+    expect(lane("B")).toBe(0);
+    expect(lane("A")).toBe(0);
+    expect(lane("F")).toBeGreaterThan(0);
+    expect(lane("E")).toBeGreaterThan(0);
+  });
+
+  it("places a branch to the right of the branch it forks from", () => {
+    // main: D -> C -> B -> A ; feature off B: F -> E -> B
+    const layout = computeLayout(
+      data(
+        [
+          commit("F", ["E"]),
+          commit("D", ["C"]),
+          commit("E", ["B"]),
+          commit("C", ["B"]),
+          commit("B", ["A"]),
+          commit("A"),
+        ],
+        {
+          refs: [
+            { name: "feature", type: "localBranch", targetSha: "F" },
+            { name: "main", type: "localBranch", targetSha: "D", isCurrent: true },
+          ],
+          head: "D",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const lane = (sha: string) => layout.commits.find((c) => c.sha === sha)!.lane;
+    // Feature's column is strictly to the right of main's column.
+    expect(lane("F")).toBeGreaterThan(lane("D"));
+    expect(lane("E")).toBeGreaterThan(lane("B"));
+  });
+
   it("attaches refs to the commit they point at", () => {
     const layout = computeLayout(
       data([commit("C", ["B"]), commit("B")], {

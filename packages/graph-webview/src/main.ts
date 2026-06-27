@@ -2,6 +2,7 @@ import { createHostBridge } from "./host-bridge.js";
 import { GraphView } from "./render.js";
 import { showContextMenu, closeContextMenu } from "./contextMenu.js";
 import { toggleSettings, closeSettings } from "./settings.js";
+import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
 import type { GraphData, ThemeTokens } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
@@ -40,6 +41,9 @@ function boot(): void {
   // Sha of the currently checked-out commit, kept so the details panel can flag
   // the commit the working tree is on.
   let currentHead: string | null = null;
+  // Last graph payload, retained so the view can be re-laid-out when the main
+  // branch selection changes without a host round-trip.
+  let lastData: GraphData | null = null;
 
   const mainContent = document.createElement("div");
   mainContent.className = "main-content";
@@ -106,7 +110,8 @@ function boot(): void {
     closeContextMenu();
     detailsPanel.dataset.hidden = "";
     currentHead = data.head ?? null;
-    view.setData(data);
+    lastData = data;
+    view.setData(data, getMainBranch());
     renderStatus(() =>
       t("status.summary", {
         repo: data.repoName ? `${data.repoName} — ` : "",
@@ -115,6 +120,19 @@ function boot(): void {
       }),
     );
   }
+
+  // Branch names (local + remote) available for the "main branch" picker.
+  function branchNames(): string[] {
+    if (!lastData) return [];
+    return lastData.refs
+      .filter((r) => r.type === "localBranch" || r.type === "remoteBranch")
+      .map((r) => r.name);
+  }
+
+  // Re-lay-out the existing data when the user changes the main branch.
+  onMainBranchChange(() => {
+    if (lastData) view.setData(lastData, getMainBranch());
+  });
 
   // Toolbar: refresh + remote ops (fetch/pull/push/sync) + reset view + settings.
   const toolbar = document.createElement("div");
@@ -147,7 +165,7 @@ function boot(): void {
       bridge.post({ type: "sync" });
     }
     if (act === "reset") view.resetView();
-    if (act === "settings") toggleSettings(toolbar);
+    if (act === "settings") toggleSettings(toolbar, { branches: branchNames() });
   });
   root.insertBefore(toolbar, mainContent);
 

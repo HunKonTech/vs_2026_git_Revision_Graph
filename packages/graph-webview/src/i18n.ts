@@ -37,6 +37,8 @@ type Dict = {
   "details.currentHead": string;
   "settings.title": string;
   "settings.language": string;
+  "settings.mainBranch": string;
+  "settings.mainBranchAuto": string;
   "settings.close": string;
   "legend.title": string;
   "legend.head": string;
@@ -77,6 +79,8 @@ const DICTS: Record<Lang, Dict> = {
     "details.currentHead": "HEAD — current checkout",
     "settings.title": "Settings",
     "settings.language": "Language",
+    "settings.mainBranch": "Main branch",
+    "settings.mainBranchAuto": "Automatic",
     "settings.close": "Close",
     "legend.title": "Legend",
     "legend.head": "HEAD / current branch",
@@ -115,6 +119,8 @@ const DICTS: Record<Lang, Dict> = {
     "details.currentHead": "HEAD — itt áll a kód",
     "settings.title": "Beállítások",
     "settings.language": "Nyelv",
+    "settings.mainBranch": "Fő ág",
+    "settings.mainBranchAuto": "Automatikus",
     "settings.close": "Bezárás",
     "legend.title": "Jelmagyarázat",
     "legend.head": "HEAD / aktuális branch",

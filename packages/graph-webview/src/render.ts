@@ -71,8 +71,8 @@ export class GraphView {
     this.container.dataset.theme = theme.kind;
   }
 
-  setData(data: GraphData): void {
-    this.layout = computeLayout(data);
+  setData(data: GraphData, mainBranch?: string): void {
+    this.layout = computeLayout(data, { mainBranch });
     this.head = data.head ?? null;
     // Each box is sized to list all of its refs inside, so nothing overlaps or
     // hangs off; box tops are accumulated since heights vary row to row.

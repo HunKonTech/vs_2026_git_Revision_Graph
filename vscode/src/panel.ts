@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { HostToWebview, WebviewToHost, ThemeTokens } from "@rev-graph/protocol";
 import { readGraphData, checkoutCli, fetchCli, pullCli, pushCli } from "./gitData";
-import { resolveRepository } from "./repo";
+import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
 
 /** Singleton webview panel hosting the shared graph renderer. */
@@ -9,6 +9,8 @@ export class GraphPanel {
   private static current: GraphPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
+  /** Debounce timer coalescing bursts of repo changes into one refresh. */
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
   static show(context: vscode.ExtensionContext): void {
     if (GraphPanel.current) {
@@ -53,6 +55,30 @@ export class GraphPanel {
       undefined,
       this.disposables,
     );
+
+    // Keep the graph live: refresh whenever any repository's state changes
+    // (commit, checkout, branch, fetch/pull/push …), like the SVN graph does.
+    void this.setupAutoRefresh();
+  }
+
+  /** Subscribe to git repository state changes for automatic refresh. */
+  private async setupAutoRefresh(): Promise<void> {
+    const api = await getGitApi();
+    if (!api) return;
+    const watch = (repo: { state: { onDidChange(cb: () => void): { dispose(): void } } }) => {
+      this.disposables.push(repo.state.onDidChange(() => this.scheduleRefresh()));
+    };
+    for (const repo of api.repositories) watch(repo);
+    this.disposables.push(api.onDidOpenRepository((repo) => watch(repo)));
+  }
+
+  /** Coalesce rapid change bursts into a single refresh shortly after. */
+  private scheduleRefresh(): void {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = undefined;
+      void this.refresh();
+    }, 400);
   }
 
   private async onMessage(msg: WebviewToHost): Promise<void> {
@@ -192,6 +218,7 @@ export class GraphPanel {
 
   private dispose(): void {
     GraphPanel.current = undefined;
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.panel.dispose();
     while (this.disposables.length) this.disposables.pop()?.dispose();
   }

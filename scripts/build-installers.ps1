@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Elkészíti a Git Revision Graph összes telepítőjét.
 
@@ -112,58 +112,58 @@ if ($VSCodeOnly) {
 # 4. Visual Studio VSIX (2022 + 2026) MSBuild-del
 # ---------------------------------------------------------------------------
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$csproj   = Join-Path $root "vs\RevisionGraph.csproj"
+
+function Build-VSIX {
+    param(
+        [string]$VersionRange,
+        [string]$Label,
+        [switch]$Prerelease
+    )
+    $vsArgs = @(
+        "-version",  $VersionRange,
+        "-latest",
+        "-requires", "Microsoft.VisualStudio.Workload.VisualStudioExtension",
+        "-property", "installationPath"
+    )
+    if ($Prerelease) { $vsArgs += "-prerelease" }
+
+    $installPath = & $vswhere @vsArgs
+    if (-not $installPath) {
+        Warn "Visual Studio $Label ($VersionRange) nem található — kihagyva."
+        return
+    }
+
+    $msbuild = Join-Path $installPath "MSBuild\Current\Bin\MSBuild.exe"
+    if (-not (Test-Path $msbuild)) {
+        Warn "MSBuild nem található $Label telepítőjénél: $msbuild"
+        return
+    }
+
+    Step "Visual Studio $Label VSIX fordítása ($installPath)"
+    & $msbuild $csproj /t:Restore,Rebuild `
+        /p:Configuration=$Configuration `
+        /p:Platform=AnyCPU `
+        /p:DeployExtension=false `
+        /v:minimal
+    if ($LASTEXITCODE -ne 0) { Fail "MSBuild sikertelen ($Label, kilépési kód: $LASTEXITCODE)." }
+
+    # Az MSBuild a bin\<Configuration>\ mappába rakja a .vsix fájlt.
+    $built = Join-Path $root "vs\bin\$Configuration\RevisionGraph.vsix"
+    if (-not (Test-Path $built)) {
+        Warn "VSIX nem keletkezett $Label-hez: $built"
+        return
+    }
+
+    $dest = Join-Path $installers "RevisionGraph-$Label.vsix"
+    Copy-Item $built $dest -Force
+    Ok "Visual Studio $Label VSIX: $($dest | Split-Path -Leaf)"
+}
+
 if (-not (Test-Path $vswhere)) {
     Warn "vswhere.exe nem található. VS VSIX fordítás kihagyva."
     Warn "Telepítsd a Visual Studio 2022/2026-ot 'Visual Studio extension development' workload-dal."
 } else {
-    $csproj = Join-Path $root "vs\RevisionGraph.csproj"
-
-    function Build-VSIX {
-        param(
-            [string]$VersionRange,
-            [string]$Label,
-            [switch]$Prerelease
-        )
-        $vsArgs = @(
-            "-version",  $VersionRange,
-            "-latest",
-            "-requires", "Microsoft.VisualStudio.Workload.VisualStudioExtension",
-            "-property", "installationPath"
-        )
-        if ($Prerelease) { $vsArgs += "-prerelease" }
-
-        $installPath = & $vswhere @vsArgs
-        if (-not $installPath) {
-            Warn "Visual Studio $Label ($VersionRange) nem található — kihagyva."
-            return
-        }
-
-        $msbuild = Join-Path $installPath "MSBuild\Current\Bin\MSBuild.exe"
-        if (-not (Test-Path $msbuild)) {
-            Warn "MSBuild nem található $Label telepítőjénél: $msbuild"
-            return
-        }
-
-        Step "Visual Studio $Label VSIX fordítása ($installPath)"
-        & $msbuild $csproj /t:Restore,Rebuild `
-            /p:Configuration=$Configuration `
-            /p:Platform=AnyCPU `
-            /p:DeployExtension=false `
-            /v:minimal
-        if ($LASTEXITCODE -ne 0) { Fail "MSBuild sikertelen ($Label, kilépési kód: $LASTEXITCODE)." }
-
-        # Az MSBuild a bin\<Configuration>\ mappába rakja a .vsix fájlt.
-        $built = Join-Path $root "vs\bin\$Configuration\RevisionGraph.vsix"
-        if (-not (Test-Path $built)) {
-            Warn "VSIX nem keletkezett $Label-hez: $built"
-            return
-        }
-
-        $dest = Join-Path $installers "RevisionGraph-$Label.vsix"
-        Copy-Item $built $dest -Force
-        Ok "Visual Studio $Label VSIX: $($dest | Split-Path -Leaf)"
-    }
-
     Build-VSIX -VersionRange "[17.0,18.0)" -Label "vs2022"
     Build-VSIX -VersionRange "[18.0,19.0)" -Label "vs2026" -Prerelease
 }

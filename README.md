@@ -107,3 +107,100 @@ All outputs land in `dist/installers/`.
 - ✅ shared SVG renderer + context menu (verified in browser harness)
 - ✅ VS Code extension (data layer verified against a real repo end-to-end)
 - ✅ Visual Studio VSIX authored (build & run on Windows per `vs/BUILD.md`)
+
+---
+
+# Git Revision Graph (Magyar)
+
+Egy **TortoiseSVN-stílusú revíziógraf** **Git**-hez, mind **Visual Studio (2022 / 2026)**, mind **VS Code** alatt. A commitok, helyi és távoli ágak, valamint tagek összekötött dobozokként jelennek meg; jobb klikkel egy commiton **új ágat hozhatsz létre belőle** a fogadó alkalmazás natív Git-jén keresztül.
+
+![Example](RevisionGraph.png)
+
+![VS Code / Visual Studio](RevisionGraph_vs_code.png)
+
+## Mit csinál
+- A git DAG-ot dobozok és élek formájában rajzolja ki, áganként egy oszloppal.
+- A csomópontokat ref-típus szerint színezi: aktuális/HEAD, helyi ág, távoli ág, tag, sima commit — az SVN-gráf szürke/zöld/sárga sémájára emlékeztetve.
+- Megjeleníti a **helyi és távoli** ágakat és tageket.
+- **Jobb klikk → „Ág létrehozása innen…"** — új ágat hoz létre a kiválasztott committól a fogadó alkalmazás natív Git-jén keresztül, majd frissíti a gráfot.
+- Commit közvetlen kivétele (checkout), SHA másolása, nagyítás és mozgatás.
+
+## A gráf megnyitása
+
+### VS Code
+1. Nyiss meg egy mappát vagy munkaterületet, amely egy Git repozitóriumot tartalmaz.
+2. Vagy:
+   - Nyisd meg a **Parancspalettát** (`Ctrl+Shift+P`) és futtasd a **"Git Revision Graph: Open Revision Graph"** parancsot, vagy
+   - Kattints a **gráf ikonra** a Forráskezelő panel fejlécében (jobb felső sarok).
+
+### Visual Studio (2022 / 2026)
+1. Nyiss meg egy mappát vagy megoldást, amely egy Git repozitóriumon belül van.
+2. Lépj a **Nézet → Egyéb ablakok → Revision Graph** menüpontba.
+
+Jobb klikkel bármely commit csomóponton **új ágat hozhatsz létre**, vagy másolhatod a SHA-ját.
+
+## Architektúra (monorepo)
+Egy közös webes megjelenítő, amelyet két vékony hoszt foglal magában:
+
+```
+packages/
+  protocol/      hoszt <-> webview üzenetszerződések (egyetlen forrás)
+  graph-core/    tiszta DAG sáv/sor elrendező algoritmus (egységtesztelt, DOM nélkül)
+  graph-webview/ az SVG megjelenítő + helyi menü (egy bundle-lé épül)
+vscode/          VS Code bővítmény (TS): vscode.git adat + natív createBranch
+vs/              Visual Studio VSIX (C#): eszközablak + WebView2 hoszt
+```
+
+A `graph-webview` bundle a közös termék: a VS Code egy webview-ban tölti be, a C# VSIX ugyanezeket a fájlokat WebView2-ben. Az ág létrehozása az egyes hosztok **natív** Git-jét használja:
+- VS Code: `vscode.git` API `Repository.createBranch(name, checkout, ref)`.
+- Visual Studio: git CLI egy témázott párbeszédablak mögött.
+
+## Fejlesztés
+
+```bash
+npm install
+npm test                 # graph-core elrendező egységtesztek
+npm run build            # minden csomag + mindkét hoszt bundle buildelése
+npm run harness          # böngészős fejlesztői harness mock adatokkal -> http://localhost:5599
+```
+
+### VS Code bővítmény
+```bash
+npm run build
+```
+Majd nyisd meg a repót VS Code-ban és nyomj **F5**-öt (Extension Development Host).
+Futtasd a **"Git Revision Graph: Open Revision Graph"** parancsot a parancspalettáról, vagy használd a forráskezelő fejlécgombot. Git repót tartalmazó munkaterület szükséges.
+
+### Visual Studio bővítmény
+Csak Windows (2022 / 2026). Lásd [vs/BUILD.md](vs/BUILD.md) a teljes előfeltételekért és build lépésekért.
+
+Gyors indítás:
+```bash
+npm install
+npm run build:webview
+npm run build:vs-assets
+```
+
+Majd nyisd meg a `vs/RevisionGraph.csproj`-t Visual Studioban (a bővítményfejlesztési munkaterhelés telepítve legyen), állítsd vissza a NuGet csomagokat, és nyomj **F5**-öt egy kísérleti példány indításához. Nyiss meg egy Git repón belüli mappát vagy megoldást, majd lépj a **Nézet → Egyéb ablakok → Revision Graph** menüpontba.
+
+## Telepítők buildelése
+
+```bash
+# Csak VS Code .vsix (cross-platform)
+npm run package:vscode      # -> dist/installers/rev-graph-vscode-<verzió>.vsix
+```
+
+```powershell
+# Mindhárom telepítő — Windows + Visual Studio + Node (a repo gyökeréből futtatva)
+pwsh scripts/build-installers.ps1            # VS 2022 + VS 2026 VSIX + VS Code vsix
+pwsh scripts/build-installers.ps1 -VSCodeOnly
+pwsh scripts/build-installers.ps1 -SkipVSCode
+```
+
+Minden kimenet a `dist/installers/` mappába kerül.
+
+## Állapot
+- ✅ `graph-core` elrendező + tesztek
+- ✅ közös SVG megjelenítő + helyi menü (böngészős harness-ben ellenőrizve)
+- ✅ VS Code bővítmény (adatréteg valós repón végigvizsgálva)
+- ✅ Visual Studio VSIX elkészítve (build & futtatás Windows alatt a `vs/BUILD.md` szerint)

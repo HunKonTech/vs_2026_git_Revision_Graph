@@ -16,7 +16,10 @@ window.__MOCK_GRAPH__ = {
     { sha: "t1111111", parents: ["h4444444"], summary: "WIP on test branch", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-27T18:00:00Z" },
   ],
   refs: [
-    { name: "main", type: "localBranch", targetSha: "h7777777", isCurrent: true },
+    { name: "main", type: "localBranch", targetSha: "h7777777" },
+    // Brand-new branch created off main's tip — no commits of its own yet, so it
+    // shares main's commit. It must appear in its own lane to the right.
+    { name: "feature/brand-new", type: "localBranch", targetSha: "h7777777", isCurrent: true },
     { name: "head", type: "head", targetSha: "h7777777" },
     { name: "origin/main", type: "remoteBranch", targetSha: "h6666666", remote: "origin" },
     { name: "feature/login", type: "localBranch", targetSha: "f2222222" },

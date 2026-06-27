@@ -11,6 +11,8 @@ export interface GitExtension {
 
 export interface GitAPI {
   readonly repositories: Repository[];
+  /** The git binary the built-in Git extension resolved (path + version). */
+  readonly git: { readonly path: string };
   getRepository(uri: Uri): Repository | null;
   onDidOpenRepository(listener: (repo: Repository) => void): { dispose(): void };
 }

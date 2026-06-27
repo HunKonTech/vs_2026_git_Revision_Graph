@@ -8,6 +8,10 @@ import {
   fetchCli,
   pullCli,
   pushCli,
+  deleteBranchCli,
+  isCommitPushedCli,
+  rewordCommitCli,
+  commitSummaryCli,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -99,7 +103,13 @@ export class GraphPanel {
         await this.refresh();
         break;
       case "createBranch":
-        await this.handleCreateBranch(msg.sha);
+        await this.handleCreateBranch(msg.sha, msg.name, msg.checkout);
+        break;
+      case "deleteBranch":
+        await this.handleDeleteBranch(msg.name);
+        break;
+      case "renameCommit":
+        await this.handleRenameCommit(msg.sha);
         break;
       case "checkout":
         await this.handleCheckout(msg.sha ?? msg.ref);
@@ -165,18 +175,97 @@ export class GraphPanel {
     }
   }
 
-  private async handleCreateBranch(sha: string): Promise<void> {
+  private async handleCreateBranch(
+    sha: string,
+    name?: string,
+    checkout?: boolean,
+  ): Promise<void> {
     const repo = await resolveRepository();
     if (!repo) return;
     try {
-      const name = await createBranchFromCommit(repo, repo.rootUri.fsPath, sha);
-      if (name) {
-        this.post({ type: "branchCreated", name, sha });
-        void vscode.window.showInformationMessage(`Created branch "${name}" from ${sha.slice(0, 7)}`);
+      // When the webview's SVN-style dialog already supplied a name, create
+      // directly; otherwise fall back to the native prompts.
+      const prepared = name ? { name, checkout: checkout ?? true } : undefined;
+      const created = await createBranchFromCommit(repo, repo.rootUri.fsPath, sha, prepared);
+      if (created) {
+        this.post({ type: "branchCreated", name: created, sha });
+        void vscode.window.showInformationMessage(`Created branch "${created}" from ${sha.slice(0, 7)}`);
       }
     } catch (err) {
       void vscode.window.showErrorMessage(`Create branch failed: ${String(err)}`);
     }
+  }
+
+  private async handleDeleteBranch(name: string): Promise<void> {
+    if (!name) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    const root = repo.rootUri.fsPath;
+
+    const confirm = await vscode.window.showWarningMessage(
+      `Delete branch "${name}"?`,
+      { modal: true },
+      "Delete",
+    );
+    if (confirm !== "Delete") return;
+
+    try {
+      await deleteBranchCli(root, name, false);
+    } catch (err) {
+      // -d refuses to drop a branch that isn't fully merged; offer a force delete.
+      const force = await vscode.window.showWarningMessage(
+        `Branch "${name}" is not fully merged. Delete anyway? This cannot be undone.`,
+        { modal: true },
+        "Force delete",
+      );
+      if (force !== "Force delete") return;
+      try {
+        await deleteBranchCli(root, name, true);
+      } catch (err2) {
+        void vscode.window.showErrorMessage(`Delete branch failed: ${String(err2)}`);
+        return;
+      }
+    }
+    void vscode.window.showInformationMessage(`Deleted branch "${name}".`);
+    await this.refresh();
+  }
+
+  private async handleRenameCommit(sha: string): Promise<void> {
+    if (!sha) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    const root = repo.rootUri.fsPath;
+
+    // Only local (unpushed) commits may be reworded — rewriting a pushed commit
+    // would diverge from the remote.
+    if (await isCommitPushedCli(root, sha)) {
+      void vscode.window.showWarningMessage(
+        "This commit has already been pushed, so its message can't be rewritten safely.",
+      );
+      return;
+    }
+
+    const current = await commitSummaryCli(root, sha);
+    const message = await vscode.window.showInputBox({
+      title: `Rename commit ${sha.slice(0, 7)}`,
+      prompt: "Enter the new commit message",
+      value: current,
+      validateInput: (v) => (v.trim() ? undefined : "Commit message is required"),
+    });
+    if (message === undefined) return;
+    const trimmed = message.trim();
+    if (!trimmed || trimmed === current) return;
+
+    try {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: "Renaming commit…", cancellable: false },
+        () => rewordCommitCli(root, sha, trimmed),
+      );
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Rename commit failed: ${String(err)}`);
+      return;
+    }
+    await this.refresh();
   }
 
   private async handleCheckout(treeish: string | undefined): Promise<void> {

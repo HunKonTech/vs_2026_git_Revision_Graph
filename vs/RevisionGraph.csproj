@@ -70,6 +70,7 @@
     <Compile Include="Git\GitService.cs" />
     <Compile Include="RevisionGraphPackage.cs" />
     <Compile Include="RevisionGraphToolWindow.cs" />
+    <Compile Include="PromptDialog.cs" />
     <Compile Include="NewBranchDialog.xaml.cs">
       <DependentUpon>NewBranchDialog.xaml</DependentUpon>
     </Compile>

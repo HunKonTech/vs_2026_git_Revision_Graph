@@ -74,7 +74,13 @@ export type HostToWebview =
 export type WebviewToHost =
   | { type: "ready" }
   | { type: "requestRefresh" }
-  | { type: "createBranch"; sha: string }
+  // `name`/`checkout` are sent when the webview's SVN-style dialog already
+  // collected them; when absent the host shows its own native prompt.
+  | { type: "createBranch"; sha: string; name?: string; checkout?: boolean }
+  | { type: "deleteBranch"; name: string }
+  // Reword a local (unpushed) commit's message. The host prompts for the new
+  // text and rewrites the commit silently.
+  | { type: "renameCommit"; sha: string }
   | { type: "checkout"; sha?: string; ref?: string }
   | { type: "copySha"; sha: string }
   | { type: "fetch" }

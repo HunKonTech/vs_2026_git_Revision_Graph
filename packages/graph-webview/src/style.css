@@ -400,6 +400,115 @@ body,
 .settings-done:hover {
   filter: brightness(1.1);
 }
+.settings-secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 16px;
+  margin-right: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-secondary:hover {
+  border-color: var(--accent);
+}
+.settings-done[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
+}
+.settings-checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.settings-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* SVN-style new-branch dialog */
+.newbranch-modal {
+  width: 440px;
+}
+.newbranch-startpoint {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 4px 0 10px;
+}
+.newbranch-tree {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+  margin-bottom: 10px;
+}
+.newbranch-folder,
+.newbranch-leaf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  white-space: nowrap;
+}
+.newbranch-folder {
+  cursor: pointer;
+  border-radius: 3px;
+}
+.newbranch-folder:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+.newbranch-folder.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.newbranch-leaf {
+  opacity: 0.5;
+  cursor: default;
+}
+.newbranch-folder-icon,
+.newbranch-leaf-icon {
+  font-size: 11px;
+  opacity: 0.9;
+}
+.newbranch-fullname {
+  font-size: 11px;
+  opacity: 0.7;
+  min-height: 15px;
+  margin-top: 6px;
+  word-break: break-all;
+}
+.newbranch-invalid {
+  font-size: 11px;
+  color: #e06c75;
+  min-height: 15px;
+  visibility: hidden;
+}
+.newbranch-invalid.visible {
+  visibility: visible;
+}
+.newbranch-checkout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 8px;
+  cursor: pointer;
+}
 
 /* details panel */
 .details-panel {

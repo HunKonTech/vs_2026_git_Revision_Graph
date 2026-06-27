@@ -41,5 +41,10 @@ namespace RevisionGraph.Model
         public string Type { get; set; }
         public string Sha { get; set; }
         public string Ref { get; set; }
+        /// <summary>Branch name for createBranch (when the SVN-style dialog
+        /// supplied it) and for deleteBranch.</summary>
+        public string Name { get; set; }
+        /// <summary>Checkout-after-create choice from the SVN-style dialog.</summary>
+        public bool? Checkout { get; set; }
     }
 }

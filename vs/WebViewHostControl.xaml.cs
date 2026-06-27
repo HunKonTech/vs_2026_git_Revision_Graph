@@ -158,7 +158,13 @@ namespace RevisionGraph
                     await RefreshAsync().ConfigureAwait(true);
                     break;
                 case "createBranch":
-                    await CreateBranchAsync(msg.Sha).ConfigureAwait(true);
+                    await CreateBranchAsync(msg.Sha, msg.Name, msg.Checkout).ConfigureAwait(true);
+                    break;
+                case "deleteBranch":
+                    await DeleteBranchAsync(msg.Name).ConfigureAwait(true);
+                    break;
+                case "renameCommit":
+                    await RenameCommitAsync(msg.Sha).ConfigureAwait(true);
                     break;
                 case "checkout":
                     await CheckoutAsync(msg.Sha ?? msg.Ref).ConfigureAwait(true);
@@ -285,26 +291,106 @@ namespace RevisionGraph
             }
         }
 
-        private async Task CreateBranchAsync(string sha)
+        private async Task CreateBranchAsync(string sha, string name, bool? checkout)
         {
             if (_git == null || string.IsNullOrEmpty(sha)) return;
 
-            // Native-feeling input via a themed VS dialog (NewBranchDialog), seeded
-            // from the clicked commit. Falls back-compatibly to the CLI for the
-            // actual branch creation.
-            var dialog = new NewBranchDialog(sha);
-            if (dialog.ShowDialog() != true) return;
+            string branchName;
+            bool doCheckout;
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                // The webview's SVN-style dialog already gathered the name + choice.
+                branchName = name.Trim();
+                doCheckout = checkout ?? true;
+            }
+            else
+            {
+                // Native-feeling fallback via the themed VS dialog (NewBranchDialog),
+                // seeded from the clicked commit.
+                var dialog = new NewBranchDialog(sha);
+                if (dialog.ShowDialog() != true) return;
+                branchName = dialog.BranchName;
+                doCheckout = dialog.Checkout;
+            }
 
             try
             {
-                await _git.CreateBranchAsync(dialog.BranchName, sha, dialog.Checkout).ConfigureAwait(true);
-                PostToWebview(new { type = "branchCreated", name = dialog.BranchName, sha });
+                await _git.CreateBranchAsync(branchName, sha, doCheckout).ConfigureAwait(true);
+                PostToWebview(new { type = "branchCreated", name = branchName, sha });
             }
             catch (Exception ex)
             {
                 PostToWebview(new { type = "error", message = "Create branch failed: " + ex.Message });
             }
         }
+
+        private async Task DeleteBranchAsync(string name)
+        {
+            if (_git == null || string.IsNullOrEmpty(name)) return;
+
+            var confirm = MessageBox.Show(
+                "Delete branch \"" + name + "\"?", "Delete Branch",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                await _git.DeleteBranchAsync(name, false).ConfigureAwait(true);
+            }
+            catch (Exception)
+            {
+                // -d refuses a branch that isn't fully merged; offer a force delete.
+                var force = MessageBox.Show(
+                    "Branch \"" + name + "\" is not fully merged. Delete anyway? This cannot be undone.",
+                    "Delete Branch", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (force != MessageBoxResult.Yes) return;
+                try
+                {
+                    await _git.DeleteBranchAsync(name, true).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    PostToWebview(new { type = "error", message = "Delete branch failed: " + ex.Message });
+                    return;
+                }
+            }
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        private async Task RenameCommitAsync(string sha)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha)) return;
+
+            // Only local (unpushed) commits may be reworded.
+            if (await _git.IsCommitPushedAsync(sha).ConfigureAwait(true))
+            {
+                MessageBox.Show(
+                    "This commit has already been pushed, so its message can't be rewritten safely.",
+                    "Rename Commit", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var current = await _git.GetCommitSummaryAsync(sha).ConfigureAwait(true);
+            var owner = Window.GetWindow(this);
+            var message = PromptDialog.Show(
+                owner, "Rename commit " + Short(sha), "Enter the new commit message", current);
+            if (message == null || message == current) return;
+
+            try
+            {
+                await _git.RewordCommitAsync(sha, message).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Rename commit failed: " + ex.Message });
+                return;
+            }
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        private static string Short(string sha)
+            => sha != null && sha.Length >= 7 ? sha.Substring(0, 7) : sha;
 
         private async Task CheckoutAsync(string treeish)
         {

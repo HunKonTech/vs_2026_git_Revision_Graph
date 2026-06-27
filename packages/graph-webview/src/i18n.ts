@@ -46,6 +46,8 @@ type Dict = {
   "settings.displayClassicHint": string;
   "settings.sectionGeneral": string;
   "settings.sectionGraph": string;
+  "settings.svnBranchDialog": string;
+  "settings.svnBranchDialogHint": string;
   "settings.close": string;
   "settings.done": string;
   "legend.title": string;
@@ -57,6 +59,20 @@ type Dict = {
   "menu.createBranch": string;
   "menu.checkout": string;
   "menu.copySha": string;
+  "menu.deleteBranch": string;
+  "menu.renameCommit": string;
+  "newBranch.title": string;
+  "newBranch.startPoint": string;
+  "newBranch.startPointOn": string;
+  "newBranch.location": string;
+  "newBranch.locationRoot": string;
+  "newBranch.name": string;
+  "newBranch.namePlaceholder": string;
+  "newBranch.fullName": string;
+  "newBranch.invalid": string;
+  "newBranch.checkout": string;
+  "newBranch.create": string;
+  "newBranch.cancel": string;
   "status.loading": string;
   "status.summary": string;
   "status.branchCreated": string;
@@ -96,6 +112,9 @@ const DICTS: Record<Lang, Dict> = {
     "settings.displayClassicHint": "Fixed canvas — trunk pinned left, no zoom, scroll only (like the SVN revision graph).",
     "settings.sectionGeneral": "General",
     "settings.sectionGraph": "Graph",
+    "settings.svnBranchDialog": "SVN-style branch dialog",
+    "settings.svnBranchDialogHint":
+      "Show a folder-tree picker when creating a branch (instead of a simple prompt).",
     "settings.close": "Close",
     "settings.done": "Done",
     "legend.title": "Legend",
@@ -107,6 +126,20 @@ const DICTS: Record<Lang, Dict> = {
     "menu.createBranch": "Create branch from here…",
     "menu.checkout": "Checkout this commit",
     "menu.copySha": "Copy commit SHA",
+    "menu.deleteBranch": 'Delete branch "{name}"…',
+    "menu.renameCommit": "Rename commit message…",
+    "newBranch.title": "Create Branch",
+    "newBranch.startPoint": "New branch starting from {sha}",
+    "newBranch.startPointOn": "on {refs}",
+    "newBranch.location": "Location",
+    "newBranch.locationRoot": "(root)",
+    "newBranch.name": "Branch name",
+    "newBranch.namePlaceholder": "my-branch",
+    "newBranch.fullName": "Full name: {name}",
+    "newBranch.invalid": "Invalid branch name",
+    "newBranch.checkout": "Checkout branch after creation",
+    "newBranch.create": "Create",
+    "newBranch.cancel": "Cancel",
     "status.loading": "Loading graph…",
     "status.summary": "{repo}Showing {commits} commits, {refs} refs",
     "status.branchCreated": 'Created branch "{name}" at {sha}',
@@ -144,6 +177,9 @@ const DICTS: Record<Lang, Dict> = {
     "settings.displayClassicHint": "Rögzített vászon — a fő ág balra rögzítve, nincs nagyítás, csak görgetés (mint az SVN revision graph).",
     "settings.sectionGeneral": "Általános",
     "settings.sectionGraph": "Gráf",
+    "settings.svnBranchDialog": "SVN-stílusú branch ablak",
+    "settings.svnBranchDialogHint":
+      "Branch létrehozásakor mappafa-választó jelenjen meg (egyszerű beírás helyett).",
     "settings.close": "Bezárás",
     "settings.done": "Kész",
     "legend.title": "Jelmagyarázat",
@@ -155,6 +191,20 @@ const DICTS: Record<Lang, Dict> = {
     "menu.createBranch": "Branch létrehozása innen…",
     "menu.checkout": "Checkout erre a commitra",
     "menu.copySha": "Commit SHA másolása",
+    "menu.deleteBranch": '"{name}" branch törlése…',
+    "menu.renameCommit": "Commit üzenet átnevezése…",
+    "newBranch.title": "Branch létrehozása",
+    "newBranch.startPoint": "Új branch innen indul: {sha}",
+    "newBranch.startPointOn": "({refs})",
+    "newBranch.location": "Hely",
+    "newBranch.locationRoot": "(gyökér)",
+    "newBranch.name": "Branch neve",
+    "newBranch.namePlaceholder": "uj-branch",
+    "newBranch.fullName": "Teljes név: {name}",
+    "newBranch.invalid": "Érvénytelen branch név",
+    "newBranch.checkout": "Checkout a branch-re létrehozás után",
+    "newBranch.create": "Létrehozás",
+    "newBranch.cancel": "Mégse",
     "status.loading": "Gráf betöltése…",
     "status.summary": "{repo}{commits} commit, {refs} ref látható",
     "status.branchCreated": '"{name}" branch létrehozva itt: {sha}',

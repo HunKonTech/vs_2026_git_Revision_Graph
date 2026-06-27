@@ -1,6 +1,7 @@
-import { LANGUAGES, getLang, setLang, t } from "./i18n.js";
+import { LANGUAGES, getLang, setLang, t, onLangChange } from "./i18n.js";
 import { getMainBranch, setMainBranch } from "./mainBranch.js";
 import { DISPLAY_MODES, getDisplayMode, setDisplayMode, type DisplayMode } from "./displayMode.js";
+import { getBranchDialogMode, setBranchDialogMode } from "./branchDialogMode.js";
 
 /** Context the settings dialog needs from the app. */
 export interface SettingsContext {
@@ -9,6 +10,7 @@ export interface SettingsContext {
 }
 
 let openOverlay: HTMLElement | null = null;
+let langUnsub: (() => void) | null = null;
 
 /** Close the settings dialog if open. */
 export function closeSettings(): void {
@@ -16,11 +18,16 @@ export function closeSettings(): void {
     openOverlay.remove();
     openOverlay = null;
   }
+  if (langUnsub) {
+    langUnsub();
+    langUnsub = null;
+  }
 }
 
 /**
  * Toggle the settings modal — a centered dialog over a dimming backdrop. Holds
- * the general (language) and graph (main branch, display style) options.
+ * the general (language, branch-dialog style) and graph (main branch, display
+ * style) options.
  */
 export function toggleSettings(ctx: SettingsContext): void {
   if (openOverlay) {
@@ -35,60 +42,71 @@ export function toggleSettings(ctx: SettingsContext): void {
   modal.className = "settings-modal";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
+  overlay.appendChild(modal);
 
-  // ---- Header: title + close (×) ----
-  const header = document.createElement("div");
-  header.className = "settings-modal-header";
+  // Rebuild the modal's content; called again on a language switch so the dialog
+  // relabels itself in place instead of closing.
+  function render(): void {
+    modal.innerHTML = "";
 
-  const title = document.createElement("span");
-  title.className = "settings-modal-title";
-  title.textContent = t("settings.title");
-  header.appendChild(title);
+    // ---- Header: title + close (×) ----
+    const header = document.createElement("div");
+    header.className = "settings-modal-header";
 
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "settings-close-x";
-  closeBtn.type = "button";
-  closeBtn.textContent = "×";
-  closeBtn.setAttribute("aria-label", t("settings.close"));
-  closeBtn.addEventListener("click", closeSettings);
-  header.appendChild(closeBtn);
+    const title = document.createElement("span");
+    title.className = "settings-modal-title";
+    title.textContent = t("settings.title");
+    header.appendChild(title);
 
-  modal.appendChild(header);
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "settings-close-x";
+    closeBtn.type = "button";
+    closeBtn.textContent = "×";
+    closeBtn.setAttribute("aria-label", t("settings.close"));
+    closeBtn.addEventListener("click", closeSettings);
+    header.appendChild(closeBtn);
 
-  // ---- Body ----
-  const body = document.createElement("div");
-  body.className = "settings-modal-body";
+    modal.appendChild(header);
 
-  // General section: language.
-  const general = section(t("settings.sectionGeneral"));
-  general.appendChild(languageRow());
-  body.appendChild(general);
+    // ---- Body ----
+    const body = document.createElement("div");
+    body.className = "settings-modal-body";
 
-  // Graph section: main branch + display style.
-  const graph = section(t("settings.sectionGraph"));
-  graph.appendChild(mainBranchRow(ctx));
-  graph.appendChild(displayModeRow());
-  body.appendChild(graph);
+    // General section: language + SVN-style branch dialog toggle.
+    const general = section(t("settings.sectionGeneral"));
+    general.appendChild(languageRow());
+    general.appendChild(branchDialogRow());
+    body.appendChild(general);
 
-  modal.appendChild(body);
+    // Graph section: main branch + display style.
+    const graph = section(t("settings.sectionGraph"));
+    graph.appendChild(mainBranchRow(ctx));
+    graph.appendChild(displayModeRow());
+    body.appendChild(graph);
 
-  // ---- Footer: Done ----
-  const footer = document.createElement("div");
-  footer.className = "settings-modal-footer";
-  const doneBtn = document.createElement("button");
-  doneBtn.className = "settings-done";
-  doneBtn.type = "button";
-  doneBtn.textContent = t("settings.done");
-  doneBtn.addEventListener("click", closeSettings);
-  footer.appendChild(doneBtn);
-  modal.appendChild(footer);
+    modal.appendChild(body);
+
+    // ---- Footer: Done ----
+    const footer = document.createElement("div");
+    footer.className = "settings-modal-footer";
+    const doneBtn = document.createElement("button");
+    doneBtn.className = "settings-done";
+    doneBtn.type = "button";
+    doneBtn.textContent = t("settings.done");
+    doneBtn.addEventListener("click", closeSettings);
+    footer.appendChild(doneBtn);
+    modal.appendChild(footer);
+  }
+
+  render();
+  // Re-render in place when the language changes (instead of closing the dialog).
+  langUnsub = onLangChange(render);
 
   // Clicking the dimmed backdrop (but not the modal) closes the dialog.
   overlay.addEventListener("mousedown", (e) => {
     if (e.target === overlay) closeSettings();
   });
 
-  overlay.appendChild(modal);
   document.body.appendChild(overlay);
   openOverlay = overlay;
 }
@@ -130,6 +148,31 @@ function languageRow(): HTMLElement {
   }
   select.addEventListener("change", () => setLang(select.value as never));
   control.appendChild(select);
+  return row;
+}
+
+/** Checkbox row toggling the SVN-style branch dialog, with an explanatory hint. */
+function branchDialogRow(): HTMLElement {
+  const row = document.createElement("label");
+  row.className = "settings-row settings-row-stacked";
+
+  const top = document.createElement("div");
+  top.className = "settings-checkbox-line";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = getBranchDialogMode();
+  cb.addEventListener("change", () => setBranchDialogMode(cb.checked));
+  const label = document.createElement("span");
+  label.className = "settings-row-label";
+  label.textContent = t("settings.svnBranchDialog");
+  top.appendChild(cb);
+  top.appendChild(label);
+  row.appendChild(top);
+
+  const hint = document.createElement("div");
+  hint.className = "settings-hint";
+  hint.textContent = t("settings.svnBranchDialogHint");
+  row.appendChild(hint);
   return row;
 }
 

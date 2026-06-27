@@ -1,7 +1,9 @@
 import { createHostBridge } from "./host-bridge.js";
 import { GraphView } from "./render.js";
-import { showContextMenu, closeContextMenu } from "./contextMenu.js";
-import { toggleSettings, closeSettings } from "./settings.js";
+import { showContextMenu, closeContextMenu, type MenuItem } from "./contextMenu.js";
+import { toggleSettings } from "./settings.js";
+import { openNewBranchDialog, closeNewBranchDialog } from "./newBranchDialog.js";
+import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
@@ -58,21 +60,39 @@ function boot(): void {
 
   const view = new GraphView(canvas, {
     onNodeContextMenu(sha, x, y) {
-      showContextMenu(x, y, [
+      const commit = view.getPositionedCommit(sha);
+      const localBranches = (commit?.refs ?? []).filter((r) => r.type === "localBranch");
+
+      const items: MenuItem[] = [
         {
           label: t("menu.createBranch"),
-          action: () => bridge.post({ type: "createBranch", sha }),
+          action: () => startCreateBranch(sha, commit?.refs ?? []),
         },
         {
           label: t("menu.checkout"),
           action: () => bridge.post({ type: "checkout", sha }),
         },
         {
+          label: t("menu.renameCommit"),
+          action: () => bridge.post({ type: "renameCommit", sha }),
+        },
+        {
           label: t("menu.copySha"),
           separatorBefore: true,
           action: () => bridge.post({ type: "copySha", sha }),
         },
-      ]);
+      ];
+
+      // One delete entry per local branch that points at this commit.
+      localBranches.forEach((ref, i) => {
+        items.push({
+          label: t("menu.deleteBranch", { name: ref.name }),
+          separatorBefore: i === 0,
+          action: () => bridge.post({ type: "deleteBranch", name: ref.name }),
+        });
+      });
+
+      showContextMenu(x, y, items);
     },
     onNodeDblClick(sha) {
       bridge.post({ type: "checkout", sha });
@@ -110,6 +130,7 @@ function boot(): void {
 
   function renderData(data: GraphData): void {
     closeContextMenu();
+    closeNewBranchDialog();
     detailsPanel.dataset.hidden = "";
     currentHead = data.head ?? null;
     lastData = data;
@@ -129,6 +150,36 @@ function boot(): void {
     return lastData.refs
       .filter((r) => r.type === "localBranch" || r.type === "remoteBranch")
       .map((r) => r.name);
+  }
+
+  // Branch names for the New Branch folder tree: local names as-is, remote names
+  // with their remote prefix (e.g. "origin/") stripped, de-duplicated.
+  function treeBranchNames(): string[] {
+    if (!lastData) return [];
+    const set = new Set<string>();
+    for (const r of lastData.refs) {
+      if (r.type === "localBranch") set.add(r.name);
+      else if (r.type === "remoteBranch") {
+        const slash = r.name.indexOf("/");
+        if (slash > 0 && slash < r.name.length - 1) set.add(r.name.slice(slash + 1));
+      }
+    }
+    return [...set];
+  }
+
+  // Begin branch creation from a commit: the SVN-style webview dialog when
+  // enabled, otherwise defer to the host's own native prompt.
+  function startCreateBranch(sha: string, refs: GraphData["refs"]): void {
+    if (!getBranchDialogMode()) {
+      bridge.post({ type: "createBranch", sha });
+      return;
+    }
+    openNewBranchDialog({
+      sha,
+      startRefs: refs.filter((r) => r.type !== "head").map((r) => r.name),
+      branchNames: treeBranchNames(),
+      onCreate: (name, checkout) => bridge.post({ type: "createBranch", sha, name, checkout }),
+    });
   }
 
   // Re-lay-out the existing data when the user changes the main branch.
@@ -174,9 +225,10 @@ function boot(): void {
   });
   root.insertBefore(toolbar, mainContent);
 
-  // Re-render all static text when the language changes.
+  // Re-render all static text when the language changes. The settings and
+  // new-branch dialogs re-render themselves in place (they stay open); only the
+  // transient context menu is dismissed.
   onLangChange(() => {
-    closeSettings();
     closeContextMenu();
     refreshBtn.textContent = t("toolbar.refresh");
     fetchBtn.textContent = t("toolbar.fetch");

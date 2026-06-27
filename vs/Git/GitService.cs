@@ -18,11 +18,37 @@ namespace RevisionGraph.Git
         private const char FS = '\u001f'; // field separator (ASCII unit separator)
         private const char RS = '\u001e'; // record separator (ASCII record separator)
 
+        // The git binary to invoke. Visual Studio ships git with Team Explorer, so
+        // we resolve it from the running IDE rather than relying on a separate
+        // install or a configured PATH. Falls back to "git" on PATH.
+        private static readonly string GitExe = ResolveGitPath();
+
         private readonly string _repoRoot;
 
         public GitService(string repoRoot)
         {
             _repoRoot = repoRoot;
+        }
+
+        private static string ResolveGitPath()
+        {
+            try
+            {
+                // VSAPPIDDIR points at the running IDE's Common7\IDE folder.
+                var ideDir = Environment.GetEnvironmentVariable("VSAPPIDDIR");
+                if (!string.IsNullOrEmpty(ideDir))
+                {
+                    var candidate = Path.Combine(
+                        ideDir, "CommonExtensions", "Microsoft", "TeamFoundation",
+                        "Team Explorer", "Git", "cmd", "git.exe");
+                    if (File.Exists(candidate)) return candidate;
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to PATH.
+            }
+            return "git";
         }
 
         /// <summary>
@@ -159,6 +185,108 @@ namespace RevisionGraph.Git
                 : RunAsync(_repoRoot, "branch", name, sha);
         }
 
+        /// <summary>Delete a local branch. <paramref name="force"/> uses -D.</summary>
+        public Task DeleteBranchAsync(string name, bool force)
+            => RunAsync(_repoRoot, "branch", force ? "-D" : "-d", name);
+
+        /// <summary>
+        /// Whether a commit is reachable from any remote branch — i.e. already
+        /// pushed. Used to refuse rewording commits other people may already have.
+        /// </summary>
+        public async Task<bool> IsCommitPushedAsync(string sha)
+        {
+            var outp = await TryRunAsync("branch", "-r", "--contains", sha).ConfigureAwait(false);
+            foreach (var line in SplitLines(outp))
+            {
+                if (!line.EndsWith("/HEAD", StringComparison.Ordinal)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>The full HEAD sha, or empty when detached/empty.</summary>
+        public async Task<string> GetHeadShaAsync()
+            => (await RunSafeAsync(_repoRoot, "rev-parse", "HEAD").ConfigureAwait(false)).Trim();
+
+        /// <summary>A commit's current subject line (first line of its message).</summary>
+        public async Task<string> GetCommitSummaryAsync(string sha)
+            => (await RunSafeAsync(_repoRoot, "show", "-s", "--format=%s", sha).ConfigureAwait(false)).Trim();
+
+        /// <summary>
+        /// Reword a local commit's message silently — no editor pops up and the
+        /// rewrite leaves no visible "amended" marker. HEAD uses a plain --amend;
+        /// older commits use a non-interactive interactive-rebase driven by small
+        /// PowerShell editor helpers. Throws if the index has staged changes.
+        /// </summary>
+        public async Task RewordCommitAsync(string sha, string message)
+        {
+            var staged = await TryRunAsync("diff", "--cached", "--name-only").ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(staged))
+                throw new InvalidOperationException(
+                    "There are staged changes; commit or unstage them before rewording.");
+
+            var head = await GetHeadShaAsync().ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(head) &&
+                (head == sha || head.StartsWith(sha, StringComparison.Ordinal) ||
+                 sha.StartsWith(head, StringComparison.Ordinal)))
+            {
+                await RunAsync(_repoRoot, "commit", "--amend", "-m", message).ConfigureAwait(false);
+                return;
+            }
+
+            // Older commit: scripted, non-interactive `rebase -i <sha>^`.
+            var tmp = Path.Combine(Path.GetTempPath(), "revgraph-reword-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tmp);
+            try
+            {
+                var seqPs1 = Path.Combine(tmp, "seq.ps1");
+                var msgPs1 = Path.Combine(tmp, "msg.ps1");
+                var msgFile = Path.Combine(tmp, "message.txt");
+                File.WriteAllText(msgFile, message);
+                File.WriteAllText(seqPs1, SeqEditorPs1);
+                File.WriteAllText(msgPs1, MsgEditorPs1);
+
+                string Editor(string ps1) =>
+                    "powershell -NoProfile -ExecutionPolicy Bypass -File \"" + ps1 + "\"";
+
+                var env = new Dictionary<string, string>
+                {
+                    ["GIT_SEQUENCE_EDITOR"] = Editor(seqPs1),
+                    ["GIT_EDITOR"] = Editor(msgPs1),
+                    ["GIT_REWORD_TARGET"] = sha,
+                    ["GIT_REWORD_MSG_FILE"] = msgFile,
+                };
+                await RunWithEnvAsync(_repoRoot, env, "rebase", "-i", "--autostash", sha + "^")
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                try { Directory.Delete(tmp, true); } catch { /* best effort */ }
+            }
+        }
+
+        // Marks exactly the target commit as "reword" in the rebase todo list.
+        private const string SeqEditorPs1 =
+            "$file = $args[0]\n" +
+            "$target = $env:GIT_REWORD_TARGET\n" +
+            "$lines = Get-Content -LiteralPath $file\n" +
+            "$done = $false\n" +
+            "$out = foreach ($line in $lines) {\n" +
+            "  if (-not $done -and $line -match '^(pick|p)\\s+([0-9a-f]+)\\s') {\n" +
+            "    $h = $Matches[2]\n" +
+            "    if ($target.StartsWith($h) -or $h.StartsWith($target)) {\n" +
+            "      $done = $true\n" +
+            "      $line -replace '^(pick|p)\\b','reword'\n" +
+            "    } else { $line }\n" +
+            "  } else { $line }\n" +
+            "}\n" +
+            "Set-Content -LiteralPath $file -Value $out\n";
+
+        // Writes the new commit message into the file git opens for the reword.
+        private const string MsgEditorPs1 =
+            "$file = $args[0]\n" +
+            "$msgFile = $env:GIT_REWORD_MSG_FILE\n" +
+            "if ($msgFile) { Copy-Item -LiteralPath $msgFile -Destination $file -Force }\n";
+
         public Task CheckoutAsync(string treeish) => RunAsync(_repoRoot, "checkout", treeish);
 
         /// <summary>
@@ -245,11 +373,20 @@ namespace RevisionGraph.Git
 
         /// <summary>Run git with the given args and return stdout, throwing on non-zero exit.</summary>
         private static Task<string> RunAsync(string cwd, params string[] args)
+            => RunCoreAsync(cwd, null, args);
+
+        /// <summary>Run git with extra environment variables set on the process.</summary>
+        private static Task<string> RunWithEnvAsync(
+            string cwd, IDictionary<string, string> env, params string[] args)
+            => RunCoreAsync(cwd, env, args);
+
+        private static Task<string> RunCoreAsync(
+            string cwd, IDictionary<string, string> env, string[] args)
         {
             var tcs = new TaskCompletionSource<string>();
             var psi = new ProcessStartInfo
             {
-                FileName = "git",
+                FileName = GitExe,
                 WorkingDirectory = cwd,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -257,6 +394,10 @@ namespace RevisionGraph.Git
                 CreateNoWindow = true,
                 StandardOutputEncoding = Encoding.UTF8,
             };
+            if (env != null)
+            {
+                foreach (var kv in env) psi.EnvironmentVariables[kv.Key] = kv.Value;
+            }
             // ArgumentList is .NET 5+ only; on .NET Framework 4.7.2 build the
             // Arguments string manually, quoting tokens that contain spaces.
             psi.Arguments = string.Join(" ", System.Array.ConvertAll(

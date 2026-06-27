@@ -1,0 +1,3 @@
+{
+  "revGraph.welcome.contents": "Open the Git Revision Graph using the button below.\n\nDisplays commits, local & remote branches, and tags as a connected graph — TortoiseSVN style.\n\n[$(git-branch)  Open Revision Graph](command:revGraph.show)\n\nRight-click a commit to create a new branch from it."
+}

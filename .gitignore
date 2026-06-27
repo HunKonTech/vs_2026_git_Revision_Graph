@@ -83,7 +83,9 @@ dist/
 out/
 *.tsbuildinfo
 *.vsix
-.claude
+# Claude Code local files (not shared across machines)
+.claude/launch.json
+.claude/memory/
 
 # Generated copies of the shared web renderer bundle
 vscode/media/

@@ -51,7 +51,7 @@
     "viewsWelcome": [
       {
         "view": "revGraph.launchView",
-        "contents": "Nyisd meg a Git Revision Graph-ot az alábbi gombbal.\n\nMegjeleníti a commit-ok, helyi és távoli branch-ek, és tag-ek gráfját — TortoiseSVN stílusban.\n\n[$(git-branch)  Revision Graph megnyitása](command:revGraph.show)\n\nJobb klikk egy commit-on → új branch létrehozása."
+        "contents": "%revGraph.welcome.contents%"
       }
     ],
     "menus": {

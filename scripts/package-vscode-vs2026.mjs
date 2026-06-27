@@ -2,7 +2,7 @@
 // VS 2026 ships with a VS Code engine >= 1.96 — this package sets the minimum
 // accordingly so Marketplace / manual install can distinguish the two artifacts.
 //
-// Output: dist/installers/rev-graph-vscode-vs2026-<version>.vsix
+// Output: dist/installers/git-revision-graph-vs2026-<version>.vsix
 import { execFileSync } from "node:child_process";
 import { mkdirSync, copyFileSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -57,7 +57,7 @@ const vs2026Pkg = {
 };
 
 // 3. Stage into a temp directory with the patched package.json.
-const tmpDir = resolve(tmpdir(), "rev-graph-vs2026-" + Date.now());
+const tmpDir = resolve(tmpdir(), "git-revision-graph-vs2026-" + Date.now());
 mkdirSync(tmpDir, { recursive: true });
 
 for (const entry of ["out", "media", "icons"]) {
@@ -77,7 +77,7 @@ writeFileSync(resolve(tmpDir, "package.json"), JSON.stringify(vs2026Pkg, null, 2
 // --skip-license: license is already copied; --no-dependencies: bundle is pre-built;
 // --skip-vscode-version: engine version is set explicitly in the patched package.json.
 // We pass the prepublish script as a no-op to avoid vsce trying to run build.mjs.
-const outFile = resolve(outDir, `rev-graph-vscode-vs2026-${preReleaseVersion}.vsix`);
+const outFile = resolve(outDir, `git-revision-graph-vs2026-${preReleaseVersion}.vsix`);
 console.log("==> Packaging VS Code extension for VS 2026");
 run("npx", ["--yes", "@vscode/vsce", "package",
   "--no-dependencies",

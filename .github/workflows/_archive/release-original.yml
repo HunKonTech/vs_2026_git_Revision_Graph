@@ -351,13 +351,13 @@ jobs:
           Write-Host "Successfully published to Visual Studio Marketplace."
 
   # -------------------------------------------------------------------------
-  # Second job: build VS 2022 VSIX on the self-hosted Windows runner.
+  # Second job: build VS 2022 VSIX on a GitHub-hosted runner.
   # Runs after the release job so the GitHub Release already exists.
   # Uses Microsoft.VSSDK.BuildTools (NuGet) — no workload install needed.
   # -------------------------------------------------------------------------
   build-vs-vsix:
     needs: release
-    runs-on: [self-hosted, Windows]
+    runs-on: windows-latest
     if: success() || needs.release.result == 'success'
 
     env:

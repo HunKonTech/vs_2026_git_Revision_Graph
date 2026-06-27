@@ -139,6 +139,37 @@ describe("computeLayout", () => {
     expect(lane("E")).toBeGreaterThan(lane("B"));
   });
 
+  it("orders sibling branches by creation: earlier branch to the left", () => {
+    // trunk T3->T2->T1->T0 ; branchA created off T1 (earlier), branchB off T2.
+    // Input is topo-order (children before parents), newest first.
+    const layout = computeLayout(
+      data(
+        [
+          commit("B1", ["T2"]),
+          commit("A1", ["T1"]),
+          commit("T3", ["T2"]),
+          commit("T2", ["T1"]),
+          commit("T1", ["T0"]),
+          commit("T0"),
+        ],
+        {
+          refs: [
+            { name: "main", type: "localBranch", targetSha: "T3", isCurrent: true },
+            { name: "branchA", type: "localBranch", targetSha: "A1" },
+            { name: "branchB", type: "localBranch", targetSha: "B1" },
+          ],
+          head: "T3",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const lane = (sha: string) => layout.commits.find((c) => c.sha === sha)!.lane;
+    expect(lane("T3")).toBe(0); // trunk left
+    // branchA forked from the older commit, so it sits left of branchB.
+    expect(lane("A1")).toBeGreaterThan(0);
+    expect(lane("A1")).toBeLessThan(lane("B1"));
+  });
+
   it("attaches refs to the commit they point at", () => {
     const layout = computeLayout(
       data([commit("C", ["B"]), commit("B")], {

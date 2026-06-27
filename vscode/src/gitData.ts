@@ -24,7 +24,10 @@ export async function readGraphData(repoRoot: string, maxCommits: number): Promi
     git(repoRoot, [
       "log",
       "--all",
-      "--date-order",
+      // Topological order keeps each branch's commits contiguous instead of
+      // interleaving branches by timestamp — the SVN revision-graph behaviour,
+      // where structure (not commit time) drives vertical placement.
+      "--topo-order",
       `--max-count=${maxCommits}`,
       `--pretty=format:%H${FS}%P${FS}%s${FS}%an${FS}%ae${FS}%aI${RS}`,
     ]),

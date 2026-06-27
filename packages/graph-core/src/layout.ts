@@ -79,8 +79,10 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   // owns the shared base commits instead of whichever tip happens to be newest.
   interface Column {
     id: number;
-    /** Row of the column's tip (its newest commit) — used to order columns. */
+    /** Row of the column's tip (its newest commit). */
     tipRow: number;
+    /** Row of the column's base (its oldest commit) — the branch creation point. */
+    baseRow: number;
     /** Column this one diverged from, or null when it is an independent root. */
     forkParent: number | null;
   }
@@ -104,10 +106,12 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   for (const seed of seeds) {
     if (colOf.has(seed)) continue;
     const col = nextCol++;
-    columns[col] = { id: col, tipRow: rowOf.get(seed)!, forkParent: null };
+    const seedRow = rowOf.get(seed)!;
+    columns[col] = { id: col, tipRow: seedRow, baseRow: seedRow, forkParent: null };
     let cur: string | undefined = seed;
     while (cur !== undefined) {
       colOf.set(cur, col);
+      columns[col]!.baseRow = rowOf.get(cur)!; // last claimed = oldest so far
       const parents: string[] = bySha.get(cur)!.parents.filter((p) => present.has(p));
       const first: string | undefined = parents[0];
       if (first === undefined) break; // root, or first parent out of view
@@ -130,13 +134,18 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     }
   }
   const byTipRow = (a: number, b: number) => columns[a]!.tipRow - columns[b]!.tipRow;
+  // Sibling branches are ordered by creation revision: the branch created
+  // earlier (its base/fork point is older — a larger row) goes to the left,
+  // matching how TortoiseSVN orders copy columns.
+  const byCreation = (a: number, b: number) =>
+    columns[b]!.baseRow - columns[a]!.baseRow || byTipRow(a, b);
 
   const laneOf = new Map<number, number>();
   let nextLane = 0;
   const visit = (id: number): void => {
     if (laneOf.has(id)) return;
     laneOf.set(id, nextLane++);
-    const kids = (children.get(id) ?? []).slice().sort(byTipRow);
+    const kids = (children.get(id) ?? []).slice().sort(byCreation);
     for (const k of kids) visit(k);
   };
 

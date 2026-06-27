@@ -47,9 +47,12 @@ namespace RevisionGraph.Git
 
         public async Task<GraphData> ReadGraphDataAsync(int maxCommits)
         {
+            // Topological order keeps each branch's commits contiguous instead of
+            // interleaving branches by timestamp — the SVN revision-graph behaviour,
+            // where structure (not commit time) drives vertical placement.
             var logTask = RunAsync(
                 _repoRoot,
-                "log", "--all", "--date-order", "--max-count=" + maxCommits,
+                "log", "--all", "--topo-order", "--max-count=" + maxCommits,
                 "--pretty=format:%H" + FS + "%P" + FS + "%s" + FS + "%an" + FS + "%ae" + FS + "%aI" + RS);
 
             var refsTask = RunAsync(

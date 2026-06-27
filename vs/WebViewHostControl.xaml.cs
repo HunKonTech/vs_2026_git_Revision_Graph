@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.VisualStudio.PlatformUI;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.Web.WebView2.Core;
 using RevisionGraph.Git;
 using RevisionGraph.Model;
@@ -34,6 +37,12 @@ namespace RevisionGraph
         {
             InitializeComponent();
             Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            VSColorTheme.ThemeChanged -= OnVsThemeChanged;
         }
 
         private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -70,7 +79,57 @@ namespace RevisionGraph
                 VirtualHost, assetDir, CoreWebView2HostResourceAccessKind.Allow);
 
             WebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+
+            // Make the webview follow the Visual Studio theme. Injecting before
+            // the document loads avoids a flash of the bundle's default (dark)
+            // palette; ThemeChanged keeps it in sync when the user switches.
+            await WebView.CoreWebView2
+                .AddScriptToExecuteOnDocumentCreatedAsync(BuildThemeScript())
+                .ConfigureAwait(true);
+            VSColorTheme.ThemeChanged += OnVsThemeChanged;
+
             WebView.CoreWebView2.Navigate($"https://{VirtualHost}/index.html");
+        }
+
+        private void OnVsThemeChanged(ThemeChangedEventArgs e)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (WebView?.CoreWebView2 == null) return;
+            _ = WebView.CoreWebView2.ExecuteScriptAsync(BuildThemeScript());
+        }
+
+        /// <summary>
+        /// Build the script that overrides the bundle's CSS theme variables with
+        /// the current VS environment colors. Set on <c>documentElement</c> so it
+        /// works even before &lt;head&gt; exists (document-created timing).
+        /// </summary>
+        private static string BuildThemeScript()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            string Hex(ThemeResourceKey key)
+            {
+                var c = VSColorTheme.GetThemedColor(key);
+                return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            }
+
+            var vars = new Dictionary<string, string>
+            {
+                ["--bg"] = Hex(EnvironmentColors.ToolWindowBackgroundColorKey),
+                ["--fg"] = Hex(EnvironmentColors.ToolWindowTextColorKey),
+                ["--border"] = Hex(EnvironmentColors.ToolWindowBorderColorKey),
+                ["--accent"] = Hex(EnvironmentColors.SystemHighlightColorKey),
+            };
+
+            var sb = new StringBuilder("(function(){var r=document.documentElement;");
+            foreach (var kv in vars)
+            {
+                sb.Append("r.style.setProperty(")
+                  .Append(JsonSerializer.Serialize(kv.Key)).Append(',')
+                  .Append(JsonSerializer.Serialize(kv.Value)).Append(");");
+            }
+            sb.Append("})();");
+            return sb.ToString();
         }
 
         private async void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)

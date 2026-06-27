@@ -26,5 +26,7 @@
   </Prerequisites>
   <Assets>
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    <!-- Registers the custom image moniker (command icon) with the image service. -->
+    <Asset Type="Microsoft.VisualStudio.ImageManifest" d:Source="File" Path="RevisionGraph.imagemanifest" />
   </Assets>
 </PackageManifest>

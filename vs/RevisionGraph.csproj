@@ -92,8 +92,11 @@
     <VSCTCompile Include="RevisionGraphPackage.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>
     </VSCTCompile>
-    <!-- Menu/command icon, embedded into the CTMENU by the VSCT compiler. -->
-    <Content Include="Resources\RevisionGraph.png">
+    <!-- Theme-aware command icon. The PNG is embedded as a WPF resource so the
+         image manifest can reference it through a pack:// component URI; the
+         manifest itself ships in the VSIX and is registered as an asset below. -->
+    <Resource Include="Resources\RevisionGraph.png" />
+    <Content Include="RevisionGraph.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
   </ItemGroup>

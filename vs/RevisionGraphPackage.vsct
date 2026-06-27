@@ -9,19 +9,17 @@
       <Button guid="guidRevisionGraphCmdSet" id="OpenGraphCommandId"
               priority="0x0100" type="Button">
         <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <!-- Theme-aware icon resolved through the image service (see
+             RevisionGraph.imagemanifest). IconIsMoniker makes the guid/id below
+             refer to an image moniker rather than a VSCT bitmap strip. -->
         <Icon guid="guidImages" id="bmpRevisionGraph" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
           <ButtonText>Revision Graph</ButtonText>
           <CommandName>View.RevisionGraph</CommandName>
         </Strings>
       </Button>
     </Buttons>
-
-    <Bitmaps>
-      <!-- 16x16 PNG with alpha; the menu glyph mirrors the VS Code icon. -->
-      <Bitmap guid="guidImages" href="Resources\RevisionGraph.png"
-              usedList="bmpRevisionGraph" />
-    </Bitmaps>
   </Commands>
 
   <Symbols>

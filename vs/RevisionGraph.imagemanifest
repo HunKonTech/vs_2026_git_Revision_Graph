@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
+  <Symbols>
+    <Guid Name="RevisionGraphAssets" Value="{d4e5f6a7-b8c9-40d1-a2e3-f4a5b6c7d8e9}" />
+    <ID Name="RevisionGraphIcon" Value="1" />
+  </Symbols>
+  <Images>
+    <!-- AllowColorInversion lets the image service recolor the monochrome glyph
+         per theme (dark glyph on light themes, light glyph on dark themes),
+         mirroring the VS Code icon's currentColor behaviour. -->
+    <Image Guid="$(RevisionGraphAssets)" ID="$(RevisionGraphIcon)" AllowColorInversion="true">
+      <Source Uri="/RevisionGraph;Component/Resources/RevisionGraph.png">
+        <Size Value="16" />
+      </Source>
+    </Image>
+  </Images>
+  <ImageLists />
+</ImageManifest>

@@ -302,22 +302,50 @@ function graphBoxes(ox: number, oy: number): string {
   return s;
 }
 
-/** A 4-way move cursor — the pan affordance of the free canvas. */
-function moveIcon(cx: number, cy: number): string {
-  const a = 12;
-  const h = 3.5;
-  const stroke = `stroke="${C.fg}" stroke-width="1.4"`;
+/**
+ * A prominent 4-way move badge — one self-contained icon showing the canvas can
+ * be dragged in every direction (the modern mode's pan affordance).
+ */
+function panBadge(cx: number, cy: number): string {
+  const a = 15; // arrow arm length
+  const h = 4.5; // arrowhead half-width
+  const R = a + 8; // badge half-size
+  const stroke = `stroke="${C.fg}" stroke-width="1.8" stroke-linecap="round"`;
   const tri = `fill="${C.fg}"`;
   return (
-    `<g opacity="0.75">` +
+    `<g>` +
+    rect(cx - R, cy - R, R * 2, R * 2, { fill: C.faint, stroke: C.border, r: 9 }) +
+    `<g opacity="0.9">` +
     `<line x1="${cx - a}" y1="${cy}" x2="${cx + a}" y2="${cy}" ${stroke}/>` +
     `<line x1="${cx}" y1="${cy - a}" x2="${cx}" y2="${cy + a}" ${stroke}/>` +
-    `<polygon points="${cx - a - 1},${cy} ${cx - a + 5},${cy - h} ${cx - a + 5},${cy + h}" ${tri}/>` +
-    `<polygon points="${cx + a + 1},${cy} ${cx + a - 5},${cy - h} ${cx + a - 5},${cy + h}" ${tri}/>` +
-    `<polygon points="${cx},${cy - a - 1} ${cx - h},${cy - a + 5} ${cx + h},${cy - a + 5}" ${tri}/>` +
-    `<polygon points="${cx},${cy + a + 1} ${cx - h},${cy + a - 5} ${cx + h},${cy + a - 5}" ${tri}/>` +
-    `</g>`
+    `<polygon points="${cx - a - 2},${cy} ${cx - a + 5},${cy - h} ${cx - a + 5},${cy + h}" ${tri}/>` +
+    `<polygon points="${cx + a + 2},${cy} ${cx + a - 5},${cy - h} ${cx + a - 5},${cy + h}" ${tri}/>` +
+    `<polygon points="${cx},${cy - a - 2} ${cx - h},${cy - a + 5} ${cx + h},${cy - a + 5}" ${tri}/>` +
+    `<polygon points="${cx},${cy + a + 2} ${cx - h},${cy + a - 5} ${cx + h},${cy + a - 5}" ${tri}/>` +
+    `</g></g>`
   );
+}
+
+/**
+ * A mouse with its scroll wheel and a downward chevron trail — the classic
+ * mode's only navigation: roll the wheel to scroll down through the graph.
+ */
+function mouseScrollIcon(cx: number, cy: number): string {
+  const bw = 18;
+  const bh = 28;
+  const stroke = `stroke="${C.fg}" stroke-width="1.5" fill="none"`;
+  const top = cy - bh / 2;
+  let s = `<g opacity="0.85">`;
+  // Mouse body.
+  s += `<rect x="${cx - bw / 2}" y="${top}" width="${bw}" height="${bh}" rx="${bw / 2}" ${stroke}/>`;
+  // Scroll wheel.
+  s += `<line x1="${cx}" y1="${top + 5}" x2="${cx}" y2="${top + 11}" stroke="${C.accent}" stroke-width="2.4" stroke-linecap="round"/>`;
+  // Downward chevrons: "scroll down".
+  const dy = cy + bh / 2 + 6;
+  s += `<polyline points="${cx - 5},${dy} ${cx},${dy + 5} ${cx + 5},${dy}" ${stroke} stroke-linecap="round" stroke-linejoin="round"/>`;
+  s += `<polyline points="${cx - 5},${dy + 6} ${cx},${dy + 11} ${cx + 5},${dy + 6}" ${stroke} stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>`;
+  s += `</g>`;
+  return s;
 }
 
 /** A magnifier with a + — the zoom affordance of the free canvas. */
@@ -338,10 +366,10 @@ export function modernGraphSchematic(): string {
   let s = open();
   s += rect(8, 8, W - 16, H - 16, { fill: C.faint, r: 4 });
   // The graph floats with padding (free canvas, not pinned to a corner).
-  s += graphBoxes(34, 26);
-  // Pan + zoom affordances in the open right margin.
-  s += moveIcon(262, 66);
-  s += zoomIcon(261, 128);
+  s += graphBoxes(30, 26);
+  // One prominent 4-way badge (drag in any direction) + the zoom affordance.
+  s += panBadge(256, 74);
+  s += zoomIcon(256, 134);
   return s + close();
 }
 
@@ -349,13 +377,69 @@ export function classicGraphSchematic(): string {
   let s = open();
   s += rect(8, 8, W - 16, H - 16, { fill: C.faint, r: 4 });
   // The trunk is pinned to the top-left corner; navigation is by scrollbars only.
-  s += graphBoxes(18, 16);
+  s += graphBoxes(16, 16);
+  // Mouse-wheel hint: roll down to scroll the graph (classic's only navigation).
+  s += mouseScrollIcon(250, 60);
   // Vertical scrollbar (right) + horizontal scrollbar (bottom).
   s += rect(W - 16, 12, 7, H - 34, { fill: C.muted, r: 3 });
   s += rect(W - 15, 28, 5, 52, { fill: C.border, r: 2 });
   s += rect(12, H - 16, W - 32, 7, { fill: C.muted, r: 3 });
   s += rect(18, H - 15, 78, 5, { fill: C.border, r: 2 });
   return s + close();
+}
+
+// ---------------------------------------------------------------------------
+// Colour theme — light vs dark. Unlike the other schematics these depict the
+// *actual* theme palette, so they use fixed colours (not the var() tokens of the
+// current theme) and always show light-on-light / dark-on-dark with a sun / moon.
+// ---------------------------------------------------------------------------
+function themeSchematic(dark: boolean): string {
+  const bg = dark ? "#1e1e1e" : "#ffffff";
+  const panel = dark ? "#2a2a2b" : "#f3f3f3";
+  const border = dark ? "#3c3c3c" : "#d0d0d0";
+  const lineCol = dark ? "rgba(212,212,212,0.30)" : "rgba(31,31,31,0.22)";
+  const accent = "#0e639c";
+
+  let s =
+    `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" ` +
+    `preserveAspectRatio="xMidYMid meet" font-family="system-ui, sans-serif">`;
+  s += rect(0, 0, W, H, { fill: bg, stroke: border, r: 8 });
+  // A little app window: title bar + a few text lines.
+  s += rect(14, 16, W - 28, 22, { fill: panel, r: 4 });
+  s += rect(22, 24, 70, 6, { fill: lineCol, r: 3 });
+  for (let i = 0; i < 4; i++) {
+    const y = 56 + i * 20;
+    s += rect(22, y, W - 110, 7, { fill: lineCol, r: 3 });
+    s += rect(22, y + 9, W - 150, 5, { fill: lineCol, r: 3 });
+  }
+  // Accent dot, so the swatch shows where the accent colour lands.
+  s += circle(W - 30, 27, 4, { fill: accent });
+
+  // Sun (light) / moon (dark), top-right of the content area.
+  const ix = W - 44;
+  const iy = 84;
+  if (dark) {
+    s += circle(ix, iy, 11, { fill: "#cfd6e6" });
+    s += circle(ix + 5, iy - 3, 9, { fill: bg }); // bite out a crescent
+  } else {
+    s += circle(ix, iy, 8, { fill: "#e6a700" });
+    for (let k = 0; k < 8; k++) {
+      const ang = (k * Math.PI) / 4;
+      const x1 = ix + Math.cos(ang) * 11;
+      const y1 = iy + Math.sin(ang) * 11;
+      const x2 = ix + Math.cos(ang) * 15;
+      const y2 = iy + Math.sin(ang) * 15;
+      s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#e6a700" stroke-width="2" stroke-linecap="round"/>`;
+    }
+  }
+  return s + close();
+}
+
+export function lightThemeSchematic(): string {
+  return themeSchematic(false);
+}
+export function darkThemeSchematic(): string {
+  return themeSchematic(true);
 }
 
 /**
@@ -368,4 +452,6 @@ export const ALL_SCHEMATICS: { id: string; svg: () => string }[] = [
   { id: "branch-dialog-vs", svg: vsDialogSchematic },
   { id: "display-modern", svg: modernGraphSchematic },
   { id: "display-classic", svg: classicGraphSchematic },
+  { id: "theme-light", svg: lightThemeSchematic },
+  { id: "theme-dark", svg: darkThemeSchematic },
 ];

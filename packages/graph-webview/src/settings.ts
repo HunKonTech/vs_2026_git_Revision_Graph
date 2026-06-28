@@ -2,12 +2,15 @@ import { LANGUAGES, getLang, setLang, t, onLangChange } from "./i18n.js";
 import { getMainBranch, setMainBranch } from "./mainBranch.js";
 import { getDisplayMode, setDisplayMode, type DisplayMode } from "./displayMode.js";
 import { getBranchDialogMode, setBranchDialogMode } from "./branchDialogMode.js";
+import { getThemeChoice, setThemeChoice, type ThemeChoice } from "./theme.js";
 import { detectHost } from "./host.js";
 import {
   svnDialogSchematic,
   nativeDialogSchematic,
   modernGraphSchematic,
   classicGraphSchematic,
+  lightThemeSchematic,
+  darkThemeSchematic,
 } from "./schematics.js";
 
 /** Context the settings dialog needs from the app. */
@@ -79,9 +82,10 @@ export function toggleSettings(ctx: SettingsContext): void {
     const body = document.createElement("div");
     body.className = "settings-modal-body";
 
-    // General section: language + SVN-style branch dialog toggle.
+    // General section: language + colour theme + SVN-style branch dialog.
     const general = section(t("settings.sectionGeneral"));
     general.appendChild(languageRow());
+    general.appendChild(themeRow());
     general.appendChild(branchDialogRow());
     body.appendChild(general);
 
@@ -185,6 +189,33 @@ function branchDialogRow(): HTMLElement {
   ];
   const selected = getBranchDialogMode() ? "svn" : "native";
   row.appendChild(cardGroup(cards, selected, (key) => setBranchDialogMode(key === "svn")));
+  return row;
+}
+
+/**
+ * Colour-theme picker: two clickable schematic cards — light vs dark. The
+ * selected card reflects the effective theme (the override, or the host's theme
+ * when set to follow the IDE), read from the applied `data-theme` on :root.
+ */
+function themeRow(): HTMLElement {
+  const row = stackedRow(t("settings.theme"));
+  const effective =
+    getThemeChoice() || (document.documentElement.dataset.theme === "light" ? "light" : "dark");
+  const cards: CardDef[] = [
+    {
+      key: "light",
+      title: t("settings.themeLight"),
+      caption: t("settings.themeLightHint"),
+      svg: lightThemeSchematic(),
+    },
+    {
+      key: "dark",
+      title: t("settings.themeDark"),
+      caption: t("settings.themeDarkHint"),
+      svg: darkThemeSchematic(),
+    },
+  ];
+  row.appendChild(cardGroup(cards, effective, (key) => setThemeChoice(key as ThemeChoice)));
   return row;
 }
 

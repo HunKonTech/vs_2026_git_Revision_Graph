@@ -37,6 +37,11 @@ type Dict = {
   "details.currentHead": string;
   "settings.title": string;
   "settings.language": string;
+  "settings.theme": string;
+  "settings.themeLight": string;
+  "settings.themeDark": string;
+  "settings.themeLightHint": string;
+  "settings.themeDarkHint": string;
   "settings.mainBranch": string;
   "settings.mainBranchAuto": string;
   "settings.mainBranchSearch": string;
@@ -129,6 +134,11 @@ const DICTS: Record<Lang, Dict> = {
     "details.currentHead": "HEAD — current checkout",
     "settings.title": "Settings",
     "settings.language": "Language",
+    "settings.theme": "Theme",
+    "settings.themeLight": "Light",
+    "settings.themeDark": "Dark",
+    "settings.themeLightHint": "Light background, dark text.",
+    "settings.themeDarkHint": "Dark background, light text.",
     "settings.mainBranch": "Main branch",
     "settings.mainBranchAuto": "Automatic",
     "settings.mainBranchSearch": "Search branches…",
@@ -220,6 +230,11 @@ const DICTS: Record<Lang, Dict> = {
     "details.currentHead": "HEAD — itt áll a kód",
     "settings.title": "Beállítások",
     "settings.language": "Nyelv",
+    "settings.theme": "Téma",
+    "settings.themeLight": "Világos",
+    "settings.themeDark": "Sötét",
+    "settings.themeLightHint": "Világos háttér, sötét szöveg.",
+    "settings.themeDarkHint": "Sötét háttér, világos szöveg.",
     "settings.mainBranch": "Fő ág",
     "settings.mainBranchAuto": "Automatikus",
     "settings.mainBranchSearch": "Ágak keresése…",

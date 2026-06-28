@@ -6,6 +6,7 @@ import { openNewBranchDialog, closeNewBranchDialog } from "./newBranchDialog.js"
 import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
+import { getThemeChoice, onThemeChange, LIGHT_THEME, DARK_THEME } from "./theme.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
 import type { GraphData, ThemeTokens, OpKind, OpResult } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
@@ -169,7 +170,29 @@ function boot(): void {
     },
   });
 
-  view.setTheme(DEFAULT_THEME);
+  // Effective theme = the user's override (light/dark), or the host's theme when
+  // set to "follow host". Applied both to the graph view and to :root so the
+  // settings dialog and other body-level UI re-theme together.
+  let hostTheme: ThemeTokens = DEFAULT_THEME;
+  function effectiveTheme(): ThemeTokens {
+    const c = getThemeChoice();
+    if (c === "light") return LIGHT_THEME;
+    if (c === "dark") return DARK_THEME;
+    return hostTheme;
+  }
+  function applyTheme(): void {
+    const tk = effectiveTheme();
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty("--bg", tk.background);
+    rootStyle.setProperty("--fg", tk.foreground);
+    rootStyle.setProperty("--accent", tk.accent);
+    rootStyle.setProperty("--border", tk.border);
+    document.documentElement.dataset.theme = tk.kind;
+    view.setTheme(tk);
+  }
+
+  applyTheme();
+  onThemeChange(applyTheme);
   view.setMode(getDisplayMode());
 
   bridge.onMessage((msg) => {
@@ -178,7 +201,8 @@ function boot(): void {
         renderData(msg.data);
         break;
       case "setTheme":
-        view.setTheme(msg.theme);
+        hostTheme = msg.theme;
+        applyTheme();
         break;
       case "branchCreated": {
         const name = msg.name;

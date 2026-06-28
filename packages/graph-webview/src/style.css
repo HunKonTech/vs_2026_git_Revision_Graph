@@ -832,14 +832,31 @@ body,
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border);
-  padding: 8px 10px;
+  padding: 8px 0 8px 10px;
   min-height: 0;
+  min-width: 140px;
 }
 .changes-list-scroll {
   flex: 1 1 auto;
-  overflow-y: auto;
+  overflow: auto; /* both axes — deep trees / long names scroll left-right */
   margin-top: 4px;
+}
+/* The tree sizes to its content so long paths trigger horizontal scroll. */
+.changes-tree {
+  width: max-content;
+  min-width: 100%;
+  padding-right: 8px;
+}
+/* Drag handle between the file list and the diff. */
+.changes-resizer {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: var(--border);
+  opacity: 0.5;
+}
+.changes-resizer:hover {
+  opacity: 1;
+  background: var(--accent);
 }
 .changes-diff {
   flex: 1 1 auto;
@@ -853,22 +870,18 @@ body,
   opacity: 0.6;
   line-height: 1.5;
 }
-.changes-group-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  opacity: 0.55;
-  margin: 8px 0 3px;
-}
+.changes-folder,
 .changes-file {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
+  gap: 6px;
+  padding: 3px 6px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  white-space: nowrap;
 }
+.changes-folder:hover,
 .changes-file:hover {
   background: rgba(128, 128, 128, 0.12);
 }
@@ -876,22 +889,45 @@ body,
   background: var(--accent);
   color: #fff;
 }
-.changes-file-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl; /* keep the file name (tail) visible when truncating a path */
-  text-align: left;
+.changes-chevron {
+  flex: 0 0 auto;
+  width: 10px;
+  font-size: 9px;
+  opacity: 0.7;
+  text-align: center;
 }
+.changes-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+.changes-folder-name,
+.changes-file-name {
+  flex: 0 1 auto;
+}
+/* file-type icon tints (Fork-style) */
+.changes-icon-folder { color: #8a9099; }
+.changes-icon-js { color: #f1e05a; }
+.changes-icon-ts { color: #3178c6; }
+.changes-icon-json { color: #cbcb41; }
+.changes-icon-md { color: #6a9fb5; }
+.changes-icon-css { color: #a06bd1; }
+.changes-icon-html { color: #e34c26; }
+.changes-icon-cs { color: #68217a; }
+.changes-icon-img { color: #26a269; }
+.changes-icon-default { color: #9aa0a6; }
+.changes-file.selected .changes-icon { color: #fff; }
 .changes-mark {
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
+  margin-left: 4px;
+  width: 15px;
+  height: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   font-family: ui-monospace, "Cascadia Mono", monospace;
   color: #fff;

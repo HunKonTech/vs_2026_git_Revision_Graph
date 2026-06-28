@@ -13,6 +13,20 @@ namespace RevisionGraph.Model
         public List<GitRef> Refs { get; set; } = new List<GitRef>();
         public string Head { get; set; }
         public string RepoName { get; set; }
+        /// <summary>Stash entries, drawn in their own column linked to their base commit.</summary>
+        public List<StashEntry> Stashes { get; set; } = new List<StashEntry>();
+    }
+
+    /// <summary>A single git stash entry (<c>stash@{N}</c>).</summary>
+    public sealed class StashEntry
+    {
+        /// <summary>Stack position N in <c>stash@{N}</c> (0 = most recent).</summary>
+        public int Index { get; set; }
+        public string Sha { get; set; }
+        public string Message { get; set; }
+        /// <summary>Sha of the commit the stash was created from (its first parent).</summary>
+        public string BaseSha { get; set; }
+        public string Date { get; set; }
     }
 
     public sealed class GitCommit
@@ -46,5 +60,7 @@ namespace RevisionGraph.Model
         public string Name { get; set; }
         /// <summary>Checkout-after-create choice from the SVN-style dialog.</summary>
         public bool? Checkout { get; set; }
+        /// <summary>Stash stack index for stashApply / stashPop / stashDrop.</summary>
+        public int? Index { get; set; }
     }
 }

@@ -89,7 +89,9 @@ namespace RevisionGraph.Git
 
             var headTask = RunSafeAsync(_repoRoot, "rev-parse", "HEAD");
 
-            await Task.WhenAll(logTask, refsTask, headTask).ConfigureAwait(false);
+            var stashTask = ReadStashesAsync();
+
+            await Task.WhenAll(logTask, refsTask, headTask, stashTask).ConfigureAwait(false);
 
             return new GraphData
             {
@@ -97,7 +99,46 @@ namespace RevisionGraph.Git
                 Refs = ParseRefs(refsTask.Result),
                 Head = string.IsNullOrWhiteSpace(headTask.Result) ? null : headTask.Result.Trim(),
                 RepoName = new DirectoryInfo(_repoRoot).Name,
+                Stashes = stashTask.Result,
             };
+        }
+
+        /// <summary>Read the stash stack, each entry tied to the commit it came from.</summary>
+        public async Task<List<StashEntry>> ReadStashesAsync()
+        {
+            var outp = await TryRunAsync(
+                "stash", "list",
+                "--format=%gd" + FS + "%H" + FS + "%P" + FS + "%gs" + FS + "%cI").ConfigureAwait(false);
+            var stashes = new List<StashEntry>();
+            foreach (var raw in outp.Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.Length == 0) continue;
+                var f = line.Split(FS);
+                if (f.Length < 2 || string.IsNullOrEmpty(f[1])) continue;
+
+                var gd = f[0];
+                var sha = f[1];
+                var parents = f.Length > 2 ? f[2] : "";
+                var message = f.Length > 3 ? f[3] : "";
+                var date = f.Length > 4 ? f[4] : "";
+
+                var m = System.Text.RegularExpressions.Regex.Match(gd ?? "", @"stash@\{(\d+)\}");
+                var index = m.Success ? int.Parse(m.Groups[1].Value) : stashes.Count;
+                // A stash commit's first parent is the commit HEAD was on when made.
+                var parts = parents.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                var baseSha = parts.Length > 0 ? parts[0] : "";
+
+                stashes.Add(new StashEntry
+                {
+                    Index = index,
+                    Sha = sha,
+                    BaseSha = baseSha,
+                    Message = message,
+                    Date = date,
+                });
+            }
+            return stashes;
         }
 
         private static List<GitCommit> ParseCommits(string output)
@@ -287,6 +328,133 @@ namespace RevisionGraph.Git
             "$msgFile = $env:GIT_REWORD_MSG_FILE\n" +
             "if ($msgFile) { Copy-Item -LiteralPath $msgFile -Destination $file -Force }\n";
 
+        /// <summary>Outcome of an op that can leave conflicts for the IDE to resolve.</summary>
+        public enum OpOutcome { Ok, Conflict }
+
+        /// <summary>
+        /// Undo a local commit, returning its changes to the working tree as
+        /// unstaged edits — and leaving no trace in history (no revert commit).
+        ///
+        ///  - HEAD commit: <c>git reset --mixed HEAD~1</c> — the tip's changes
+        ///    reappear unstaged, existing working-tree changes are preserved, never
+        ///    conflicts.
+        ///  - older local commit: a scripted, non-interactive rebase that drops
+        ///    just that commit (newer commits are kept; --autostash shelves working
+        ///    changes). May conflict — the rebase is then left paused so the user
+        ///    resolves it with the IDE's built-in merge tooling.
+        /// </summary>
+        public async Task<OpOutcome> UndoCommitAsync(string sha)
+        {
+            var head = await GetHeadShaAsync().ConfigureAwait(false);
+            var isHead = !string.IsNullOrEmpty(head) &&
+                (head == sha || head.StartsWith(sha, StringComparison.Ordinal) ||
+                 sha.StartsWith(head, StringComparison.Ordinal));
+            if (isHead)
+            {
+                await RunAsync(_repoRoot, "reset", "--mixed", "HEAD~1").ConfigureAwait(false);
+                return OpOutcome.Ok;
+            }
+
+            var tmp = Path.Combine(Path.GetTempPath(), "revgraph-undo-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tmp);
+            try
+            {
+                var seqPs1 = Path.Combine(tmp, "seq.ps1");
+                File.WriteAllText(seqPs1, DropSeqEditorPs1);
+
+                var env = new Dictionary<string, string>
+                {
+                    ["GIT_SEQUENCE_EDITOR"] =
+                        "powershell -NoProfile -ExecutionPolicy Bypass -File \"" + seqPs1 + "\"",
+                    ["GIT_DROP_TARGET"] = sha,
+                };
+                try
+                {
+                    await RunWithEnvAsync(_repoRoot, env, "rebase", "-i", "--autostash", sha + "^")
+                        .ConfigureAwait(false);
+                    return OpOutcome.Ok;
+                }
+                catch
+                {
+                    // A conflict leaves a rebase paused; report it. Re-throw otherwise.
+                    if (await IsRebaseInProgressAsync().ConfigureAwait(false)) return OpOutcome.Conflict;
+                    throw;
+                }
+            }
+            finally
+            {
+                try { Directory.Delete(tmp, true); } catch { /* best effort */ }
+            }
+        }
+
+        // Marks exactly the target commit as "drop" in the rebase todo list.
+        private const string DropSeqEditorPs1 =
+            "$file = $args[0]\n" +
+            "$target = $env:GIT_DROP_TARGET\n" +
+            "$lines = Get-Content -LiteralPath $file\n" +
+            "$done = $false\n" +
+            "$out = foreach ($line in $lines) {\n" +
+            "  if (-not $done -and $line -match '^(pick|p)\\s+([0-9a-f]+)\\s') {\n" +
+            "    $h = $Matches[2]\n" +
+            "    if ($target.StartsWith($h) -or $h.StartsWith($target)) {\n" +
+            "      $done = $true\n" +
+            "      $line -replace '^(pick|p)\\b','drop'\n" +
+            "    } else { $line }\n" +
+            "  } else { $line }\n" +
+            "}\n" +
+            "Set-Content -LiteralPath $file -Value $out\n";
+
+        /// <summary>Apply a stash onto the working tree, keeping the entry. May conflict.</summary>
+        public async Task<OpOutcome> StashApplyAsync(int index)
+        {
+            try
+            {
+                await RunAsync(_repoRoot, "stash", "apply", "stash@{" + index + "}").ConfigureAwait(false);
+                return OpOutcome.Ok;
+            }
+            catch
+            {
+                if (await HasUnmergedPathsAsync().ConfigureAwait(false)) return OpOutcome.Conflict;
+                throw;
+            }
+        }
+
+        /// <summary>Apply a stash and drop it on success; git keeps it on conflict.</summary>
+        public async Task<OpOutcome> StashPopAsync(int index)
+        {
+            try
+            {
+                await RunAsync(_repoRoot, "stash", "pop", "stash@{" + index + "}").ConfigureAwait(false);
+                return OpOutcome.Ok;
+            }
+            catch
+            {
+                if (await HasUnmergedPathsAsync().ConfigureAwait(false)) return OpOutcome.Conflict;
+                throw;
+            }
+        }
+
+        /// <summary>Delete a stash entry without applying it.</summary>
+        public Task StashDropAsync(int index)
+            => RunAsync(_repoRoot, "stash", "drop", "stash@{" + index + "}");
+
+        /// <summary>True when a rebase is paused mid-flight (e.g. stopped on a conflict).</summary>
+        private async Task<bool> IsRebaseInProgressAsync()
+        {
+            var gitDir = (await RunSafeAsync(_repoRoot, "rev-parse", "--git-dir").ConfigureAwait(false)).Trim();
+            if (string.IsNullOrEmpty(gitDir)) return false;
+            var baseDir = Path.IsPathRooted(gitDir) ? gitDir : Path.Combine(_repoRoot, gitDir);
+            return Directory.Exists(Path.Combine(baseDir, "rebase-merge"))
+                || Directory.Exists(Path.Combine(baseDir, "rebase-apply"));
+        }
+
+        /// <summary>True when the working tree has unmerged (conflicted) paths.</summary>
+        private async Task<bool> HasUnmergedPathsAsync()
+        {
+            var outp = await TryRunAsync("ls-files", "-u").ConfigureAwait(false);
+            return !string.IsNullOrWhiteSpace(outp);
+        }
+
         public Task CheckoutAsync(string treeish) => RunAsync(_repoRoot, "checkout", treeish);
 
         /// <summary>
@@ -307,8 +475,11 @@ namespace RevisionGraph.Git
                 return;
             }
 
+            // %(refname:lstrip=2) strips exactly refs/remotes/, so the result is
+            // reliably "origin/branch" — %(refname:short) can drop the remote prefix
+            // when no same-named local branch exists, yielding an empty checkout name.
             var remote = await TryRunAsync(
-                "branch", "-r", "--points-at", sha, "--format=%(refname:short)").ConfigureAwait(false);
+                "branch", "-r", "--points-at", sha, "--format=%(refname:lstrip=2)").ConfigureAwait(false);
             foreach (var remoteRef in SplitLines(remote)) // e.g. "origin/feature"
             {
                 if (remoteRef.EndsWith("/HEAD", StringComparison.Ordinal)) continue;

@@ -166,6 +166,14 @@ namespace RevisionGraph
                 case "renameCommit":
                     await RenameCommitAsync(msg.Sha).ConfigureAwait(true);
                     break;
+                case "undoCommit":
+                    await UndoCommitAsync(msg.Sha).ConfigureAwait(true);
+                    break;
+                case "stashApply":
+                case "stashPop":
+                case "stashDrop":
+                    await HandleStashAsync(msg.Type, msg.Index).ConfigureAwait(true);
+                    break;
                 case "checkout":
                     await CheckoutAsync(msg.Sha ?? msg.Ref).ConfigureAwait(true);
                     break;
@@ -385,6 +393,65 @@ namespace RevisionGraph
             {
                 PostToWebview(new { type = "error", message = "Rename commit failed: " + ex.Message });
                 return;
+            }
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>
+        /// Undo a local commit: its changes return to the working tree and it
+        /// vanishes from history. Refuses pushed commits (the webview already hides
+        /// the entry for them; this guards the rare race). Conflicts are reported so
+        /// the webview tells the user to resolve them with Visual Studio's built-in
+        /// merge tooling (it surfaces the conflicted files automatically).
+        /// </summary>
+        private async Task UndoCommitAsync(string sha)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha)) return;
+
+            if (await _git.IsCommitPushedAsync(sha).ConfigureAwait(true))
+            {
+                PostToWebview(new { type = "opResult", op = "undo", result = "error" });
+                return;
+            }
+            try
+            {
+                var outcome = await _git.UndoCommitAsync(sha).ConfigureAwait(true);
+                PostToWebview(new
+                {
+                    type = "opResult",
+                    op = "undo",
+                    result = outcome == GitService.OpOutcome.Conflict ? "conflict" : "ok",
+                });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "opResult", op = "undo", result = "error", detail = ex.Message });
+            }
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>Apply / pop / drop a stash, reporting the outcome for a localized status.</summary>
+        private async Task HandleStashAsync(string op, int? index)
+        {
+            if (_git == null || index == null) return;
+            int i = index.Value;
+            try
+            {
+                string result = "ok";
+                if (op == "stashApply")
+                    result = await _git.StashApplyAsync(i).ConfigureAwait(true) == GitService.OpOutcome.Conflict
+                        ? "conflict" : "ok";
+                else if (op == "stashPop")
+                    result = await _git.StashPopAsync(i).ConfigureAwait(true) == GitService.OpOutcome.Conflict
+                        ? "conflict" : "ok";
+                else
+                    await _git.StashDropAsync(i).ConfigureAwait(true);
+
+                PostToWebview(new { type = "opResult", op, result });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "opResult", op, result = "error", detail = ex.Message });
             }
             await RefreshAsync().ConfigureAwait(true);
         }

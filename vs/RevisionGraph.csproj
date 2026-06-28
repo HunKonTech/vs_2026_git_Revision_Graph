@@ -101,6 +101,14 @@
     <Content Include="RevisionGraph.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <!-- Marketplace icon + preview. Same artwork as the VS Code extension's
+         icons\marketplace-icon.png; referenced by source.extension.vsixmanifest. -->
+    <Content Include="Resources\MarketplaceIcon.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Resources\MarketplacePreview.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

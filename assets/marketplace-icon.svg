@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B5BDB"/>
+      <stop offset="1" stop-color="#1E2A66"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded background tile -->
+  <rect x="0" y="0" width="256" height="256" rx="52" fill="url(#bg)"/>
+  <!-- Revision-graph motif: a trunk with one branch, mirroring icons/revision-graph.svg -->
+  <g stroke="#FFFFFF" stroke-width="12" stroke-linecap="round">
+    <!-- trunk -->
+    <line x1="86" y1="56" x2="86" y2="200"/>
+    <!-- branch edge -->
+    <line x1="86" y1="100" x2="178" y2="148"/>
+  </g>
+  <g fill="#FFFFFF">
+    <circle cx="86" cy="56" r="20"/>
+    <circle cx="86" cy="100" r="20"/>
+    <circle cx="86" cy="148" r="20"/>
+    <circle cx="86" cy="200" r="20"/>
+    <circle cx="178" cy="148" r="20"/>
+  </g>
+  <!-- Accent the branch tip to echo the app's color-coded branches -->
+  <circle cx="178" cy="148" r="20" fill="#FFD43B"/>
+</svg>

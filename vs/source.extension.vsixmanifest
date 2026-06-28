@@ -9,6 +9,8 @@
     <MoreInfo>https://github.com/HunKonTech/git_Revision_Graph</MoreInfo>
     <ReleaseNotes>https://github.com/HunKonTech/git_Revision_Graph/releases</ReleaseNotes>
     <Tags>git;revision graph;tortoisesvn;branches;tags;dag;version control;source control</Tags>
+    <Icon>Resources\MarketplaceIcon.png</Icon>
+    <PreviewImage>Resources\MarketplacePreview.png</PreviewImage>
   </Metadata>
   <Installation>
     <!-- VS 2022 (17.0) through the next major (covers VS 2026 previews). -->

@@ -3,7 +3,7 @@
 A **TortoiseSVN-style revision graph** for Git inside **Visual Studio 2022 and 2026**.
 Commits, local & remote branches, and tags are displayed as connected, color-coded boxes — just like SVN's classic revision graph.
 
-**▶ [Try the live demo in your browser](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — no install required; runs the real renderer on a sample repository.
+**▶ [Try the live demo in your browser](https://hunkontech.github.io/git_Revision_Graph/)** — no install required; runs the real renderer on a sample repository.
 
 ![Git Revision Graph in VS Code](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
 
@@ -35,7 +35,7 @@ The graph loads automatically and shows the full commit DAG of the current repos
 Egy **TortoiseSVN-stílusú revíziógraf** Git-hez **Visual Studio 2022 és 2026** számára.
 A commitok, helyi és távoli ágak, valamint tagek összekötött, színkódolt dobozokként jelennek meg — pont úgy, mint az SVN klasszikus revíziógrafja.
 
-**▶ [Próbáld ki az élő demót a böngésződben](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — telepítés nélkül; a valódi megjelenítő fut egy minta-repozitóriummal.
+**▶ [Próbáld ki az élő demót a böngésződben](https://hunkontech.github.io/git_Revision_Graph/)** — telepítés nélkül; a valódi megjelenítő fut egy minta-repozitóriummal.
 
 ![Git Revision Graph](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
 

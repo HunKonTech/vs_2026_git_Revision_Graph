@@ -3,7 +3,7 @@
 #
 # One-time setup: repo Settings → Pages → Build and deployment → Source =
 # "GitHub Actions". Then the demo is live at:
-#   https://hunkontech.github.io/vs_2026_git_Revision_Graph/
+#   https://hunkontech.github.io/git_Revision_Graph/
 name: Deploy demo to GitHub Pages
 
 on:

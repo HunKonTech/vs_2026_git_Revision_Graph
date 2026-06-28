@@ -21,6 +21,18 @@
           }
           if (msg.type === "checkout") alert("checkout " + (msg.sha || msg.ref));
           if (msg.type === "copySha") navigator.clipboard?.writeText(msg.sha);
+          if (msg.type === "undoCommit") {
+            window.postMessage({ type: "opResult", op: "undo", result: "ok" }, "*");
+          }
+          if (msg.type === "stashApply") {
+            window.postMessage({ type: "opResult", op: "stashApply", result: "ok" }, "*");
+          }
+          if (msg.type === "stashPop") {
+            window.postMessage({ type: "opResult", op: "stashPop", result: "conflict" }, "*");
+          }
+          if (msg.type === "stashDrop") {
+            window.postMessage({ type: "opResult", op: "stashDrop", result: "ok" }, "*");
+          }
         },
       };
     </script>

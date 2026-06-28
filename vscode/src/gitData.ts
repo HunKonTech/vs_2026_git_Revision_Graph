@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs/promises";
-import type { GraphData, GitCommit, GitRef, RefType } from "@rev-graph/protocol";
+import type { GraphData, GitCommit, GitRef, RefType, StashEntry } from "@rev-graph/protocol";
 
 const run = promisify(execFile);
 
@@ -47,7 +47,7 @@ async function gitEnv(
 
 /** Read the full graph (commits + refs, local & remote) for a repo. */
 export async function readGraphData(repoRoot: string, maxCommits: number): Promise<GraphData> {
-  const [logOut, refsOut, headSha] = await Promise.all([
+  const [logOut, refsOut, headSha, stashes] = await Promise.all([
     git(repoRoot, [
       "log",
       "--all",
@@ -66,13 +66,36 @@ export async function readGraphData(repoRoot: string, maxCommits: number): Promi
       "refs/tags",
     ]),
     git(repoRoot, ["rev-parse", "HEAD"]).catch(() => ""),
+    readStashes(repoRoot),
   ]);
 
   const commits = parseCommits(logOut);
   const refs = parseRefs(refsOut);
   const head = headSha.trim() || null;
 
-  return { commits, refs, head, repoName: path.basename(repoRoot) };
+  return { commits, refs, head, repoName: path.basename(repoRoot), stashes };
+}
+
+/** Read the stash stack, each entry tied to the commit it was created from. */
+export async function readStashes(repoRoot: string): Promise<StashEntry[]> {
+  const out = await git(repoRoot, [
+    "stash",
+    "list",
+    `--format=%gd${FS}%H${FS}%P${FS}%gs${FS}%cI`,
+  ]).catch(() => "");
+  const stashes: StashEntry[] = [];
+  for (const raw of out.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const [gd, sha, parents, message, date] = line.split(FS);
+    if (!sha) continue;
+    const m = gd?.match(/stash@\{(\d+)\}/);
+    const index = m ? Number(m[1]) : stashes.length;
+    // A stash commit's first parent is the commit HEAD was on when it was made.
+    const baseSha = parents ? (parents.split(" ").filter(Boolean)[0] ?? "") : "";
+    stashes.push({ index, sha, baseSha, message: message ?? "", date: date ?? "" });
+  }
+  return stashes;
 }
 
 function parseCommits(out: string): GitCommit[] {
@@ -252,6 +275,120 @@ export async function isCommitPushedCli(repoRoot: string, sha: string): Promise<
 /** The full HEAD sha, or "" when detached/empty. */
 export async function headShaCli(repoRoot: string): Promise<string> {
   return (await git(repoRoot, ["rev-parse", "HEAD"]).catch(() => "")).trim();
+}
+
+/** Outcome of an operation that can leave conflicts for the IDE to resolve. */
+export type OpOutcome = "ok" | "conflict";
+
+/** True when a rebase is paused mid-flight (e.g. stopped on a conflict). */
+async function isRebaseInProgress(repoRoot: string): Promise<boolean> {
+  const gitDir = (await git(repoRoot, ["rev-parse", "--git-dir"]).catch(() => "")).trim();
+  if (!gitDir) return false;
+  const base = path.isAbsolute(gitDir) ? gitDir : path.join(repoRoot, gitDir);
+  for (const d of ["rebase-merge", "rebase-apply"]) {
+    try {
+      await fs.access(path.join(base, d));
+      return true;
+    } catch {
+      /* not present — try the next marker */
+    }
+  }
+  return false;
+}
+
+/** True when the working tree has unmerged (conflicted) paths. */
+async function hasUnmergedPaths(repoRoot: string): Promise<boolean> {
+  const out = await git(repoRoot, ["ls-files", "-u"]).catch(() => "");
+  return out.trim().length > 0;
+}
+
+/**
+ * Undo a *local* commit, returning its changes to the working tree as unstaged
+ * edits — and leaving no trace in history (no revert commit).
+ *
+ *  - HEAD commit: `git reset --mixed HEAD~1` — the tip's changes reappear as
+ *    unstaged edits; existing working-tree changes are preserved. Never conflicts.
+ *  - older local commit: a scripted, non-interactive rebase that *drops* just
+ *    that commit (newer commits are kept). `--autostash` shelves any working-tree
+ *    changes across the rebase. May conflict — in which case the rebase is left
+ *    paused so the user can resolve it with the IDE's merge editor.
+ */
+export async function undoCommitCli(repoRoot: string, sha: string): Promise<OpOutcome> {
+  const head = await headShaCli(repoRoot);
+  const isHead = !!head && (head === sha || head.startsWith(sha) || sha.startsWith(head));
+  if (isHead) {
+    await git(repoRoot, ["reset", "--mixed", "HEAD~1"]);
+    return "ok";
+  }
+
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "revgraph-undo-"));
+  try {
+    const seqHelper = path.join(tmp, "seq.js");
+    await fs.writeFile(seqHelper, DROP_SEQ_EDITOR_JS, "utf8");
+    const node = process.execPath;
+    const env: NodeJS.ProcessEnv = {
+      ELECTRON_RUN_AS_NODE: "1",
+      GIT_SEQUENCE_EDITOR: `"${node}" "${seqHelper}"`,
+      GIT_DROP_TARGET: sha,
+    };
+    try {
+      await gitEnv(repoRoot, ["rebase", "-i", "--autostash", `${sha}^`], env);
+      return "ok";
+    } catch (err) {
+      // A conflict leaves a rebase paused; report it so the host can surface the
+      // merge editor. Re-throw anything that isn't a conflict.
+      if (await isRebaseInProgress(repoRoot)) return "conflict";
+      throw err;
+    }
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+// Marks exactly the target commit as "drop" in the rebase todo list.
+const DROP_SEQ_EDITOR_JS = `
+const fs = require('fs');
+const file = process.argv[2];
+const target = process.env.GIT_DROP_TARGET || '';
+const lines = fs.readFileSync(file, 'utf8').split('\\n');
+let done = false;
+const out = lines.map((line) => {
+  if (done) return line;
+  const m = line.match(/^(pick|p)\\s+([0-9a-f]+)\\s/i);
+  if (m && (target.startsWith(m[2]) || m[2].startsWith(target))) {
+    done = true;
+    return line.replace(/^(pick|p)\\b/i, 'drop');
+  }
+  return line;
+});
+fs.writeFileSync(file, out.join('\\n'));
+`;
+
+/** Apply a stash onto the working tree, keeping the stash entry. May conflict. */
+export async function stashApplyCli(repoRoot: string, index: number): Promise<OpOutcome> {
+  try {
+    await git(repoRoot, ["stash", "apply", `stash@{${index}}`]);
+    return "ok";
+  } catch (err) {
+    if (await hasUnmergedPaths(repoRoot)) return "conflict";
+    throw err;
+  }
+}
+
+/** Apply a stash and drop it on success. On conflict git keeps the entry. */
+export async function stashPopCli(repoRoot: string, index: number): Promise<OpOutcome> {
+  try {
+    await git(repoRoot, ["stash", "pop", `stash@{${index}}`]);
+    return "ok";
+  } catch (err) {
+    if (await hasUnmergedPaths(repoRoot)) return "conflict";
+    throw err;
+  }
+}
+
+/** Delete a stash entry without applying it. */
+export async function stashDropCli(repoRoot: string, index: number): Promise<void> {
+  await git(repoRoot, ["stash", "drop", `stash@{${index}}`]);
 }
 
 /** A commit's current subject line (first line of its message). */

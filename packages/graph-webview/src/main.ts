@@ -7,7 +7,7 @@ import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
-import type { GraphData, ThemeTokens } from "@rev-graph/protocol";
+import type { GraphData, ThemeTokens, OpKind, OpResult } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
 import "./style.css";
 
@@ -60,6 +60,36 @@ function boot(): void {
 
   const view = new GraphView(canvas, {
     onNodeContextMenu(commit, x, y) {
+      // Stash nodes get their own apply/pop/drop menu.
+      if (commit.stash && commit.stashIndex != null) {
+        const index = commit.stashIndex;
+        showContextMenu(x, y, [
+          {
+            label: t("menu.stashApply"),
+            action: () => {
+              renderStatus(() => t("status.stashApplying"));
+              bridge.post({ type: "stashApply", index });
+            },
+          },
+          {
+            label: t("menu.stashPop"),
+            action: () => {
+              renderStatus(() => t("status.stashPopping"));
+              bridge.post({ type: "stashPop", index });
+            },
+          },
+          {
+            label: t("menu.stashDrop"),
+            separatorBefore: true,
+            action: () => {
+              renderStatus(() => t("status.stashDropping"));
+              bridge.post({ type: "stashDrop", index });
+            },
+          },
+        ]);
+        return;
+      }
+
       const sha = commit.sha;
       const localBranches = commit.refs.filter((r) => r.type === "localBranch");
 
@@ -76,12 +106,25 @@ function boot(): void {
           label: t("menu.renameCommit"),
           action: () => bridge.post({ type: "renameCommit", sha }),
         },
-        {
-          label: t("menu.copySha"),
-          separatorBefore: true,
-          action: () => bridge.post({ type: "copySha", sha }),
-        },
       ];
+
+      // Undo is only offered for local (unpushed) commits, and never on phantom
+      // branch placeholders (which carry no real commit of their own).
+      if (commit.unpushed && !commit.phantom) {
+        items.push({
+          label: t("menu.undoCommit"),
+          action: () => {
+            renderStatus(() => t("status.undoing"));
+            bridge.post({ type: "undoCommit", sha });
+          },
+        });
+      }
+
+      items.push({
+        label: t("menu.copySha"),
+        separatorBefore: true,
+        action: () => bridge.post({ type: "copySha", sha }),
+      });
 
       // One delete entry per local branch that points at this commit.
       localBranches.forEach((ref, i) => {
@@ -118,6 +161,17 @@ function boot(): void {
         const sha = msg.sha.slice(0, 7);
         renderStatus(() => t("status.branchCreated", { name, sha }));
         bridge.post({ type: "requestRefresh" });
+        break;
+      }
+      case "opResult": {
+        if (msg.result === "error") {
+          const message = msg.detail ?? t("status.opFailed");
+          renderStatus(() => t("status.error", { message }));
+        } else {
+          const key = opResultKey(msg.op, msg.result);
+          renderStatus(() => t(key));
+        }
+        // The host refreshes the graph itself after the op; nothing to request.
         break;
       }
       case "error": {
@@ -244,6 +298,23 @@ function boot(): void {
   bridge.post({ type: "ready" });
 }
 
+/** Map an undo/stash op outcome to its localized status-line key. */
+function opResultKey(op: OpKind, result: Exclude<OpResult, "error">): MsgKey {
+  if (result === "conflict") {
+    return op === "undo" ? "status.undoConflict" : "status.stashConflict";
+  }
+  switch (op) {
+    case "undo":
+      return "status.commitUndone";
+    case "stashApply":
+      return "status.stashApplied";
+    case "stashPop":
+      return "status.stashPopped";
+    case "stashDrop":
+      return "status.stashDropped";
+  }
+}
+
 function makeButton(act: string, key: MsgKey): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.dataset.act = act;
@@ -259,6 +330,7 @@ const LEGEND_ITEMS: { cls: string; key: MsgKey }[] = [
   { cls: "remote-only", key: "legend.remoteOnly" },
   { cls: "tag", key: "legend.tag" },
   { cls: "commit", key: "legend.commit" },
+  { cls: "stash", key: "legend.stash" },
 ];
 
 function buildLegend(): HTMLElement {

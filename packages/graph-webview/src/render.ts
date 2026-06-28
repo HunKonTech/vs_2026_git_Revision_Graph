@@ -21,7 +21,7 @@ const ROW_GAP = 26;
 const MARGIN = 28;
 
 /** Distinct hues per ref kind, echoing the SVN graph (grey trunk, green branch, yellow tag). */
-type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit";
+type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit" | "stash";
 
 export interface RenderCallbacks {
   onNodeContextMenu(commit: PositionedCommit, clientX: number, clientY: number): void;
@@ -212,6 +212,20 @@ export class GraphView {
     const path = document.createElementNS(SVG_NS, "path");
     path.classList.add("edge");
     if (e.isMerge) path.classList.add("edge-merge");
+
+    if (e.isStash) {
+      // Stash → base: a smooth side connector. The stash box sits at the base's
+      // row but in a lane to the right, so join the stash's left edge to the
+      // base's right edge at each box's vertical midpoint.
+      path.classList.add("edge-stash");
+      const fromX = this.boxX(e.fromLane);
+      const fromY = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H) / 2;
+      const toX = this.boxX(e.toLane) + BOX_W;
+      const toY = this.boxY(e.toRow) + (this.ownHeight.get(e.toId) ?? CONTENT_H) / 2;
+      const midX = (fromX + toX) / 2;
+      path.setAttribute("d", `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`);
+      return path;
+    }
 
     if (e.fromLane === e.toLane) {
       // Same column: a straight drop with a gentle S-curve. A column reserves its
@@ -419,7 +433,10 @@ export class GraphView {
       ev.stopPropagation();
       this.cb.onNodeClick(c);
     });
-    g.addEventListener("dblclick", () => this.cb.onNodeDblClick(c.sha));
+    // Stash nodes aren't checkout targets — only real commits respond to dblclick.
+    g.addEventListener("dblclick", () => {
+      if (!c.stash) this.cb.onNodeDblClick(c.sha);
+    });
   }
 
   private refRow(ref: GitRef, index: number, baseY: number): SVGGElement {
@@ -525,6 +542,7 @@ function boxHeight(c: PositionedCommit): number {
 }
 
 function nodeKind(c: PositionedCommit): NodeKind {
+  if (c.stash) return "stash";
   if (c.refs.some((r) => r.type === "head" || r.isCurrent)) return "head";
   if (c.refs.some((r) => r.type === "localBranch")) return "localBranch";
   if (c.refs.some((r) => r.type === "remoteBranch")) return "remoteBranch";

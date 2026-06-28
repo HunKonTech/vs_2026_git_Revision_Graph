@@ -35,6 +35,16 @@ export interface PositionedCommit extends GitCommit {
    * shift) and the renderer flags them by colour instead.
    */
   remoteOnly: boolean;
+  /**
+   * True when the commit exists locally (reachable from a local branch or HEAD)
+   * but has not been pushed to any remote. Only such commits may be undone — the
+   * menu uses this to gate the "Undo commit" entry.
+   */
+  unpushed: boolean;
+  /** True for a synthetic node representing a git stash entry. */
+  stash?: boolean;
+  /** For stash nodes: the `stash@{N}` stack index. */
+  stashIndex?: number;
 }
 
 /** A connection from a child commit down to one of its parents. */
@@ -50,6 +60,8 @@ export interface LayoutEdge {
   toLane: number;
   /** True when this is the second-or-later parent of a merge commit. */
   isMerge: boolean;
+  /** True for the connector from a stash node back to its base commit. */
+  isStash?: boolean;
 }
 
 export interface GraphLayout {
@@ -353,6 +365,8 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     present,
   );
   const isRemoteOnly = (sha: string): boolean => remoteReach.has(sha) && !localReach.has(sha);
+  // Unpushed = present locally (local branch or HEAD) but on no remote branch.
+  const isUnpushed = (sha: string): boolean => localReach.has(sha) && !remoteReach.has(sha);
 
   const positioned: PositionedCommit[] = [];
   const posBySha = new Map<string, PositionedCommit>();
@@ -371,6 +385,7 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       nodeId: commit.sha,
       branch: columns[col]!.branch,
       remoteOnly: isRemoteOnly(commit.sha),
+      unpushed: isUnpushed(commit.sha),
     };
     positioned.push(pc);
     posBySha.set(commit.sha, pc);
@@ -421,6 +436,58 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       toLane: anchor.lane,
       isMerge: false,
     });
+  }
+
+  // ---- Phase 4: stash entries in dedicated column(s) to the right. ----
+  // Each stash sits at its base commit's row, in a reserved lane right of the
+  // whole graph, joined by a connector to the commit it was created from. Stashes
+  // sharing a row spill into the next stash lane so their boxes never overlap.
+  const stashes = data.stashes ?? [];
+  if (stashes.length > 0) {
+    const stashLaneBase = maxLane + 1;
+    const laneRows: Set<number>[] = [];
+    for (const s of stashes) {
+      const base = posBySha.get(s.baseSha);
+      const row = base ? base.row : 0;
+      let li = 0;
+      while (li < laneRows.length && laneRows[li]!.has(row)) li++;
+      if (li === laneRows.length) laneRows.push(new Set());
+      laneRows[li]!.add(row);
+      const lane = stashLaneBase + li;
+      const nodeId = `stash@{${s.index}}`;
+      positioned.push({
+        sha: s.sha,
+        parents: base ? [s.baseSha] : [],
+        summary: s.message,
+        author: "",
+        authorEmail: "",
+        date: s.date,
+        row,
+        lane,
+        refs: [],
+        nodeId,
+        branch: `stash@{${s.index}}`,
+        remoteOnly: false,
+        unpushed: false,
+        stash: true,
+        stashIndex: s.index,
+      });
+      if (lane > maxLane) maxLane = lane;
+      if (base) {
+        edges.push({
+          fromSha: s.sha,
+          toSha: base.sha,
+          fromId: nodeId,
+          toId: base.nodeId,
+          fromRow: row,
+          fromLane: lane,
+          toRow: base.row,
+          toLane: base.lane,
+          isMerge: false,
+          isStash: true,
+        });
+      }
+    }
   }
 
   return {

@@ -404,4 +404,46 @@ describe("computeLayout", () => {
     expect(at("R2").lane).toBeGreaterThan(0); // diverged remote forks right
     expect(at("R2").remoteOnly).toBe(true); // and is still cloud-only
   });
+
+  it("flags local-only commits as unpushed (and pushed ones as not)", () => {
+    // origin/main is at A; local main has advanced to C past it.
+    //   C (main, current) -> B -> A (origin/main)
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "C", isCurrent: true },
+          { name: "origin/main", type: "remoteBranch", targetSha: "A", remote: "origin" },
+        ],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
+    expect(at("C").unpushed).toBe(true); // local-only, not on the remote
+    expect(at("B").unpushed).toBe(true);
+    expect(at("A").unpushed).toBe(false); // reachable from origin/main → pushed
+  });
+
+  it("places stashes in a lane right of the graph, linked to their base", () => {
+    //   B (main, current) -> A   + one stash created from A
+    const layout = computeLayout(
+      data([commit("B", ["A"]), commit("A")], {
+        refs: [{ name: "main", type: "localBranch", targetSha: "B", isCurrent: true }],
+        head: "B",
+        stashes: [
+          { index: 0, sha: "S0", baseSha: "A", message: "WIP on main", date: "2026-01-01T00:00:00Z" },
+        ],
+      }),
+      { mainBranch: "main" },
+    );
+    const stash = layout.commits.find((c) => c.stash)!;
+    expect(stash.stashIndex).toBe(0);
+    const base = layout.commits.find((c) => c.sha === "A")!;
+    expect(stash.row).toBe(base.row); // sits at its base commit's row
+    expect(stash.lane).toBeGreaterThan(base.lane); // in a column to the right
+    // A connector edge ties the stash back to the commit it came from.
+    const link = layout.edges.find((e) => e.isStash)!;
+    expect(link.fromId).toBe("stash@{0}");
+    expect(link.toSha).toBe("A");
+  });
 });

@@ -29,4 +29,9 @@ window.__MOCK_GRAPH__ = {
     { name: "origin/release/1.0", type: "remoteBranch", targetSha: "h5555555", remote: "origin" },
     { name: "test/1.31", type: "localBranch", targetSha: "t1111111" },
   ],
+  // Two stashes from different base commits — drawn in their own column.
+  stashes: [
+    { index: 0, sha: "s0000000", baseSha: "h7777777", message: "WIP on main: tidy header", date: "2026-06-26T09:00:00Z" },
+    { index: 1, sha: "s1111111", baseSha: "h5555555", message: "WIP on release/1.0: hotfix", date: "2026-06-23T14:00:00Z" },
+  ],
 };

@@ -36,6 +36,20 @@ export interface GitCommit {
   date: string;
 }
 
+/** A single git stash entry (`stash@{N}`). */
+export interface StashEntry {
+  /** Stack position N in `stash@{N}` (0 = most recent). */
+  index: number;
+  /** The stash commit's sha. */
+  sha: string;
+  /** Subject line of the stash (e.g. "WIP on main: 1a2b3c msg"). */
+  message: string;
+  /** Sha of the commit the stash was created from (its first parent). */
+  baseSha: string;
+  /** ISO-8601 date the stash was created. */
+  date: string;
+}
+
 /** The full graph payload sent from host to webview. */
 export interface GraphData {
   commits: GitCommit[];
@@ -44,6 +58,8 @@ export interface GraphData {
   head: string | null;
   /** Short label for the repo (folder name) shown in the status bar. */
   repoName?: string;
+  /** Stash entries, drawn in their own column linked back to their base commit. */
+  stashes?: StashEntry[];
 }
 
 /** Theme tokens forwarded from the host so the webview matches the IDE. */
@@ -61,10 +77,19 @@ export interface ThemeTokens {
 /* host -> webview                                                     */
 /* ------------------------------------------------------------------ */
 
+/** Operations whose outcome the host reports back for a localized status line. */
+export type OpKind = "undo" | "stashApply" | "stashPop" | "stashDrop";
+
+/** Outcome of an op: clean success, a conflict left for the IDE resolver, or a failure. */
+export type OpResult = "ok" | "conflict" | "error";
+
 export type HostToWebview =
   | { type: "setData"; data: GraphData }
   | { type: "setTheme"; theme: ThemeTokens }
   | { type: "branchCreated"; name: string; sha: string }
+  // Outcome of an undo/stash op. The webview localizes (op, result); `detail`
+  // carries the raw git error text for the "error" case.
+  | { type: "opResult"; op: OpKind; result: OpResult; detail?: string }
   | { type: "error"; message: string };
 
 /* ------------------------------------------------------------------ */
@@ -81,6 +106,13 @@ export type WebviewToHost =
   // Reword a local (unpushed) commit's message. The host prompts for the new
   // text and rewrites the commit silently.
   | { type: "renameCommit"; sha: string }
+  // Undo a *local* (unpushed) commit, returning its changes to the working tree
+  // as unstaged edits. Leaves no trace in history (reset / rebase-drop, not a
+  // revert commit). Deeper commits may conflict → resolved in the IDE.
+  | { type: "undoCommit"; sha: string }
+  | { type: "stashApply"; index: number }
+  | { type: "stashPop"; index: number }
+  | { type: "stashDrop"; index: number }
   | { type: "checkout"; sha?: string; ref?: string }
   | { type: "copySha"; sha: string }
   | { type: "fetch" }

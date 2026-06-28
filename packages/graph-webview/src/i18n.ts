@@ -57,11 +57,16 @@ type Dict = {
   "legend.remoteOnly": string;
   "legend.tag": string;
   "legend.commit": string;
+  "legend.stash": string;
   "menu.createBranch": string;
   "menu.checkout": string;
   "menu.copySha": string;
   "menu.deleteBranch": string;
   "menu.renameCommit": string;
+  "menu.undoCommit": string;
+  "menu.stashApply": string;
+  "menu.stashPop": string;
+  "menu.stashDrop": string;
   "newBranch.title": string;
   "newBranch.startPoint": string;
   "newBranch.startPointOn": string;
@@ -78,10 +83,21 @@ type Dict = {
   "status.summary": string;
   "status.branchCreated": string;
   "status.error": string;
+  "status.opFailed": string;
   "status.fetching": string;
   "status.pulling": string;
   "status.pushing": string;
   "status.syncing": string;
+  "status.undoing": string;
+  "status.commitUndone": string;
+  "status.undoConflict": string;
+  "status.stashApplying": string;
+  "status.stashPopping": string;
+  "status.stashDropping": string;
+  "status.stashApplied": string;
+  "status.stashPopped": string;
+  "status.stashDropped": string;
+  "status.stashConflict": string;
 };
 
 const DICTS: Record<Lang, Dict> = {
@@ -125,11 +141,16 @@ const DICTS: Record<Lang, Dict> = {
     "legend.remoteOnly": "Only in the cloud (not pulled)",
     "legend.tag": "Tag (version)",
     "legend.commit": "Commit",
+    "legend.stash": "Stash (shelved work)",
     "menu.createBranch": "Create branch from here…",
     "menu.checkout": "Checkout this commit",
     "menu.copySha": "Copy commit SHA",
     "menu.deleteBranch": 'Delete branch "{name}"…',
     "menu.renameCommit": "Rename commit message…",
+    "menu.undoCommit": "Undo commit (keep changes)…",
+    "menu.stashApply": "Apply stash",
+    "menu.stashPop": "Pop stash (apply & remove)",
+    "menu.stashDrop": "Drop stash…",
     "newBranch.title": "Create Branch",
     "newBranch.startPoint": "New branch starting from {sha}",
     "newBranch.startPointOn": "on {refs}",
@@ -146,10 +167,21 @@ const DICTS: Record<Lang, Dict> = {
     "status.summary": "{repo}Showing {commits} commits, {refs} refs",
     "status.branchCreated": 'Created branch "{name}" at {sha}',
     "status.error": "Error: {message}",
+    "status.opFailed": "Operation failed",
     "status.fetching": "Fetching…",
     "status.pulling": "Pulling…",
     "status.pushing": "Pushing…",
     "status.syncing": "Syncing…",
+    "status.undoing": "Undoing commit…",
+    "status.commitUndone": "Commit undone — changes are back in the working tree.",
+    "status.undoConflict": "Undo hit conflicts — resolve them in the editor, then continue.",
+    "status.stashApplying": "Applying stash…",
+    "status.stashPopping": "Popping stash…",
+    "status.stashDropping": "Dropping stash…",
+    "status.stashApplied": "Stash applied.",
+    "status.stashPopped": "Stash popped.",
+    "status.stashDropped": "Stash dropped.",
+    "status.stashConflict": "Stash conflicts — resolve them in the editor.",
   },
   hu: {
     "toolbar.refresh": "⟳ Frissítés",
@@ -191,11 +223,16 @@ const DICTS: Record<Lang, Dict> = {
     "legend.remoteOnly": "Csak a felhőben (nincs pull-olva)",
     "legend.tag": "Tag (verzió)",
     "legend.commit": "Commit",
+    "legend.stash": "Stash (félretett munka)",
     "menu.createBranch": "Branch létrehozása innen…",
     "menu.checkout": "Checkout erre a commitra",
     "menu.copySha": "Commit SHA másolása",
     "menu.deleteBranch": '"{name}" branch törlése…',
     "menu.renameCommit": "Commit üzenet átnevezése…",
+    "menu.undoCommit": "Commit visszavonása (változások megtartása)…",
+    "menu.stashApply": "Stash alkalmazása",
+    "menu.stashPop": "Stash kivétele (alkalmaz és töröl)",
+    "menu.stashDrop": "Stash eldobása…",
     "newBranch.title": "Branch létrehozása",
     "newBranch.startPoint": "Új branch innen indul: {sha}",
     "newBranch.startPointOn": "({refs})",
@@ -212,10 +249,21 @@ const DICTS: Record<Lang, Dict> = {
     "status.summary": "{repo}{commits} commit, {refs} ref látható",
     "status.branchCreated": '"{name}" branch létrehozva itt: {sha}',
     "status.error": "Hiba: {message}",
+    "status.opFailed": "A művelet sikertelen",
     "status.fetching": "Fetch folyamatban…",
     "status.pulling": "Pull folyamatban…",
     "status.pushing": "Push folyamatban…",
     "status.syncing": "Szinkronizálás…",
+    "status.undoing": "Commit visszavonása…",
+    "status.commitUndone": "Commit visszavonva — a változások visszakerültek a working tree-be.",
+    "status.undoConflict": "A visszavonás konfliktusba ütközött — oldd fel a szerkesztőben, majd folytasd.",
+    "status.stashApplying": "Stash alkalmazása…",
+    "status.stashPopping": "Stash kivétele…",
+    "status.stashDropping": "Stash eldobása…",
+    "status.stashApplied": "Stash alkalmazva.",
+    "status.stashPopped": "Stash kivéve.",
+    "status.stashDropped": "Stash eldobva.",
+    "status.stashConflict": "Stash konfliktus — oldd fel a szerkesztőben.",
   },
 };
 

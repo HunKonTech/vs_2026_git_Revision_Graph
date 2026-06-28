@@ -13,6 +13,9 @@
   --head-bg: #b0473a;
   /* Commits that exist only on the remote (fetched, not pulled) — "in the cloud". */
   --remote-only-bg: #33506e;
+  /* Stash entries — drawn in their own column with a distinct purple hue. */
+  --stash-bg: #7a4fb0;
+  --stash-edge: #9a6fd0;
   --edge: #8a8a8a;
   --edge-merge: #c08a3a;
 }
@@ -120,6 +123,10 @@ body,
   stroke: var(--edge-merge);
   stroke-dasharray: 5 3;
 }
+.edge-stash {
+  stroke: var(--stash-edge);
+  stroke-dasharray: 3 3;
+}
 
 /* nodes */
 .node {
@@ -138,6 +145,11 @@ body,
 }
 .node-tag .node-rect {
   fill: var(--tag-bg);
+}
+.node-stash .node-rect {
+  fill: var(--stash-bg);
+  stroke: var(--stash-edge);
+  stroke-dasharray: 4 2;
 }
 .node-head .node-rect {
   fill: var(--head-bg);
@@ -285,6 +297,10 @@ body,
 .legend-swatch.remote-only {
   background: var(--remote-only-bg);
   border: 1px dashed var(--remote-bg);
+}
+.legend-swatch.stash {
+  background: var(--stash-bg);
+  border: 1px dashed var(--stash-edge);
 }
 .legend[data-collapsed] .legend-body { display: none; }
 

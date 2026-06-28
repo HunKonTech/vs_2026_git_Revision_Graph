@@ -12,6 +12,10 @@ import {
   isCommitPushedCli,
   rewordCommitCli,
   commitSummaryCli,
+  undoCommitCli,
+  stashApplyCli,
+  stashPopCli,
+  stashDropCli,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -110,6 +114,18 @@ export class GraphPanel {
         break;
       case "renameCommit":
         await this.handleRenameCommit(msg.sha);
+        break;
+      case "undoCommit":
+        await this.handleUndoCommit(msg.sha);
+        break;
+      case "stashApply":
+        await this.handleStash("stashApply", msg.index);
+        break;
+      case "stashPop":
+        await this.handleStash("stashPop", msg.index);
+        break;
+      case "stashDrop":
+        await this.handleStash("stashDrop", msg.index);
         break;
       case "checkout":
         await this.handleCheckout(msg.sha ?? msg.ref);
@@ -288,6 +304,53 @@ export class GraphPanel {
     await this.refresh();
   }
 
+  /**
+   * Undo a local commit: its changes return to the working tree and it vanishes
+   * from history. Refuses pushed commits (the webview already hides the entry for
+   * them; this guards the rare race). On conflict, reveals the SCM view so the
+   * user can resolve it with the built-in merge editor.
+   */
+  private async handleUndoCommit(sha: string): Promise<void> {
+    if (!sha) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    const root = repo.rootUri.fsPath;
+
+    if (await isCommitPushedCli(root, sha)) {
+      this.post({ type: "opResult", op: "undo", result: "error" });
+      return;
+    }
+    try {
+      const result = await undoCommitCli(root, sha);
+      this.post({ type: "opResult", op: "undo", result });
+      if (result === "conflict") await revealConflicts();
+    } catch (err) {
+      this.post({ type: "opResult", op: "undo", result: "error", detail: String(err) });
+    }
+    await this.refresh();
+  }
+
+  /** Apply / pop / drop a stash, reporting the outcome for a localized status. */
+  private async handleStash(
+    op: "stashApply" | "stashPop" | "stashDrop",
+    index: number,
+  ): Promise<void> {
+    const repo = await resolveRepository();
+    if (!repo) return;
+    const root = repo.rootUri.fsPath;
+    try {
+      let result: "ok" | "conflict" = "ok";
+      if (op === "stashApply") result = await stashApplyCli(root, index);
+      else if (op === "stashPop") result = await stashPopCli(root, index);
+      else await stashDropCli(root, index);
+      this.post({ type: "opResult", op, result });
+      if (result === "conflict") await revealConflicts();
+    } catch (err) {
+      this.post({ type: "opResult", op, result: "error", detail: String(err) });
+    }
+    await this.refresh();
+  }
+
   private post(msg: HostToWebview): void {
     void this.panel.webview.postMessage(msg);
   }
@@ -325,6 +388,18 @@ export class GraphPanel {
     this.panel.dispose();
     while (this.disposables.length) this.disposables.pop()?.dispose();
   }
+}
+
+/**
+ * Surface conflicts after an undo/stash op so the user can resolve them with the
+ * IDE's built-in tooling: focus the Source Control view, which lists the merge
+ * conflicts and offers the merge editor for each file.
+ */
+async function revealConflicts(): Promise<void> {
+  await Promise.resolve(vscode.commands.executeCommand("workbench.view.scm")).then(
+    undefined,
+    () => {},
+  );
 }
 
 /** Map the current VS Code theme to the webview's theme tokens. */

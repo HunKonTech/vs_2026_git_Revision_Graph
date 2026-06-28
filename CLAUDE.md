@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Dual-host parity (MUST READ)
+
+**Every feature must ship for BOTH hosts: the VS Code extension AND the Visual Studio 2022/2026 VSIX.** Never finish a feature in only one host — a feature that exists in only one IDE is incomplete. The product is one experience across both.
+
+The renderer/protocol live in shared `packages/` (graph-core, graph-webview, protocol) and are consumed by both hosts, but each host has its own data/message layer that must be updated in parallel:
+
+- **VS Code** (`vscode/`, TypeScript): `vscode/src/gitData.ts` (git ops), `vscode/src/panel.ts` (message handling).
+- **Visual Studio** (`vs/`, C#): `vs/Git/GitService.cs` (git ops), `vs/WebViewHostControl.xaml.cs` (message handling), `vs/Model/Dtos.cs` (hand-mirrored protocol types).
+- Any protocol change in `packages/protocol/src/index.ts` **must be mirrored by hand** into `vs/Model/Dtos.cs`.
+- The shared webview bundle is copied into both hosts by the build (`vscode/media/`, `vs/webview/`).
+
+The VS C# VSIX is a legacy .NET Framework 4.7.2 + VS SDK project and can only be **compiled on Windows** (see [vs/BUILD.md](vs/BUILD.md)). On non-Windows machines, review the C# carefully but it cannot be built/run there.
+
 ## Commands
 
 ```bash

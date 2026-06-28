@@ -63,6 +63,7 @@ type Dict = {
   "menu.copySha": string;
   "menu.deleteBranch": string;
   "menu.pushBranch": string;
+  "menu.renameBranch": string;
   "menu.renameCommit": string;
   "menu.undoCommit": string;
   "menu.stashApply": string;
@@ -147,6 +148,7 @@ const DICTS: Record<Lang, Dict> = {
     "menu.checkout": "Checkout this commit",
     "menu.copySha": "Copy commit SHA",
     "menu.pushBranch": 'Push branch "{name}"',
+    "menu.renameBranch": 'Rename branch "{name}"…',
     "menu.deleteBranch": 'Delete branch "{name}"…',
     "menu.renameCommit": "Rename commit message…",
     "menu.undoCommit": "Undo commit (keep changes)…",
@@ -230,6 +232,7 @@ const DICTS: Record<Lang, Dict> = {
     "menu.checkout": "Checkout erre a commitra",
     "menu.copySha": "Commit SHA másolása",
     "menu.pushBranch": '"{name}" branch pusholása',
+    "menu.renameBranch": '"{name}" branch átnevezése…',
     "menu.deleteBranch": '"{name}" branch törlése…',
     "menu.renameCommit": "Commit üzenet átnevezése…",
     "menu.undoCommit": "Commit visszavonása (változások megtartása)…",

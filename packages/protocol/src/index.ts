@@ -103,6 +103,7 @@ export type WebviewToHost =
   // collected them; when absent the host shows its own native prompt.
   | { type: "createBranch"; sha: string; name?: string; checkout?: boolean }
   | { type: "deleteBranch"; name: string }
+  | { type: "renameBranch"; name: string }
   // Reword a local (unpushed) commit's message. The host prompts for the new
   // text and rewrites the commit silently.
   | { type: "renameCommit"; sha: string }

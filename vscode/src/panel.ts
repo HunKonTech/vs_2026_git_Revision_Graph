@@ -9,6 +9,7 @@ import {
   pullCli,
   pushCli,
   pushBranchCli,
+  renameBranchCli,
   deleteBranchCli,
   isCommitPushedCli,
   rewordCommitCli,
@@ -112,6 +113,9 @@ export class GraphPanel {
         break;
       case "deleteBranch":
         await this.handleDeleteBranch(msg.name);
+        break;
+      case "renameBranch":
+        await this.handleRenameBranch(msg.name);
         break;
       case "renameCommit":
         await this.handleRenameCommit(msg.sha);
@@ -247,6 +251,32 @@ export class GraphPanel {
       }
     }
     void vscode.window.showInformationMessage(`Deleted branch "${name}".`);
+    await this.refresh();
+  }
+
+  private async handleRenameBranch(name: string): Promise<void> {
+    if (!name) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    const root = repo.rootUri.fsPath;
+
+    const newName = await vscode.window.showInputBox({
+      title: `Rename branch "${name}"`,
+      prompt: "Enter the new branch name",
+      value: name,
+      validateInput: (v) => (v.trim() ? undefined : "Branch name is required"),
+    });
+    if (newName === undefined) return;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === name) return;
+
+    try {
+      await renameBranchCli(root, name, trimmed);
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Rename branch failed: ${String(err)}`);
+      return;
+    }
+    void vscode.window.showInformationMessage(`Renamed branch "${name}" to "${trimmed}".`);
     await this.refresh();
   }
 

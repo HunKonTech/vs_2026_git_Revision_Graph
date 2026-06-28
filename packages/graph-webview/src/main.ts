@@ -146,8 +146,12 @@ function boot(): void {
           });
         }
         items.push({
-          label: t("menu.deleteBranch", { name: ref.name }),
+          label: t("menu.renameBranch", { name: ref.name }),
           separatorBefore: i === 0 && hasRemote,
+          action: () => bridge.post({ type: "renameBranch", name: ref.name }),
+        });
+        items.push({
+          label: t("menu.deleteBranch", { name: ref.name }),
           action: () => bridge.post({ type: "deleteBranch", name: ref.name }),
         });
       });

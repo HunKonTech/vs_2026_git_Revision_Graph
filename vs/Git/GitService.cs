@@ -568,6 +568,10 @@ namespace RevisionGraph.Git
         public Task PushBranchAsync(string branchName) =>
             RunAsync(_repoRoot, "push", "--set-upstream", "origin", branchName);
 
+        /// <summary>Rename a local branch.</summary>
+        public Task RenameBranchAsync(string oldName, string newName) =>
+            RunAsync(_repoRoot, "branch", "-m", oldName, newName);
+
         /// <summary>Sync = pull then push, the common "sync changes" gesture.</summary>
         public async Task SyncAsync()
         {

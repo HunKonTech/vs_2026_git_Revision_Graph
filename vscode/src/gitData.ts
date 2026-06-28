@@ -273,6 +273,11 @@ export async function pushBranchCli(repoRoot: string, branchName: string): Promi
   await git(repoRoot, ["push", "--set-upstream", "origin", branchName]);
 }
 
+/** Rename a local branch. */
+export async function renameBranchCli(repoRoot: string, oldName: string, newName: string): Promise<void> {
+  await git(repoRoot, ["branch", "-m", oldName, newName]);
+}
+
 /** Delete a local branch. `force` uses -D (drops the merged-state safety check). */
 export async function deleteBranchCli(
   repoRoot: string,

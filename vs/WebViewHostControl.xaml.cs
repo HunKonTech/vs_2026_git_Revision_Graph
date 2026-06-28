@@ -193,6 +193,10 @@ namespace RevisionGraph
                     if (!string.IsNullOrEmpty(msg.Name))
                         await RunRemoteOpAsync($"Push \"{msg.Name}\"", g => g.PushBranchAsync(msg.Name)).ConfigureAwait(true);
                     break;
+                case "renameBranch":
+                    if (!string.IsNullOrEmpty(msg.Name))
+                        await RenameBranchAsync(msg.Name).ConfigureAwait(true);
+                    break;
                 case "sync":
                     await RunRemoteOpAsync("Sync", g => g.SyncAsync()).ConfigureAwait(true);
                     break;
@@ -366,6 +370,29 @@ namespace RevisionGraph
                     PostToWebview(new { type = "error", message = "Delete branch failed: " + ex.Message });
                     return;
                 }
+            }
+            await RefreshAsync().ConfigureAwait(true);
+        }
+
+        private async Task RenameBranchAsync(string name)
+        {
+            if (_git == null || string.IsNullOrEmpty(name)) return;
+
+            var owner = Window.GetWindow(this);
+            var newName = PromptDialog.Show(
+                owner, $"Rename branch \"{name}\"", "Enter the new branch name", name);
+            if (newName == null || newName.Trim() == name) return;
+            var trimmed = newName.Trim();
+            if (string.IsNullOrEmpty(trimmed)) return;
+
+            try
+            {
+                await _git.RenameBranchAsync(name, trimmed).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Rename branch failed: " + ex.Message });
+                return;
             }
             await RefreshAsync().ConfigureAwait(true);
         }

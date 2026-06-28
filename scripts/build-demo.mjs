@@ -32,34 +32,20 @@ if (!existsSync(mainJs)) {
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 
-// Shared renderer bundle + sourcemaps + the harness mock data, verbatim.
+// Shared renderer bundle + sourcemaps + the harness mock data + the shared
+// stateful fake host, all verbatim — the demo is the harness with relative paths.
 for (const f of ["main.js", "main.js.map", "main.css", "main.css.map"]) {
   if (existsSync(resolve(src, f))) await copyFile(resolve(src, f), resolve(out, f));
 }
 await copyFile(resolve(harness, "mock-data.js"), resolve(out, "mock-data.js"));
+await copyFile(resolve(harness, "demo-host.js"), resolve(out, "demo-host.js"));
 
-// The fake host. Lifted from harness/index.html so the demo answers exactly the
-// same messages the local harness does — every menu action gets a response.
-const hostScript = `
-      // Capture messages the webview sends to the "host" and echo a fake response,
-      // so every action (branch, checkout, copy SHA, stash, undo…) does something.
-      window.__REV_GRAPH_HARNESS__ = {
-        onPost(msg) {
-          if (msg.type === "ready" || msg.type === "requestRefresh") {
-            window.postMessage({ type: "setData", data: window.__MOCK_GRAPH__ }, "*");
-          }
-          if (msg.type === "createBranch") {
-            const name = prompt("New branch name (from " + msg.sha.slice(0, 7) + "):", "feature/new");
-            if (name) window.postMessage({ type: "branchCreated", name, sha: msg.sha }, "*");
-          }
-          if (msg.type === "checkout") alert("checkout " + (msg.sha || msg.ref));
-          if (msg.type === "copySha") navigator.clipboard?.writeText(msg.sha);
-          if (msg.type === "undoCommit") window.postMessage({ type: "opResult", op: "undo", result: "ok" }, "*");
-          if (msg.type === "stashApply") window.postMessage({ type: "opResult", op: "stashApply", result: "ok" }, "*");
-          if (msg.type === "stashPop") window.postMessage({ type: "opResult", op: "stashPop", result: "conflict" }, "*");
-          if (msg.type === "stashDrop") window.postMessage({ type: "opResult", op: "stashDrop", result: "ok" }, "*");
-        },
-      };`;
+// Favicon: the same glyph as the VS Code activity-bar icon
+// (vscode/icons/revision-graph.svg), but `currentColor` swapped for a concrete
+// accent so it stays visible on both light and dark browser tab bars.
+const iconSrc = resolve(root, "vscode/icons/revision-graph.svg");
+const favicon = (await readFile(iconSrc, "utf8")).replace(/currentColor/g, "#3794ff");
+await writeFile(resolve(out, "favicon.svg"), favicon, "utf8");
 
 const html = `<!doctype html>
 <html lang="en">
@@ -68,6 +54,7 @@ const html = `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Git Revision Graph — live demo</title>
     <meta name="description" content="Interactive in-browser demo of the TortoiseSVN-style Git Revision Graph for Visual Studio and VS Code." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./main.css" />
     <style>
       /* Non-intrusive ribbon so visitors know this is sample data. */
@@ -86,8 +73,7 @@ const html = `<!doctype html>
       <a href="https://github.com/HunKonTech/vs_2026_git_Revision_Graph">source</a>
     </div>
     <script src="./mock-data.js"></script>
-    <script>${hostScript}
-    </script>
+    <script src="./demo-host.js"></script>
     <script src="./main.js"></script>
   </body>
 </html>

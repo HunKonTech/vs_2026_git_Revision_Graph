@@ -8,34 +8,9 @@
   <body>
     <div id="app"></div>
     <script src="/harness/mock-data.js"></script>
-    <script>
-      // Capture messages the webview sends to the "host" and echo a fake response.
-      window.__REV_GRAPH_HARNESS__ = {
-        onPost(msg) {
-          if (msg.type === "ready" || msg.type === "requestRefresh") {
-            window.postMessage({ type: "setData", data: window.__MOCK_GRAPH__ }, "*");
-          }
-          if (msg.type === "createBranch") {
-            const name = prompt("New branch name (from " + msg.sha.slice(0, 7) + "):", "feature/new");
-            if (name) window.postMessage({ type: "branchCreated", name, sha: msg.sha }, "*");
-          }
-          if (msg.type === "checkout") alert("checkout " + (msg.sha || msg.ref));
-          if (msg.type === "copySha") navigator.clipboard?.writeText(msg.sha);
-          if (msg.type === "undoCommit") {
-            window.postMessage({ type: "opResult", op: "undo", result: "ok" }, "*");
-          }
-          if (msg.type === "stashApply") {
-            window.postMessage({ type: "opResult", op: "stashApply", result: "ok" }, "*");
-          }
-          if (msg.type === "stashPop") {
-            window.postMessage({ type: "opResult", op: "stashPop", result: "conflict" }, "*");
-          }
-          if (msg.type === "stashDrop") {
-            window.postMessage({ type: "opResult", op: "stashDrop", result: "ok" }, "*");
-          }
-        },
-      };
-    </script>
+    <!-- Stateful fake host: actually mutates the mock graph so every action is
+         visible. Shared verbatim with the public demo (scripts/build-demo.mjs). -->
+    <script src="/harness/demo-host.js"></script>
     <script src="/dist/main.js"></script>
   </body>
 </html>

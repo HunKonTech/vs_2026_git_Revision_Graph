@@ -350,6 +350,31 @@ namespace RevisionGraph
                 MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes) return;
 
+            // A branch checked out in this worktree can't be deleted — git refuses
+            // with "used by worktree". Move HEAD to where the branch was started
+            // from first: the main branch when it forked directly off main,
+            // otherwise the branch it diverged from.
+            try
+            {
+                var current = await _git.GetCurrentBranchAsync().ConfigureAwait(true);
+                if (!string.IsNullOrEmpty(current) && current == name)
+                {
+                    var target = await _git.ResolveBranchBaseTargetAsync(name).ConfigureAwait(true);
+                    if (string.IsNullOrEmpty(target) || target == name)
+                    {
+                        PostToWebview(new { type = "error", message =
+                            "Cannot delete \"" + name + "\": it is checked out and no other branch to switch to was found." });
+                        return;
+                    }
+                    await _git.CheckoutAsync(target).ConfigureAwait(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Delete branch failed: " + ex.Message });
+                return;
+            }
+
             try
             {
                 await _git.DeleteBranchAsync(name, false).ConfigureAwait(true);

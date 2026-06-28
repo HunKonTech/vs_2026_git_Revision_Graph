@@ -11,6 +11,8 @@ import {
   pushBranchCli,
   renameBranchCli,
   deleteBranchCli,
+  currentBranchCli,
+  resolveBranchBaseTarget,
   isCommitPushedCli,
   rewordCommitCli,
   commitSummaryCli,
@@ -232,6 +234,27 @@ export class GraphPanel {
       "Delete",
     );
     if (confirm !== "Delete") return;
+
+    // A branch checked out in this worktree can't be deleted — git refuses with
+    // "used by worktree". Move HEAD to where the branch was started from first:
+    // the main branch when it forked directly off main, otherwise the branch it
+    // diverged from.
+    try {
+      const current = await currentBranchCli(root);
+      if (current && current === name) {
+        const target = await resolveBranchBaseTarget(root, name);
+        if (!target || target === name) {
+          void vscode.window.showErrorMessage(
+            `Cannot delete "${name}": it is checked out and no other branch to switch to was found.`,
+          );
+          return;
+        }
+        await checkoutCli(root, target);
+      }
+    } catch (err) {
+      void vscode.window.showErrorMessage(`Delete branch failed: ${String(err)}`);
+      return;
+    }
 
     try {
       await deleteBranchCli(root, name, false);

@@ -232,6 +232,98 @@ namespace RevisionGraph.Git
         public Task DeleteBranchAsync(string name, bool force)
             => RunAsync(_repoRoot, "branch", force ? "-D" : "-d", name);
 
+        /// <summary>The branch HEAD points at, or empty when HEAD is detached.</summary>
+        public async Task<string> GetCurrentBranchAsync()
+            => (await RunSafeAsync(_repoRoot, "symbolic-ref", "--quiet", "--short", "HEAD")
+                .ConfigureAwait(false)).Trim();
+
+        /// <summary>Whether a local branch of exactly this name exists.</summary>
+        private async Task<bool> LocalBranchExistsAsync(string name)
+        {
+            try
+            {
+                await RunAsync(_repoRoot, "show-ref", "--verify", "--quiet", "refs/heads/" + name)
+                    .ConfigureAwait(false);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// The repo's main branch name — the remote's default (origin/HEAD) if a
+        /// matching local branch exists, else local main, else local master.
+        /// Empty when none found. Mirrors resolveMainBranchCli in gitData.ts.
+        /// </summary>
+        public async Task<string> ResolveMainBranchAsync()
+        {
+            var sym = (await TryRunAsync("symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+                .ConfigureAwait(false)).Trim();
+            if (!string.IsNullOrEmpty(sym))
+            {
+                var slash = sym.IndexOf('/');
+                var localName = slash >= 0 ? sym.Substring(slash + 1) : sym;
+                if (!string.IsNullOrEmpty(localName) &&
+                    await LocalBranchExistsAsync(localName).ConfigureAwait(false))
+                    return localName;
+            }
+            foreach (var cand in new[] { "main", "master" })
+            {
+                if (await LocalBranchExistsAsync(cand).ConfigureAwait(false)) return cand;
+            }
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Where HEAD should land when the currently checked-out branch is about to
+        /// be deleted (git refuses to delete a branch a worktree has checked out):
+        ///  - forked directly off the main branch → the main branch (its tip);
+        ///  - forked off another branch → that branch;
+        ///  - else fall back to main, or a bare fork-point sha (detached).
+        /// Returns a branch name (preferred) or a bare sha, or empty when none.
+        /// Mirrors resolveBranchBaseTarget in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<string> ResolveBranchBaseTargetAsync(string branch)
+        {
+            var main = await ResolveMainBranchAsync().ConfigureAwait(false);
+
+            // Every other local branch (everything except the one being deleted).
+            var others = new List<string>();
+            foreach (var b in SplitLines(await TryRunAsync(
+                "for-each-ref", "--format=%(refname:short)", "refs/heads").ConfigureAwait(false)))
+            {
+                if (b != branch) others.Add(b);
+            }
+
+            // Fork point = parent of the oldest commit unique to `branch`. With no
+            // unique commits the branch tip is shared, so the tip itself is the base.
+            var revListArgs = new List<string> { "rev-list", branch };
+            foreach (var b in others) revListArgs.Add("^" + b);
+            var unique = SplitLines(await TryRunAsync(revListArgs.ToArray()).ConfigureAwait(false));
+
+            string forkSha;
+            if (unique.Count == 0)
+                forkSha = (await TryRunAsync("rev-parse", branch).ConfigureAwait(false)).Trim();
+            else
+                forkSha = (await TryRunAsync("rev-parse", unique[unique.Count - 1] + "^")
+                    .ConfigureAwait(false)).Trim();
+
+            if (!string.IsNullOrEmpty(forkSha))
+            {
+                var candidates = new List<string>();
+                foreach (var b in SplitLines(await TryRunAsync(
+                    "branch", "--contains", forkSha, "--format=%(refname:short)").ConfigureAwait(false)))
+                {
+                    if (b != branch) candidates.Add(b);
+                }
+                // Forked directly off main → prefer main; else the branch it diverged from.
+                if (!string.IsNullOrEmpty(main) && candidates.Contains(main)) return main;
+                if (candidates.Count > 0) return candidates[0];
+            }
+
+            if (!string.IsNullOrEmpty(main) && main != branch) return main;
+            return forkSha;
+        }
+
         /// <summary>
         /// Whether a commit is reachable from any remote branch — i.e. already
         /// pushed. Used to refuse rewording commits other people may already have.

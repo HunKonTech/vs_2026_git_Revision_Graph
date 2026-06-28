@@ -287,6 +287,90 @@ export async function deleteBranchCli(
   await git(repoRoot, ["branch", force ? "-D" : "-d", name]);
 }
 
+/** The branch HEAD currently points at, or "" when HEAD is detached. */
+export async function currentBranchCli(repoRoot: string): Promise<string> {
+  return (await git(repoRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => "")).trim();
+}
+
+/** Whether a local branch of exactly this name exists. */
+async function localBranchExists(repoRoot: string, name: string): Promise<boolean> {
+  return git(repoRoot, ["show-ref", "--verify", "--quiet", `refs/heads/${name}`])
+    .then(() => true)
+    .catch(() => false);
+}
+
+/**
+ * The repo's main branch name — the remote's default (origin/HEAD) if a matching
+ * local branch exists, else local `main`, else local `master`. "" when none found.
+ */
+export async function resolveMainBranchCli(repoRoot: string): Promise<string> {
+  const sym = (
+    await git(repoRoot, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).catch(() => "")
+  ).trim();
+  if (sym) {
+    const slash = sym.indexOf("/");
+    const localName = slash >= 0 ? sym.slice(slash + 1) : sym;
+    if (localName && (await localBranchExists(repoRoot, localName))) return localName;
+  }
+  for (const cand of ["main", "master"]) {
+    if (await localBranchExists(repoRoot, cand)) return cand;
+  }
+  return "";
+}
+
+/**
+ * Where HEAD should land when the currently checked-out branch `branch` is about
+ * to be deleted (you can't delete the branch a worktree has checked out):
+ *  - if `branch` forked directly off the main branch → the main branch (its tip);
+ *  - if it forked off another branch → that branch;
+ *  - else fall back to main, or a bare fork-point sha for a detached checkout.
+ * Returns a branch name (preferred) or a bare sha, or "" when nothing suitable.
+ */
+export async function resolveBranchBaseTarget(repoRoot: string, branch: string): Promise<string> {
+  const main = await resolveMainBranchCli(repoRoot);
+
+  // Every other local branch (everything except the one being deleted).
+  const others = (
+    await git(repoRoot, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]).catch(() => "")
+  )
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((b) => b && b !== branch);
+
+  // Fork point = parent of the oldest commit unique to `branch`. With no unique
+  // commits the branch tip is shared, so the tip itself is the base.
+  const unique = (
+    await git(repoRoot, ["rev-list", branch, ...others.map((b) => `^${b}`)]).catch(() => "")
+  )
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  let forkSha = "";
+  if (unique.length === 0) {
+    forkSha = (await git(repoRoot, ["rev-parse", branch]).catch(() => "")).trim();
+  } else {
+    const oldest = unique[unique.length - 1]!;
+    forkSha = (await git(repoRoot, ["rev-parse", `${oldest}^`]).catch(() => "")).trim();
+  }
+
+  if (forkSha) {
+    const candidates = (
+      await git(repoRoot, ["branch", "--contains", forkSha, "--format=%(refname:short)"]).catch(
+        () => "",
+      )
+    )
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((b) => b && b !== branch);
+    // Forked directly off main → prefer main; otherwise the branch it diverged from.
+    if (main && candidates.includes(main)) return main;
+    if (candidates.length > 0) return candidates[0]!;
+  }
+
+  if (main && main !== branch) return main;
+  return forkSha;
+}
+
 /**
  * Whether a commit is reachable from any remote branch — i.e. already pushed.
  * Used to refuse rewording a commit that other people may already have.

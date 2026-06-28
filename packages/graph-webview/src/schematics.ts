@@ -32,6 +32,8 @@ const C = {
   // it reads on both light and dark themes.
   muted: "rgba(128,128,128,0.18)",
   faint: "rgba(128,128,128,0.10)",
+  // Connector lines between commit boxes.
+  edge: "rgba(128,128,128,0.65)",
 };
 
 const W = 300;
@@ -216,66 +218,143 @@ export function nativeDialogSchematic(host: "vscode" | "vs" | "browser"): string
 }
 
 // ---------------------------------------------------------------------------
-// Display style — modern (free canvas) vs classic (fixed, trunk-left, scroll).
+// Display style — both modes render the SAME branch-column grid (computeLayout):
+// the trunk pinned to the leftmost lane, side branches in lanes to the right,
+// landscape commit cards (branch header + text) stacked by generation and joined
+// by orthogonal elbow edges. The modes differ only in navigation, so the cards
+// are identical and only the surrounding chrome changes:
+//   modern  — a free canvas (pan + zoom affordances, no scrollbars)
+//   classic — a fixed canvas pinned top-left, navigated by scrollbars
+// Card geometry echoes the real renderer's grid (BOX_W 170 / LANE_W 210).
 // ---------------------------------------------------------------------------
 
-/** Draw a little branch node box. */
-function gnode(x: number, y: number, accent = false): string {
-  return rect(x, y, 22, 11, { fill: accent ? C.accent : C.muted, stroke: accent ? "none" : C.border, r: 2 });
+const CW = 82; // card width
+const CH = 34; // card height (~2:1 landscape, like the real boxes)
+const LANE = 104; // column pitch (card + gutter)
+const ROW = 46; // row pitch (card + vertical gap)
+
+/** A commit card: a header strip carrying the branch name + two faint text lines. */
+function commitCard(x: number, y: number, label: string, accent = false): string {
+  let s = rect(x, y, CW, CH, { fill: C.bg, stroke: accent ? C.accent : C.border, r: 3, sw: accent ? 1.4 : 1 });
+  // Accent cards get a thin left bar, echoing the HEAD marker on the current box.
+  if (accent) s += rect(x - 3, y + 4, 2, CH - 8, { fill: C.accent, r: 1 });
+  // Header strip (the branch name sits here in the real box).
+  s += rect(x + 1, y + 1, CW - 2, 11, { fill: accent ? "rgba(14,99,156,0.30)" : C.muted, r: 2 });
+  s += text(x + 6, y + 9, label, { size: 7, weight: 600, opacity: 0.9 });
+  // Two faint "text" lines (sha / summary).
+  s += rect(x + 6, y + 18, CW - 26, 3, { fill: C.muted });
+  s += rect(x + 6, y + 25, CW - 40, 3, { fill: C.muted });
+  return s;
+}
+
+/** A straight vertical connector between two stacked cards in one column. */
+function vEdge(cx: number, y1: number, y2: number): string {
+  return line(cx, y1, cx, y2, { stroke: C.edge, sw: 1.2 });
+}
+
+/** An orthogonal polyline edge (the elbow routing a branch back to the trunk). */
+function elbow(pts: [number, number][]): string {
+  let d = `M ${pts[0]![0]} ${pts[0]![1]}`;
+  for (let i = 1; i < pts.length; i++) d += ` L ${pts[i]![0]} ${pts[i]![1]}`;
+  return `<path d="${d}" fill="none" stroke="${C.edge}" stroke-width="1.2"/>`;
+}
+
+/**
+ * The shared graph: a three-commit trunk column at (ox,oy) with a two-commit
+ * side branch one lane to its right, forking back into the trunk's bottom commit
+ * via an elbow — exactly the grid both display modes lay out.
+ */
+function graphBoxes(ox: number, oy: number): string {
+  const TX = ox;
+  const BX = ox + LANE;
+  const y0 = oy;
+  const y1 = oy + ROW;
+  const y2 = oy + 2 * ROW;
+  const tcx = TX + CW / 2;
+  const bcx = BX + CW / 2;
+
+  let s = "";
+  // Edges first so the cards paint over their ends.
+  s += vEdge(tcx, y0 + CH, y1); // trunk: card 0 -> card 1
+  s += vEdge(tcx, y1 + CH, y2); // trunk: card 1 -> card 2
+  s += vEdge(bcx, y0 + CH, y1); // branch: card 0 -> card 1
+  // Fork: branch's lower card down through the row gap, across a gutter, into the
+  // trunk's bottom card — the orthogonal corridor routing the renderer uses.
+  const g1 = y1 + CH + 6;
+  const g2 = y2 - 6;
+  const xCorr = BX - 11;
+  s += elbow([
+    [bcx, y1 + CH],
+    [bcx, g1],
+    [xCorr, g1],
+    [xCorr, g2],
+    [tcx, g2],
+    [tcx, y2],
+  ]);
+
+  // Cards: trunk (lane 0) with its tip accented like the current branch; the
+  // side branch one lane right.
+  s += commitCard(TX, y0, "main", true);
+  s += commitCard(TX, y1, "main");
+  s += commitCard(TX, y2, "main");
+  s += commitCard(BX, y0, "feature");
+  s += commitCard(BX, y1, "feature");
+  return s;
+}
+
+/** A 4-way move cursor — the pan affordance of the free canvas. */
+function moveIcon(cx: number, cy: number): string {
+  const a = 12;
+  const h = 3.5;
+  const stroke = `stroke="${C.fg}" stroke-width="1.4"`;
+  const tri = `fill="${C.fg}"`;
+  return (
+    `<g opacity="0.75">` +
+    `<line x1="${cx - a}" y1="${cy}" x2="${cx + a}" y2="${cy}" ${stroke}/>` +
+    `<line x1="${cx}" y1="${cy - a}" x2="${cx}" y2="${cy + a}" ${stroke}/>` +
+    `<polygon points="${cx - a - 1},${cy} ${cx - a + 5},${cy - h} ${cx - a + 5},${cy + h}" ${tri}/>` +
+    `<polygon points="${cx + a + 1},${cy} ${cx + a - 5},${cy - h} ${cx + a - 5},${cy + h}" ${tri}/>` +
+    `<polygon points="${cx},${cy - a - 1} ${cx - h},${cy - a + 5} ${cx + h},${cy - a + 5}" ${tri}/>` +
+    `<polygon points="${cx},${cy + a + 1} ${cx - h},${cy + a - 5} ${cx + h},${cy + a - 5}" ${tri}/>` +
+    `</g>`
+  );
+}
+
+/** A magnifier with a + — the zoom affordance of the free canvas. */
+function zoomIcon(cx: number, cy: number): string {
+  const r = 8;
+  const stroke = `stroke="${C.fg}" stroke-width="1.5" fill="none"`;
+  return (
+    `<g opacity="0.75">` +
+    `<circle cx="${cx}" cy="${cy}" r="${r}" ${stroke}/>` +
+    `<line x1="${cx + r - 1}" y1="${cy + r - 1}" x2="${cx + r + 5}" y2="${cy + r + 5}" ${stroke} stroke-linecap="round"/>` +
+    `<line x1="${cx - 3.5}" y1="${cy}" x2="${cx + 3.5}" y2="${cy}" ${stroke}/>` +
+    `<line x1="${cx}" y1="${cy - 3.5}" x2="${cx}" y2="${cy + 3.5}" ${stroke}/>` +
+    `</g>`
+  );
 }
 
 export function modernGraphSchematic(): string {
   let s = open();
   s += rect(8, 8, W - 16, H - 16, { fill: C.faint, r: 4 });
-  // Scattered, free-floating nodes connected by curved edges.
-  const trunk: [number, number][] = [
-    [40, 30],
-    [70, 64],
-    [110, 100],
-    [150, 140],
-  ];
-  for (let i = 0; i < trunk.length - 1; i++) {
-    const [x1, y1] = trunk[i]!;
-    const [x2, y2] = trunk[i + 1]!;
-    s += line(x1 + 11, y1 + 11, x2 + 11, y2, { stroke: C.fg, sw: 1 });
-  }
-  // A side branch peeling off.
-  s += line(81, 75, 200, 56, { stroke: C.fg, sw: 1 });
-  s += line(121, 111, 230, 120, { stroke: C.fg, sw: 1 });
-  for (const [x, y] of trunk) s += gnode(x, y, true);
-  s += gnode(190, 50);
-  s += gnode(224, 114);
-  // Pan hand + zoom hint.
-  s += text(16, H - 16, "✋ drag to pan", { size: 8, opacity: 0.7 });
-  s += text(W - 16, H - 16, "scroll = zoom 🔍", { size: 8, anchor: "end", opacity: 0.7 });
+  // The graph floats with padding (free canvas, not pinned to a corner).
+  s += graphBoxes(34, 26);
+  // Pan + zoom affordances in the open right margin.
+  s += moveIcon(262, 66);
+  s += zoomIcon(261, 128);
   return s + close();
 }
 
 export function classicGraphSchematic(): string {
   let s = open();
   s += rect(8, 8, W - 16, H - 16, { fill: C.faint, r: 4 });
-  // Trunk pinned to the left column, branches in fixed columns to the right.
-  const colX = [24, 92, 160];
-  // Trunk nodes down the left column.
-  const trunkYs = [26, 56, 86, 116, 146];
-  for (let i = 0; i < trunkYs.length - 1; i++) {
-    s += line(colX[0]! + 11, trunkYs[i]! + 11, colX[0]! + 11, trunkYs[i + 1]!, { stroke: C.fg, sw: 1 });
-  }
-  for (const y of trunkYs) s += gnode(colX[0]!, y, true);
-  // A branch in column 2.
-  s += line(colX[0]! + 22, 61, colX[1]!, 73, { stroke: C.fg, sw: 1 });
-  s += line(colX[1]! + 11, 84, colX[1]! + 11, 114, { stroke: C.fg, sw: 1 });
-  s += gnode(colX[1]!, 78);
-  s += gnode(colX[1]!, 114);
-  // A branch in column 3.
-  s += line(colX[1]! + 22, 83, colX[2]!, 96, { stroke: C.fg, sw: 1 });
-  s += gnode(colX[2]!, 101);
-  // Scrollbars: right (vertical) and bottom (horizontal), the only navigation.
-  s += rect(W - 18, 12, 8, H - 40, { fill: C.muted, r: 4 });
-  s += rect(W - 17, 40, 6, 40, { fill: C.border, r: 3 });
-  s += rect(12, H - 18, W - 40, 8, { fill: C.muted, r: 4 });
-  s += rect(20, H - 17, 50, 6, { fill: C.border, r: 3 });
-  s += text(16, H - 26, "trunk pinned left · scroll only", { size: 8, opacity: 0.7 });
+  // The trunk is pinned to the top-left corner; navigation is by scrollbars only.
+  s += graphBoxes(18, 16);
+  // Vertical scrollbar (right) + horizontal scrollbar (bottom).
+  s += rect(W - 16, 12, 7, H - 34, { fill: C.muted, r: 3 });
+  s += rect(W - 15, 28, 5, 52, { fill: C.border, r: 2 });
+  s += rect(12, H - 16, W - 32, 7, { fill: C.muted, r: 3 });
+  s += rect(18, H - 15, 78, 5, { fill: C.border, r: 2 });
   return s + close();
 }
 

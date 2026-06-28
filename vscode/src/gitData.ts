@@ -190,7 +190,20 @@ export interface CheckoutTarget {
 export async function resolveCheckoutTarget(
   repoRoot: string,
   sha: string,
+  preferredRef?: string,
 ): Promise<CheckoutTarget> {
+  // When the caller named the exact branch the user clicked, honour it directly
+  // so commits shared by several branches don't get resolved to the wrong one.
+  if (preferredRef) {
+    const localHit = await git(repoRoot, ["branch", "--list", preferredRef]).catch(() => "");
+    if (localHit.trim()) return { ref: preferredRef };
+    const remoteHit = await git(repoRoot, ["branch", "-r", "--list", preferredRef]).catch(() => "");
+    if (remoteHit.trim()) {
+      const localName = preferredRef.split("/").slice(1).join("/");
+      return { ref: localName, track: preferredRef };
+    }
+  }
+
   const local = await git(repoRoot, [
     "branch",
     "--points-at",

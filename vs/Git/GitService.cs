@@ -466,8 +466,41 @@ namespace RevisionGraph.Git
         ///  - else fall back to the bare commit (intentional detached HEAD).
         /// Mirrors resolveCheckoutTarget/checkoutTrackingCli in vscode/src/gitData.ts.
         /// </summary>
-        public async Task SmartCheckoutAsync(string sha)
+        public async Task SmartCheckoutAsync(string sha, string preferredRef = null)
         {
+            // When the caller named the exact branch the user clicked, honour it
+            // directly so commits shared by several branches don't resolve to the
+            // wrong one.
+            if (!string.IsNullOrEmpty(preferredRef))
+            {
+                var localHit = await TryRunAsync("branch", "--list", preferredRef).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(localHit))
+                {
+                    await CheckoutAsync(preferredRef).ConfigureAwait(false);
+                    return;
+                }
+
+                var remoteHit = await TryRunAsync("branch", "-r", "--list", preferredRef).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(remoteHit))
+                {
+                    var slash = preferredRef.IndexOf('/');
+                    if (slash > 0 && slash < preferredRef.Length - 1)
+                    {
+                        var localName = preferredRef.Substring(slash + 1);
+                        try
+                        {
+                            await RunAsync(_repoRoot, "checkout", "-b", localName, "--track", preferredRef)
+                                .ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            await CheckoutAsync(localName).ConfigureAwait(false);
+                        }
+                        return;
+                    }
+                }
+            }
+
             var local = await TryRunAsync(
                 "branch", "--points-at", sha, "--format=%(refname:short)").ConfigureAwait(false);
             var locals = SplitLines(local);

@@ -100,7 +100,7 @@ function boot(): void {
         },
         {
           label: t("menu.checkout"),
-          action: () => bridge.post({ type: "checkout", sha }),
+          action: () => bridge.post({ type: "checkout", sha, ref: boxBranchRef(commit) }),
         },
         {
           label: t("menu.renameCommit"),
@@ -137,8 +137,8 @@ function boot(): void {
 
       showContextMenu(x, y, items);
     },
-    onNodeDblClick(sha) {
-      bridge.post({ type: "checkout", sha });
+    onNodeDblClick(commit) {
+      bridge.post({ type: "checkout", sha: commit.sha, ref: boxBranchRef(commit) });
     },
     onNodeClick(commit) {
       showCommitDetails(detailsPanel, commit, currentHead);
@@ -199,6 +199,23 @@ function boot(): void {
         refs: data.refs.length,
       }),
     );
+  }
+
+  // The branch a given box represents, so a checkout targets *that* branch
+  // rather than resolving by the shared commit (several branches can point at
+  // the same commit — resolving by sha would silently pick the wrong one).
+  // Prefers a local branch matching the box's lane, then any local branch, then
+  // a remote branch; returns undefined for a plain commit so the host falls back
+  // to sha-based resolution.
+  function boxBranchRef(c: PositionedCommit): string | undefined {
+    const local =
+      c.refs.find((r) => r.type === "localBranch" && r.name === c.branch) ??
+      c.refs.find((r) => r.type === "localBranch");
+    if (local) return local.name;
+    const remote =
+      c.refs.find((r) => r.type === "remoteBranch" && r.name === c.branch) ??
+      c.refs.find((r) => r.type === "remoteBranch");
+    return remote?.name;
   }
 
   // Branch names (local + remote) available for the "main branch" picker.

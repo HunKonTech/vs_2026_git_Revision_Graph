@@ -128,7 +128,7 @@ export class GraphPanel {
         await this.handleStash("stashDrop", msg.index);
         break;
       case "checkout":
-        await this.handleCheckout(msg.sha ?? msg.ref);
+        await this.handleCheckout(msg.sha, msg.ref);
         break;
       case "copySha":
         await vscode.env.clipboard.writeText(msg.sha);
@@ -284,7 +284,8 @@ export class GraphPanel {
     await this.refresh();
   }
 
-  private async handleCheckout(treeish: string | undefined): Promise<void> {
+  private async handleCheckout(sha: string | undefined, ref?: string): Promise<void> {
+    const treeish = sha ?? ref;
     if (!treeish) return;
     const repo = await resolveRepository();
     if (!repo) return;
@@ -292,7 +293,9 @@ export class GraphPanel {
     try {
       // Resolve a branch to switch to instead of detaching HEAD on a commit —
       // crucially, a remote-only branch becomes a new local tracking branch.
-      const target = await resolveCheckoutTarget(root, treeish);
+      // `ref` names the exact branch the user clicked, so when several branches
+      // share a commit we switch to the right one instead of guessing by sha.
+      const target = await resolveCheckoutTarget(root, treeish, ref);
       if (target.track) {
         await checkoutTrackingCli(root, target.ref, target.track);
       } else {

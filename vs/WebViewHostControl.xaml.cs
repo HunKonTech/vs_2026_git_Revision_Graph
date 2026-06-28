@@ -175,7 +175,7 @@ namespace RevisionGraph
                     await HandleStashAsync(msg.Type, msg.Index).ConfigureAwait(true);
                     break;
                 case "checkout":
-                    await CheckoutAsync(msg.Sha ?? msg.Ref).ConfigureAwait(true);
+                    await CheckoutAsync(msg.Sha, msg.Ref).ConfigureAwait(true);
                     break;
                 case "copySha":
                     if (!string.IsNullOrEmpty(msg.Sha)) Clipboard.SetText(msg.Sha);
@@ -459,14 +459,17 @@ namespace RevisionGraph
         private static string Short(string sha)
             => sha != null && sha.Length >= 7 ? sha.Substring(0, 7) : sha;
 
-        private async Task CheckoutAsync(string treeish)
+        private async Task CheckoutAsync(string sha, string @ref = null)
         {
+            var treeish = sha ?? @ref;
             if (_git == null || string.IsNullOrEmpty(treeish)) return;
             try
             {
                 // Resolve a branch to switch to instead of detaching HEAD on a commit —
                 // crucially, a remote-only branch becomes a new local tracking branch.
-                await _git.SmartCheckoutAsync(treeish).ConfigureAwait(true);
+                // `ref` names the exact branch the user clicked, so when several
+                // branches share a commit we switch to the right one, not by sha.
+                await _git.SmartCheckoutAsync(treeish, @ref).ConfigureAwait(true);
                 await RefreshAsync().ConfigureAwait(true);
             }
             catch (Exception ex)

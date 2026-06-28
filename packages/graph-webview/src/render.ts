@@ -25,7 +25,7 @@ type NodeKind = "head" | "localBranch" | "remoteBranch" | "tag" | "commit" | "st
 
 export interface RenderCallbacks {
   onNodeContextMenu(commit: PositionedCommit, clientX: number, clientY: number): void;
-  onNodeDblClick(sha: string): void;
+  onNodeDblClick(commit: PositionedCommit): void;
   onNodeClick(commit: PositionedCommit): void;
 }
 
@@ -517,7 +517,7 @@ export class GraphView {
     });
     // Stash nodes aren't checkout targets — only real commits respond to dblclick.
     g.addEventListener("dblclick", () => {
-      if (!c.stash) this.cb.onNodeDblClick(c.sha);
+      if (!c.stash) this.cb.onNodeDblClick(c);
     });
   }
 

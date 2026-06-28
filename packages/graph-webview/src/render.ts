@@ -119,6 +119,18 @@ export class GraphView {
       this.svg.setAttribute("height", "100%");
       this.applyTransform();
     }
+    this.updateScrollbarGutter();
+  }
+
+  /**
+   * Expose the classic-mode vertical scrollbar's width as `--sb-w` on the
+   * container, so overlay UI (the legend) can keep clear of the scrollbar gutter
+   * instead of being drawn underneath it. Zero in modern mode (no scrollbars).
+   */
+  private updateScrollbarGutter(): void {
+    const w =
+      this.mode === "classic" ? Math.max(0, this.scrollEl.offsetWidth - this.scrollEl.clientWidth) : 0;
+    this.container.style.setProperty("--sb-w", `${w}px`);
   }
 
   /** Size the SVG to the graph's full pixel extent so the wrapper can scroll it. */
@@ -170,7 +182,10 @@ export class GraphView {
     }
     this.draw();
     // In classic mode the SVG carries its full pixel size so the wrapper scrolls.
-    if (this.mode === "classic") this.sizeSvgToContent();
+    if (this.mode === "classic") {
+      this.sizeSvgToContent();
+      this.updateScrollbarGutter();
+    }
   }
 
   getPositionedCommit(sha: string): PositionedCommit | undefined {

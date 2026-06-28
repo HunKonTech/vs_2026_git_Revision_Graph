@@ -1,4 +1,5 @@
 export * from "./layout.js";
+export * from "./diff.js";
 export type {
   GitCommit,
   GitRef,

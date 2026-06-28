@@ -422,6 +422,107 @@ namespace RevisionGraph.Git
             "$msgFile = $env:GIT_REWORD_MSG_FILE\n" +
             "if ($msgFile) { Copy-Item -LiteralPath $msgFile -Destination $file -Force }\n";
 
+        /// <summary>Files larger than this (bytes) are flagged tooLarge instead of diffed.</summary>
+        private const long MaxDiffBytes = 2L * 1024 * 1024;
+
+        /// <summary>Map a git name-status letter to the protocol's file status.</summary>
+        private static string MapStatus(string code)
+        {
+            var c = string.IsNullOrEmpty(code) ? '\0' : code[0];
+            if (c == 'A') return "added";
+            if (c == 'D') return "deleted";
+            if (c == 'R') return "renamed";
+            if (c == 'C') return "renamed"; // copy — surface its source like a rename
+            return "modified"; // M, T (type change), and anything else
+        }
+
+        /// <summary>
+        /// The files a commit changed vs its first parent (merges show only the
+        /// merge's own changes; a root commit shows all files as added). Renames
+        /// and copies carry the parent-side path in OldPath. Mirrors
+        /// readCommitChanges in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<List<CommitChangeFile>> ReadCommitChangesAsync(string sha)
+        {
+            // -z gives NUL-separated fields so paths with spaces/tabs parse safely;
+            // -M/-C detect renames/copies; --first-parent picks the first parent.
+            var outp = await TryRunAsync(
+                "show", "--first-parent", "-M", "-C", "--name-status", "--format=", "-z", sha)
+                .ConfigureAwait(false);
+
+            var files = new List<CommitChangeFile>();
+            // -z output: STATUS \0 path [\0 newPath for R/C] \0 STATUS \0 ...
+            var parts = (outp ?? string.Empty).Split('\0');
+            int i = 0;
+            while (i < parts.Length)
+            {
+                var code = i < parts.Length ? parts[i++].Trim() : null;
+                if (string.IsNullOrEmpty(code)) continue;
+                var status = MapStatus(code);
+                if (status == "renamed")
+                {
+                    var oldPath = i < parts.Length ? parts[i++] : null;
+                    var newPath = i < parts.Length ? parts[i++] : null;
+                    if (!string.IsNullOrEmpty(newPath))
+                        files.Add(new CommitChangeFile { Path = newPath, OldPath = string.IsNullOrEmpty(oldPath) ? null : oldPath, Status = status });
+                }
+                else
+                {
+                    var path = i < parts.Length ? parts[i++] : null;
+                    if (!string.IsNullOrEmpty(path))
+                        files.Add(new CommitChangeFile { Path = path, Status = status });
+                }
+            }
+            return files;
+        }
+
+        /// <summary>Byte size of a blob (<c>&lt;rev&gt;:&lt;path&gt;</c>), or -1 if absent.</summary>
+        private async Task<long> BlobSizeAsync(string rev, string path)
+        {
+            var outp = (await TryRunAsync("cat-file", "-s", rev + ":" + path).ConfigureAwait(false)).Trim();
+            return long.TryParse(outp, out var n) ? n : -1;
+        }
+
+        /// <summary>Raw blob text (<c>&lt;rev&gt;:&lt;path&gt;</c>), or "" if absent.</summary>
+        private Task<string> BlobTextAsync(string rev, string path)
+            => TryRunAsync("show", rev + ":" + path);
+
+        /// <summary>
+        /// The before/after text of one changed file, for the side-by-side diff. The
+        /// "before" side reads from the commit's first parent; added files have no
+        /// before, deleted files no after. Binary/oversized files are flagged.
+        /// Mirrors readFileDiff in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<FileDiff> ReadFileDiffAsync(string sha, string path, string status, string oldPath)
+        {
+            var diff = new FileDiff { Sha = sha, Path = path, Status = status, OldText = "", NewText = "" };
+            var parent = sha + "^";
+            var beforePath = string.IsNullOrEmpty(oldPath) ? path : oldPath;
+            var needOld = status != "added";
+            var needNew = status != "deleted";
+
+            var oldSize = needOld ? await BlobSizeAsync(parent, beforePath).ConfigureAwait(false) : 0;
+            var newSize = needNew ? await BlobSizeAsync(sha, path).ConfigureAwait(false) : 0;
+            if (oldSize > MaxDiffBytes || newSize > MaxDiffBytes)
+            {
+                diff.TooLarge = true;
+                return diff;
+            }
+
+            var oldText = needOld ? await BlobTextAsync(parent, beforePath).ConfigureAwait(false) : "";
+            var newText = needNew ? await BlobTextAsync(sha, path).ConfigureAwait(false) : "";
+
+            // A NUL byte means git treats it as binary — no meaningful text diff.
+            if (oldText.IndexOf('\0') >= 0 || newText.IndexOf('\0') >= 0)
+            {
+                diff.Binary = true;
+                return diff;
+            }
+            diff.OldText = oldText;
+            diff.NewText = newText;
+            return diff;
+        }
+
         /// <summary>Outcome of an op that can leave conflicts for the IDE to resolve.</summary>
         public enum OpOutcome { Ok, Conflict }
 

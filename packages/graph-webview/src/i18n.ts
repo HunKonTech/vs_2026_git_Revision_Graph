@@ -82,6 +82,22 @@ type Dict = {
   "menu.renameBranch": string;
   "menu.renameCommit": string;
   "menu.undoCommit": string;
+  "menu.viewChanges": string;
+  "changes.title": string;
+  "changes.files": string;
+  "changes.added": string;
+  "changes.modified": string;
+  "changes.deleted": string;
+  "changes.renamed": string;
+  "changes.noChanges": string;
+  "changes.loading": string;
+  "changes.selectFile": string;
+  "changes.original": string;
+  "changes.changed": string;
+  "changes.binary": string;
+  "changes.tooLarge": string;
+  "changes.renamedFrom": string;
+  "changes.close": string;
   "menu.stashApply": string;
   "menu.stashPop": string;
   "menu.stashDrop": string;
@@ -185,6 +201,22 @@ const DICTS: Record<Lang, Dict> = {
     "menu.deleteBranch": 'Delete branch "{name}"…',
     "menu.renameCommit": "Rename commit message…",
     "menu.undoCommit": "Undo commit (keep changes)…",
+    "menu.viewChanges": "View changes…",
+    "changes.title": "Changes in {sha}",
+    "changes.files": "Files",
+    "changes.added": "Added",
+    "changes.modified": "Modified",
+    "changes.deleted": "Deleted",
+    "changes.renamed": "Renamed",
+    "changes.noChanges": "This commit changes no files.",
+    "changes.loading": "Loading diff…",
+    "changes.selectFile": "Select a file to see its changes.",
+    "changes.original": "Original",
+    "changes.changed": "This commit",
+    "changes.binary": "Binary file — no text diff to show.",
+    "changes.tooLarge": "File is too large to diff.",
+    "changes.renamedFrom": "Renamed from {path}",
+    "changes.close": "Close",
     "menu.stashApply": "Apply stash",
     "menu.stashPop": "Pop stash (apply & remove)",
     "menu.stashDrop": "Drop stash…",
@@ -286,6 +318,22 @@ const DICTS: Record<Lang, Dict> = {
     "menu.deleteBranch": '"{name}" branch törlése…',
     "menu.renameCommit": "Commit üzenet átnevezése…",
     "menu.undoCommit": "Commit visszavonása (változások megtartása)…",
+    "menu.viewChanges": "Változások megtekintése…",
+    "changes.title": "Változások — {sha}",
+    "changes.files": "Fájlok",
+    "changes.added": "Hozzáadva",
+    "changes.modified": "Módosítva",
+    "changes.deleted": "Törölve",
+    "changes.renamed": "Átnevezve",
+    "changes.noChanges": "Ez a commit nem módosít fájlokat.",
+    "changes.loading": "Diff betöltése…",
+    "changes.selectFile": "Válassz egy fájlt a változások megtekintéséhez.",
+    "changes.original": "Eredeti",
+    "changes.changed": "Ebben a commitban",
+    "changes.binary": "Bináris fájl — nincs szöveges diff.",
+    "changes.tooLarge": "A fájl túl nagy a diff megjelenítéséhez.",
+    "changes.renamedFrom": "Átnevezve innen: {path}",
+    "changes.close": "Bezárás",
     "menu.stashApply": "Stash alkalmazása",
     "menu.stashPop": "Stash kivétele (alkalmaz és töröl)",
     "menu.stashDrop": "Stash eldobása…",

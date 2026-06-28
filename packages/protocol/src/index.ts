@@ -50,6 +50,38 @@ export interface StashEntry {
   date: string;
 }
 
+/** How a file changed in a commit, relative to its first parent. */
+export type DiffFileStatus = "added" | "modified" | "deleted" | "renamed";
+
+/** One file changed by a commit (the left-pane list in the changes dialog). */
+export interface CommitChangeFile {
+  /** Path as of this commit (the new path for renames). */
+  path: string;
+  /** For renames: the path the file had in the parent. */
+  oldPath?: string;
+  status: DiffFileStatus;
+}
+
+/**
+ * The before/after content of a single changed file, for the side-by-side diff.
+ * `oldText` is empty for added files, `newText` empty for deleted files. When the
+ * file is binary or too large to diff, the host sets the matching flag and leaves
+ * the text empty.
+ */
+export interface FileDiff {
+  sha: string;
+  path: string;
+  status: DiffFileStatus;
+  /** Content in the parent commit (empty for added files). */
+  oldText: string;
+  /** Content in this commit (empty for deleted files). */
+  newText: string;
+  /** True when git reports the file as binary — no text diff is shown. */
+  binary?: boolean;
+  /** True when the file exceeded the host's diff size cap. */
+  tooLarge?: boolean;
+}
+
 /** The full graph payload sent from host to webview. */
 export interface GraphData {
   commits: GitCommit[];
@@ -90,6 +122,10 @@ export type HostToWebview =
   // Outcome of an undo/stash op. The webview localizes (op, result); `detail`
   // carries the raw git error text for the "error" case.
   | { type: "opResult"; op: OpKind; result: OpResult; detail?: string }
+  // The list of files a commit changed (answers `requestCommitChanges`).
+  | { type: "commitChanges"; sha: string; files: CommitChangeFile[] }
+  // The before/after content of one file (answers `requestFileDiff`).
+  | { type: "fileDiff"; diff: FileDiff }
   | { type: "error"; message: string };
 
 /* ------------------------------------------------------------------ */
@@ -107,6 +143,10 @@ export type WebviewToHost =
   // Reword a local (unpushed) commit's message. The host prompts for the new
   // text and rewrites the commit silently.
   | { type: "renameCommit"; sha: string }
+  // Ask the host for the list of files a commit changed (vs its first parent).
+  | { type: "requestCommitChanges"; sha: string }
+  // Ask the host for the before/after content of one changed file.
+  | { type: "requestFileDiff"; sha: string; path: string; status: DiffFileStatus; oldPath?: string }
   // Undo a *local* (unpushed) commit, returning its changes to the working tree
   // as unstaged edits. Leaves no trace in history (reset / rebase-drop, not a
   // revert commit). Deeper commits may conflict → resolved in the IDE.

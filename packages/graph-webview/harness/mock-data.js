@@ -35,3 +35,103 @@ window.__MOCK_GRAPH__ = {
     { index: 1, sha: "s1111111", baseSha: "h5555555", message: "WIP on release/1.0: hotfix", date: "2026-06-23T14:00:00Z" },
   ],
 };
+
+// Per-commit file changes for the "View changes…" dialog. The real hosts compute
+// these from git; here they're hand-authored so the demo shows added / modified /
+// deleted / renamed files and a side-by-side diff with no git backend.
+window.__MOCK_CHANGES__ = {
+  f1111111: [
+    {
+      path: "src/login/LoginPage.tsx",
+      status: "added",
+      oldText: "",
+      newText:
+        "export function LoginPage() {\n" +
+        "  return (\n" +
+        "    <form>\n" +
+        "      <input name=\"email\" />\n" +
+        "      <input name=\"password\" type=\"password\" />\n" +
+        "      <button>Sign in</button>\n" +
+        "    </form>\n" +
+        "  );\n" +
+        "}\n",
+    },
+    {
+      path: "src/routes.ts",
+      status: "modified",
+      oldText: "export const routes = [\n  { path: \"/\", page: \"Home\" },\n];\n",
+      newText:
+        "export const routes = [\n" +
+        "  { path: \"/\", page: \"Home\" },\n" +
+        "  { path: \"/login\", page: \"LoginPage\" },\n" +
+        "];\n",
+    },
+  ],
+  f2222222: [
+    {
+      path: "src/login/LoginPage.tsx",
+      status: "modified",
+      oldText:
+        "export function LoginPage() {\n" +
+        "  return (\n" +
+        "    <form>\n" +
+        "      <input name=\"email\" />\n" +
+        "      <input name=\"password\" type=\"password\" />\n" +
+        "      <button>Sign in</button>\n" +
+        "    </form>\n" +
+        "  );\n" +
+        "}\n",
+      newText:
+        "export function LoginPage() {\n" +
+        "  const [error, setError] = useState(\"\");\n" +
+        "  function validate(email) {\n" +
+        "    if (!email.includes(\"@\")) setError(\"Invalid email\");\n" +
+        "  }\n" +
+        "  return (\n" +
+        "    <form>\n" +
+        "      <input name=\"email\" onBlur={e => validate(e.target.value)} />\n" +
+        "      <input name=\"password\" type=\"password\" />\n" +
+        "      {error && <p className=\"err\">{error}</p>}\n" +
+        "      <button>Sign in</button>\n" +
+        "    </form>\n" +
+        "  );\n" +
+        "}\n",
+    },
+    {
+      path: "src/login/validation.ts",
+      status: "added",
+      oldText: "",
+      newText:
+        "export function isEmail(v) {\n  return /^[^@]+@[^@]+$/.test(v);\n}\n",
+    },
+    {
+      path: "src/login/legacy-auth.js",
+      status: "deleted",
+      oldText: "// old auth flow\nexport function authOld() {\n  return false;\n}\n",
+      newText: "",
+    },
+  ],
+  h6666666: [
+    {
+      path: "docs/README.md",
+      oldPath: "README.md",
+      status: "renamed",
+      oldText: "# Demo Repo\n\nA tiny example.\n",
+      newText: "# Demo Repo\n\nA tiny example project.\n\n## Usage\n\nRun `npm start`.\n",
+    },
+  ],
+  h3333333: [
+    {
+      path: "README.md",
+      status: "added",
+      oldText: "",
+      newText: "# Demo Repo\n\nA tiny example.\n",
+    },
+    {
+      path: "package.json",
+      status: "added",
+      oldText: "",
+      newText: "{\n  \"name\": \"demo-repo\",\n  \"version\": \"0.1.0\"\n}\n",
+    },
+  ],
+};

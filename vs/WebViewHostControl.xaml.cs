@@ -180,6 +180,12 @@ namespace RevisionGraph
                 case "copySha":
                     if (!string.IsNullOrEmpty(msg.Sha)) Clipboard.SetText(msg.Sha);
                     break;
+                case "requestCommitChanges":
+                    await HandleCommitChangesAsync(msg.Sha).ConfigureAwait(true);
+                    break;
+                case "requestFileDiff":
+                    await HandleFileDiffAsync(msg.Sha, msg.Path, msg.Status, msg.OldPath).ConfigureAwait(true);
+                    break;
                 case "fetch":
                     await RunRemoteOpAsync("Fetch", g => g.FetchAsync()).ConfigureAwait(true);
                     break;
@@ -510,6 +516,36 @@ namespace RevisionGraph
                 PostToWebview(new { type = "opResult", op, result = "error", detail = ex.Message });
             }
             await RefreshAsync().ConfigureAwait(true);
+        }
+
+        /// <summary>Send the webview the list of files a commit changed.</summary>
+        private async Task HandleCommitChangesAsync(string sha)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha)) return;
+            try
+            {
+                var files = await _git.ReadCommitChangesAsync(sha).ConfigureAwait(true);
+                PostToWebview(new { type = "commitChanges", sha, files });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to read commit changes: " + ex.Message });
+            }
+        }
+
+        /// <summary>Send the webview the before/after text of one changed file.</summary>
+        private async Task HandleFileDiffAsync(string sha, string path, string status, string oldPath)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha) || string.IsNullOrEmpty(path)) return;
+            try
+            {
+                var diff = await _git.ReadFileDiffAsync(sha, path, status, oldPath).ConfigureAwait(true);
+                PostToWebview(new { type = "fileDiff", diff });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to read file diff: " + ex.Message });
+            }
         }
 
         private static string Short(string sha)

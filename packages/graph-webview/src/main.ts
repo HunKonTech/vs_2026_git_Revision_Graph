@@ -3,6 +3,12 @@ import { GraphView } from "./render.js";
 import { showContextMenu, closeContextMenu, type MenuItem } from "./contextMenu.js";
 import { toggleSettings } from "./settings.js";
 import { openNewBranchDialog, closeNewBranchDialog } from "./newBranchDialog.js";
+import {
+  openChangesDialog,
+  closeChangesDialog,
+  setChangesFiles,
+  setFileDiff,
+} from "./changesDialog.js";
 import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
@@ -105,6 +111,15 @@ function boot(): void {
           action: () => bridge.post({ type: "checkout", sha, ref: boxBranchRef(commit) }),
         },
       ];
+
+      // View the files this commit changed (skip phantom branch placeholders,
+      // which carry no commit of their own).
+      if (!commit.phantom) {
+        items.push({
+          label: t("menu.viewChanges"),
+          action: () => startViewChanges(sha),
+        });
+      }
 
       // Rename is only offered for local (unpushed) commits, and never on phantom
       // branch placeholders (which carry no real commit of their own).
@@ -261,6 +276,12 @@ function boot(): void {
         // The host refreshes the graph itself after the op; nothing to request.
         break;
       }
+      case "commitChanges":
+        setChangesFiles(msg.sha, msg.files);
+        break;
+      case "fileDiff":
+        setFileDiff(msg.diff);
+        break;
       case "error": {
         const message = msg.message;
         renderStatus(() => t("status.error", { message }));
@@ -269,9 +290,27 @@ function boot(): void {
     }
   });
 
+  // Open the changes dialog for a commit and ask the host for its file list. The
+  // dialog then requests each file's diff lazily as the user selects it.
+  function startViewChanges(sha: string): void {
+    openChangesDialog({
+      sha,
+      onRequestFile: (file) =>
+        bridge.post({
+          type: "requestFileDiff",
+          sha,
+          path: file.path,
+          status: file.status,
+          oldPath: file.oldPath,
+        }),
+    });
+    bridge.post({ type: "requestCommitChanges", sha });
+  }
+
   function renderData(data: GraphData): void {
     closeContextMenu();
     closeNewBranchDialog();
+    closeChangesDialog();
     detailsPanel.dataset.hidden = "";
     currentHead = data.head ?? null;
     lastData = data;

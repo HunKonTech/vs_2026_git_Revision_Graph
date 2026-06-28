@@ -3,7 +3,16 @@ import { promisify } from "node:util";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as fs from "node:fs/promises";
-import type { GraphData, GitCommit, GitRef, RefType, StashEntry } from "@rev-graph/protocol";
+import type {
+  GraphData,
+  GitCommit,
+  GitRef,
+  RefType,
+  StashEntry,
+  CommitChangeFile,
+  DiffFileStatus,
+  FileDiff,
+} from "@rev-graph/protocol";
 
 const run = promisify(execFile);
 
@@ -500,6 +509,119 @@ export async function stashPopCli(repoRoot: string, index: number): Promise<OpOu
 /** Delete a stash entry without applying it. */
 export async function stashDropCli(repoRoot: string, index: number): Promise<void> {
   await git(repoRoot, ["stash", "drop", `stash@{${index}}`]);
+}
+
+/* ------------------------------------------------------------------ */
+/* commit changes / diff                                               */
+/* ------------------------------------------------------------------ */
+
+/** Files larger than this (in bytes) are reported as `tooLarge` instead of diffed. */
+const MAX_DIFF_BYTES = 2 * 1024 * 1024;
+
+/** Map a git name-status letter to our protocol's file status. */
+function mapStatus(code: string): DiffFileStatus {
+  const c = code[0] ?? "";
+  if (c === "A") return "added";
+  if (c === "D") return "deleted";
+  if (c === "R") return "renamed";
+  if (c === "C") return "renamed"; // copy — surface its source like a rename
+  return "modified"; // M, T (type change), and anything else
+}
+
+/**
+ * The list of files a commit changed, compared against its first parent (so
+ * merges show only what the merge itself introduced, and a root commit shows all
+ * its files as added). Renames/copies carry the parent-side path in `oldPath`.
+ */
+export async function readCommitChanges(repoRoot: string, sha: string): Promise<CommitChangeFile[]> {
+  // --first-parent picks the first parent for merges; -M/-C detect renames/copies;
+  // -z gives NUL-separated fields so paths with spaces/tabs parse safely.
+  const out = await git(repoRoot, [
+    "show",
+    "--first-parent",
+    "-M",
+    "-C",
+    "--name-status",
+    "--format=",
+    "-z",
+    sha,
+  ]).catch(() => "");
+
+  const files: CommitChangeFile[] = [];
+  // -z output: STATUS \0 path [\0 newPath for R/C] \0 STATUS \0 ...
+  const parts = out.split("\0");
+  let i = 0;
+  while (i < parts.length) {
+    const code = parts[i++]?.trim();
+    if (!code) continue;
+    const status = mapStatus(code);
+    if (status === "renamed") {
+      const oldPath = parts[i++];
+      const newPath = parts[i++];
+      if (newPath) files.push({ path: newPath, oldPath: oldPath || undefined, status });
+    } else {
+      const path = parts[i++];
+      if (path) files.push({ path, status });
+    }
+  }
+  return files;
+}
+
+/** True when a string contains a NUL byte (git's binary-file signal). */
+function hasNulByte(s: string): boolean {
+  for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 0) return true;
+  return false;
+}
+
+/** Byte size of a blob (`<rev>:<path>`), or -1 when it doesn't exist. */
+async function blobSize(repoRoot: string, rev: string, filePath: string): Promise<number> {
+  const out = await git(repoRoot, ["cat-file", "-s", `${rev}:${filePath}`]).catch(() => "");
+  const n = parseInt(out.trim(), 10);
+  return Number.isFinite(n) ? n : -1;
+}
+
+/** Raw blob text (`<rev>:<path>`), or "" when it doesn't exist. */
+async function blobText(repoRoot: string, rev: string, filePath: string): Promise<string> {
+  return git(repoRoot, ["show", `${rev}:${filePath}`]).catch(() => "");
+}
+
+/**
+ * The before/after text of one changed file, for the side-by-side diff. The
+ * "before" side reads from the commit's first parent (`<sha>^`); added files have
+ * no before, deleted files no after. Binary or oversized files are flagged rather
+ * than streamed back as text.
+ */
+export async function readFileDiff(
+  repoRoot: string,
+  sha: string,
+  filePath: string,
+  status: DiffFileStatus,
+  oldPath?: string,
+): Promise<FileDiff> {
+  const base: FileDiff = { sha, path: filePath, status, oldText: "", newText: "" };
+  const parent = `${sha}^`;
+  const beforePath = oldPath ?? filePath;
+
+  const needOld = status !== "added";
+  const needNew = status !== "deleted";
+
+  // Size-gate before reading anything large.
+  const sizes = await Promise.all([
+    needOld ? blobSize(repoRoot, parent, beforePath) : Promise.resolve(0),
+    needNew ? blobSize(repoRoot, sha, filePath) : Promise.resolve(0),
+  ]);
+  if (sizes.some((s) => s > MAX_DIFF_BYTES)) return { ...base, tooLarge: true };
+
+  const [oldText, newText] = await Promise.all([
+    needOld ? blobText(repoRoot, parent, beforePath) : Promise.resolve(""),
+    needNew ? blobText(repoRoot, sha, filePath) : Promise.resolve(""),
+  ]);
+
+  // A NUL byte means git treats it as binary — no meaningful text diff.
+  if (hasNulByte(oldText) || hasNulByte(newText)) {
+    return { ...base, binary: true };
+  }
+  return { ...base, oldText, newText };
 }
 
 /** A commit's current subject line (first line of its message). */

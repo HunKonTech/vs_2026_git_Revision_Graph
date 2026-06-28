@@ -164,6 +164,33 @@
       navigator.clipboard?.writeText(msg.sha);
     },
 
+    // Serve the hand-authored mock changes for the "View changes…" dialog. The
+    // real hosts compute these from git; here they come from window.__MOCK_CHANGES__.
+    requestCommitChanges(msg) {
+      const list = (window.__MOCK_CHANGES__ || {})[msg.sha] || [];
+      send({
+        type: "commitChanges",
+        sha: msg.sha,
+        files: list.map((f) => ({ path: f.path, oldPath: f.oldPath, status: f.status })),
+      });
+    },
+
+    requestFileDiff(msg) {
+      const list = (window.__MOCK_CHANGES__ || {})[msg.sha] || [];
+      const f = list.find((x) => x.path === msg.path);
+      const diff = f
+        ? {
+            sha: msg.sha,
+            path: f.path,
+            status: f.status,
+            oldText: f.oldText || "",
+            newText: f.newText || "",
+            binary: !!f.binary,
+          }
+        : { sha: msg.sha, path: msg.path, status: msg.status, oldText: "", newText: "" };
+      send({ type: "fileDiff", diff });
+    },
+
     // Remote ops have no server in the demo — no-ops.
     fetch() {},
     pull() {},

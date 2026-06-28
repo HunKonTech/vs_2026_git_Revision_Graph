@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { HostToWebview, WebviewToHost, ThemeTokens } from "@rev-graph/protocol";
+import type { HostToWebview, WebviewToHost, ThemeTokens, DiffFileStatus } from "@rev-graph/protocol";
 import {
   readGraphData,
   checkoutCli,
@@ -20,6 +20,8 @@ import {
   stashApplyCli,
   stashPopCli,
   stashDropCli,
+  readCommitChanges,
+  readFileDiff,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -140,6 +142,12 @@ export class GraphPanel {
       case "copySha":
         await vscode.env.clipboard.writeText(msg.sha);
         void vscode.window.showInformationMessage(`Copied ${msg.sha.slice(0, 10)}`);
+        break;
+      case "requestCommitChanges":
+        await this.handleCommitChanges(msg.sha);
+        break;
+      case "requestFileDiff":
+        await this.handleFileDiff(msg.sha, msg.path, msg.status, msg.oldPath);
         break;
       case "fetch":
         await this.runRemoteOp("Fetch", fetchCli);
@@ -409,6 +417,37 @@ export class GraphPanel {
       this.post({ type: "opResult", op, result: "error", detail: String(err) });
     }
     await this.refresh();
+  }
+
+  /** Send the webview the list of files a commit changed (for the changes dialog). */
+  private async handleCommitChanges(sha: string): Promise<void> {
+    if (!sha) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const files = await readCommitChanges(repo.rootUri.fsPath, sha);
+      this.post({ type: "commitChanges", sha, files });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to read commit changes: ${String(err)}` });
+    }
+  }
+
+  /** Send the webview the before/after text of one changed file. */
+  private async handleFileDiff(
+    sha: string,
+    path: string,
+    status: DiffFileStatus,
+    oldPath?: string,
+  ): Promise<void> {
+    if (!sha || !path) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const diff = await readFileDiff(repo.rootUri.fsPath, sha, path, status, oldPath);
+      this.post({ type: "fileDiff", diff });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to read file diff: ${String(err)}` });
+    }
   }
 
   private post(msg: HostToWebview): void {

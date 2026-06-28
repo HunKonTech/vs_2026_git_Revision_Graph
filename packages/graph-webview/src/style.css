@@ -815,3 +815,136 @@ body,
   background: var(--border);
   margin: 4px 0;
 }
+
+/* commit changes dialog (file list + side-by-side diff) */
+.changes-modal {
+  width: 1040px;
+  max-width: calc(100vw - 32px);
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 48px);
+}
+.changes-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.changes-list {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  padding: 8px 10px;
+  min-height: 0;
+}
+.changes-list-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.changes-diff {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+.changes-empty {
+  padding: 16px;
+  font-size: 12px;
+  opacity: 0.6;
+  line-height: 1.5;
+}
+.changes-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  margin: 8px 0 3px;
+}
+.changes-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.changes-file:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+.changes-file.selected {
+  background: var(--accent);
+  color: #fff;
+}
+.changes-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the file name (tail) visible when truncating a path */
+  text-align: left;
+}
+.changes-mark {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  color: #fff;
+}
+.changes-mark-added { background: #2ea043; }
+.changes-mark-modified { background: #bb8009; }
+.changes-mark-deleted { background: #f85149; }
+.changes-mark-renamed { background: #8957e5; }
+.changes-file.selected .changes-mark {
+  outline: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* side-by-side diff grid */
+.diff-grid {
+  display: grid;
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  align-content: start;
+}
+.diff-grid-single {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.diff-grid-split {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.diff-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 10px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.diff-grid-split .diff-header:nth-of-type(2) {
+  border-left: 1px solid var(--border);
+}
+.diff-num {
+  text-align: right;
+  padding: 0 8px;
+  min-width: 44px;
+  opacity: 0.45;
+  user-select: none;
+}
+.diff-code {
+  padding: 0 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.diff-add { background: rgba(46, 160, 67, 0.16); }
+.diff-del { background: rgba(248, 81, 73, 0.16); }
+.diff-num.diff-add { background: rgba(46, 160, 67, 0.28); opacity: 0.7; }
+.diff-num.diff-del { background: rgba(248, 81, 73, 0.28); opacity: 0.7; }
+.diff-empty { background: rgba(128, 128, 128, 0.06); }

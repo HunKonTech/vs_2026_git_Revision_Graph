@@ -49,6 +49,33 @@ namespace RevisionGraph.Model
         public bool? IsCurrent { get; set; }
     }
 
+    /// <summary>One file changed by a commit (left pane of the changes dialog).</summary>
+    public sealed class CommitChangeFile
+    {
+        /// <summary>Path as of this commit (the new path for renames).</summary>
+        public string Path { get; set; }
+        /// <summary>For renames: the path the file had in the parent.</summary>
+        public string OldPath { get; set; }
+        /// <summary>One of: added | modified | deleted | renamed.</summary>
+        public string Status { get; set; }
+    }
+
+    /// <summary>Before/after content of a changed file, for the side-by-side diff.</summary>
+    public sealed class FileDiff
+    {
+        public string Sha { get; set; }
+        public string Path { get; set; }
+        public string Status { get; set; }
+        /// <summary>Content in the parent commit (empty for added files).</summary>
+        public string OldText { get; set; }
+        /// <summary>Content in this commit (empty for deleted files).</summary>
+        public string NewText { get; set; }
+        /// <summary>True when git reports the file as binary.</summary>
+        public bool? Binary { get; set; }
+        /// <summary>True when the file exceeded the host's diff size cap.</summary>
+        public bool? TooLarge { get; set; }
+    }
+
     /// <summary>Incoming message from the webview (webview -> host).</summary>
     public sealed class WebviewMessage
     {
@@ -62,5 +89,11 @@ namespace RevisionGraph.Model
         public bool? Checkout { get; set; }
         /// <summary>Stash stack index for stashApply / stashPop / stashDrop.</summary>
         public int? Index { get; set; }
+        /// <summary>File path for requestFileDiff.</summary>
+        public string Path { get; set; }
+        /// <summary>Parent-side path for requestFileDiff on a renamed file.</summary>
+        public string OldPath { get; set; }
+        /// <summary>File status for requestFileDiff (added|modified|deleted|renamed).</summary>
+        public string Status { get; set; }
     }
 }

@@ -24,6 +24,7 @@ type Dict = {
   "toolbar.pull": string;
   "toolbar.push": string;
   "toolbar.sync": string;
+  "toolbar.jumpHead": string;
   "toolbar.reset": string;
   "toolbar.settings": string;
   "details.header": string;
@@ -70,6 +71,8 @@ type Dict = {
   "legend.tag": string;
   "legend.commit": string;
   "legend.stash": string;
+  "menu.jumpHead": string;
+  "menu.resetView": string;
   "menu.createBranch": string;
   "menu.checkout": string;
   "menu.copySha": string;
@@ -102,6 +105,7 @@ type Dict = {
   "status.pulling": string;
   "status.pushing": string;
   "status.syncing": string;
+  "status.noHead": string;
   "status.undoing": string;
   "status.commitUndone": string;
   "status.undoConflict": string;
@@ -121,6 +125,7 @@ const DICTS: Record<Lang, Dict> = {
     "toolbar.pull": "⇩ Pull",
     "toolbar.push": "⇧ Push",
     "toolbar.sync": "⇅ Sync",
+    "toolbar.jumpHead": "⌖ Go to checkout",
     "toolbar.reset": "⤢ Reset view",
     "toolbar.settings": "⚙ Settings",
     "details.header": "Commit Details",
@@ -168,6 +173,8 @@ const DICTS: Record<Lang, Dict> = {
     "legend.tag": "Tag (version)",
     "legend.commit": "Commit",
     "legend.stash": "Stash (shelved work)",
+    "menu.jumpHead": "⌖ Go to checkout",
+    "menu.resetView": "⤢ Reset view",
     "menu.createBranch": "Create branch from here…",
     "menu.checkout": "Checkout this commit",
     "menu.copySha": "Copy commit SHA",
@@ -200,6 +207,7 @@ const DICTS: Record<Lang, Dict> = {
     "status.pulling": "Pulling…",
     "status.pushing": "Pushing…",
     "status.syncing": "Syncing…",
+    "status.noHead": "No current checkout found in the graph.",
     "status.undoing": "Undoing commit…",
     "status.commitUndone": "Commit undone — changes are back in the working tree.",
     "status.undoConflict": "Undo hit conflicts — resolve them in the editor, then continue.",
@@ -217,6 +225,7 @@ const DICTS: Record<Lang, Dict> = {
     "toolbar.pull": "⇩ Pull",
     "toolbar.push": "⇧ Push",
     "toolbar.sync": "⇅ Szinkron",
+    "toolbar.jumpHead": "⌖ Ugrás a checkout-ra",
     "toolbar.reset": "⤢ Nézet visszaállítása",
     "toolbar.settings": "⚙ Beállítások",
     "details.header": "Commit részletei",
@@ -264,6 +273,8 @@ const DICTS: Record<Lang, Dict> = {
     "legend.tag": "Tag (verzió)",
     "legend.commit": "Commit",
     "legend.stash": "Stash (félretett munka)",
+    "menu.jumpHead": "⌖ Ugrás a checkout-ra",
+    "menu.resetView": "⤢ Nézet visszaállítása",
     "menu.createBranch": "Branch létrehozása innen…",
     "menu.checkout": "Checkout erre a commitra",
     "menu.copySha": "Commit SHA másolása",
@@ -296,6 +307,7 @@ const DICTS: Record<Lang, Dict> = {
     "status.pulling": "Pull folyamatban…",
     "status.pushing": "Push folyamatban…",
     "status.syncing": "Szinkronizálás…",
+    "status.noHead": "Nincs aktuális checkout a gráfban.",
     "status.undoing": "Commit visszavonása…",
     "status.commitUndone": "Commit visszavonva — a változások visszakerültek a working tree-be.",
     "status.undoConflict": "A visszavonás konfliktusba ütközött — oldd fel a szerkesztőben, majd folytasd.",

@@ -168,7 +168,46 @@ function boot(): void {
       // nodes aren't part of the commit ancestry, so they just clear it.
       view.selectPath(commit.stash ? null : commit.sha);
     },
+    onCanvasContextMenu(x, y) {
+      // Background menu (right-click off any box): jump to the checkout, reset
+      // the view, and the remote ops also offered on the toolbar.
+      showContextMenu(x, y, [
+        { label: t("menu.jumpHead"), action: goToCheckout },
+        {
+          label: t("menu.resetView"),
+          separatorBefore: true,
+          action: () => view.resetView(),
+        },
+        {
+          label: t("toolbar.fetch"),
+          separatorBefore: true,
+          action: () => {
+            renderStatus(() => t("status.fetching"));
+            bridge.post({ type: "fetch" });
+          },
+        },
+        {
+          label: t("toolbar.pull"),
+          action: () => {
+            renderStatus(() => t("status.pulling"));
+            bridge.post({ type: "pull" });
+          },
+        },
+        {
+          label: t("toolbar.sync"),
+          action: () => {
+            renderStatus(() => t("status.syncing"));
+            bridge.post({ type: "sync" });
+          },
+        },
+      ]);
+    },
   });
+
+  // Bring the currently checked-out branch/commit into view (toolbar + menu).
+  function goToCheckout(): void {
+    if (!view.jumpToHead()) renderStatus(() => t("status.noHead"));
+  }
 
   // Effective theme = the user's override (light/dark), or the host's theme when
   // set to "follow host". Applied both to the graph view and to :root so the
@@ -317,9 +356,10 @@ function boot(): void {
   const pullBtn = makeButton("pull", "toolbar.pull");
   const pushBtn = makeButton("push", "toolbar.push");
   const syncBtn = makeButton("sync", "toolbar.sync");
+  const jumpBtn = makeButton("jumpHead", "toolbar.jumpHead");
   const resetBtn = makeButton("reset", "toolbar.reset");
   const settingsBtn = makeButton("settings", "toolbar.settings");
-  toolbar.append(refreshBtn, fetchBtn, pullBtn, pushBtn, syncBtn, resetBtn, settingsBtn);
+  toolbar.append(refreshBtn, fetchBtn, pullBtn, pushBtn, syncBtn, jumpBtn, resetBtn, settingsBtn);
   toolbar.addEventListener("click", (e) => {
     const act = (e.target as HTMLElement).dataset.act;
     if (act === "refresh") bridge.post({ type: "requestRefresh" });
@@ -339,6 +379,7 @@ function boot(): void {
       renderStatus(() => t("status.syncing"));
       bridge.post({ type: "sync" });
     }
+    if (act === "jumpHead") goToCheckout();
     if (act === "reset") view.resetView();
     if (act === "settings") toggleSettings({ branches: branchNames() });
   });
@@ -354,6 +395,7 @@ function boot(): void {
     pullBtn.textContent = t("toolbar.pull");
     pushBtn.textContent = t("toolbar.push");
     syncBtn.textContent = t("toolbar.sync");
+    jumpBtn.textContent = t("toolbar.jumpHead");
     resetBtn.textContent = t("toolbar.reset");
     settingsBtn.textContent = t("toolbar.settings");
     relabelLegend(legend);

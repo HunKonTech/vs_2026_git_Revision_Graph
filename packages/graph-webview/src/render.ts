@@ -27,6 +27,8 @@ export interface RenderCallbacks {
   onNodeContextMenu(commit: PositionedCommit, clientX: number, clientY: number): void;
   onNodeDblClick(commit: PositionedCommit): void;
   onNodeClick(commit: PositionedCommit): void;
+  /** Right-click on empty canvas (not on a node) → background context menu. */
+  onCanvasContextMenu(clientX: number, clientY: number): void;
 }
 
 /** Renders a git DAG as connected boxes inside an SVG, with zoom & pan. */
@@ -90,6 +92,14 @@ export class GraphView {
     // Clicking empty canvas clears any highlighted ancestry path.
     this.scrollEl.addEventListener("mousedown", (e) => {
       if (!(e.target as Element).closest(".node")) this.selectPath(null);
+    });
+
+    // Right-clicking empty canvas opens the background context menu. Nodes carry
+    // their own contextmenu handler, so skip the event when it came from a node.
+    this.scrollEl.addEventListener("contextmenu", (e) => {
+      if ((e.target as Element).closest(".node")) return;
+      e.preventDefault();
+      this.cb.onCanvasContextMenu(e.clientX, e.clientY);
     });
   }
 
@@ -249,6 +259,45 @@ export class GraphView {
     this.tx = 0;
     this.ty = 0;
     this.applyTransform();
+  }
+
+  /**
+   * The node representing the current checkout (HEAD). Prefers the node carrying
+   * the current branch ref; when the checkout is detached, falls back to any node
+   * whose sha is HEAD. Returns null if HEAD isn't present in the graph.
+   */
+  private headNode(): PositionedCommit | null {
+    if (!this.layout || this.head == null) return null;
+    const matches = this.layout.commits.filter((c) => c.sha === this.head && !c.stash);
+    if (matches.length === 0) return null;
+    return matches.find((c) => c.refs.some((r) => r.isCurrent)) ?? matches[0]!;
+  }
+
+  /**
+   * Bring the current checkout (HEAD) into view and highlight its ancestry.
+   * Centres it in modern mode, scrolls it into the middle in classic mode.
+   * Returns false when HEAD isn't in the graph (nothing to jump to).
+   */
+  jumpToHead(): boolean {
+    const node = this.headNode();
+    if (!node) return false;
+    const cx = this.boxX(node.lane) + BOX_W / 2;
+    const h = this.ownHeight.get(node.nodeId) ?? CONTENT_H;
+    const cy = this.boxY(node.row) + h / 2;
+    if (this.mode === "classic") {
+      const vw = this.scrollEl.clientWidth;
+      const vh = this.scrollEl.clientHeight;
+      this.scrollEl.scrollLeft = Math.max(0, cx - vw / 2);
+      this.scrollEl.scrollTop = Math.max(0, cy - vh / 2);
+    } else {
+      const rect = this.svg.getBoundingClientRect();
+      this.tx = rect.width / 2 - this.scale * cx;
+      this.ty = rect.height / 2 - this.scale * cy;
+      this.applyTransform();
+    }
+    this.selectedSha = null; // force selectPath to apply (it no-ops on re-select)
+    this.selectPath(node.sha);
+    return true;
   }
 
   private draw(): void {

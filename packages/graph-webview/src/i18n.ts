@@ -39,6 +39,8 @@ type Dict = {
   "settings.language": string;
   "settings.mainBranch": string;
   "settings.mainBranchAuto": string;
+  "settings.mainBranchSearch": string;
+  "settings.mainBranchNoMatch": string;
   "settings.display": string;
   "settings.displayModern": string;
   "settings.displayClassic": string;
@@ -48,6 +50,11 @@ type Dict = {
   "settings.sectionGraph": string;
   "settings.svnBranchDialog": string;
   "settings.svnBranchDialogHint": string;
+  "settings.branchDialog": string;
+  "settings.branchDialogSvnTitle": string;
+  "settings.branchDialogNativeVscode": string;
+  "settings.branchDialogNativeVs": string;
+  "settings.branchDialogNativeHint": string;
   "settings.close": string;
   "settings.done": string;
   "legend.title": string;
@@ -124,6 +131,8 @@ const DICTS: Record<Lang, Dict> = {
     "settings.language": "Language",
     "settings.mainBranch": "Main branch",
     "settings.mainBranchAuto": "Automatic",
+    "settings.mainBranchSearch": "Search branches…",
+    "settings.mainBranchNoMatch": "No matching branches",
     "settings.display": "Display style",
     "settings.displayModern": "Modern",
     "settings.displayClassic": "Classic",
@@ -134,6 +143,11 @@ const DICTS: Record<Lang, Dict> = {
     "settings.svnBranchDialog": "SVN-style branch dialog",
     "settings.svnBranchDialogHint":
       "Show a folder-tree picker when creating a branch (instead of a simple prompt).",
+    "settings.branchDialog": "Branch dialog",
+    "settings.branchDialogSvnTitle": "SVN-style",
+    "settings.branchDialogNativeVscode": "VS Code style",
+    "settings.branchDialogNativeVs": "Visual Studio style",
+    "settings.branchDialogNativeHint": "Your IDE's built-in branch prompt.",
     "settings.close": "Close",
     "settings.done": "Done",
     "legend.title": "Legend",
@@ -208,6 +222,8 @@ const DICTS: Record<Lang, Dict> = {
     "settings.language": "Nyelv",
     "settings.mainBranch": "Fő ág",
     "settings.mainBranchAuto": "Automatikus",
+    "settings.mainBranchSearch": "Ágak keresése…",
+    "settings.mainBranchNoMatch": "Nincs találat",
     "settings.display": "Megjelenítés stílusa",
     "settings.displayModern": "Modern",
     "settings.displayClassic": "Klasszikus",
@@ -218,6 +234,11 @@ const DICTS: Record<Lang, Dict> = {
     "settings.svnBranchDialog": "SVN-stílusú branch ablak",
     "settings.svnBranchDialogHint":
       "Branch létrehozásakor mappafa-választó jelenjen meg (egyszerű beírás helyett).",
+    "settings.branchDialog": "Branch ablak",
+    "settings.branchDialogSvnTitle": "SVN-stílus",
+    "settings.branchDialogNativeVscode": "VS Code stílus",
+    "settings.branchDialogNativeVs": "Visual Studio stílus",
+    "settings.branchDialogNativeHint": "Az IDE beépített branch ablaka.",
     "settings.close": "Bezárás",
     "settings.done": "Kész",
     "legend.title": "Jelmagyarázat",

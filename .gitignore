@@ -91,6 +91,7 @@ out/
 vscode/media/
 vs/webview/main.js
 vs/webview/main.css
+vs/webview/schematics/
 
 # Generated LICENSE copy for VS Code packaging
 vscode/LICENSE

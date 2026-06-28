@@ -15,6 +15,8 @@ async function copyWebview() {
   for (const f of ["main.js", "main.css"]) {
     await cp(resolve(src, f), resolve(dst, f));
   }
+  // Generated schematic .svg files (kept in sync with the inlined previews).
+  await cp(resolve(src, "schematics"), resolve(dst, "schematics"), { recursive: true });
   console.log("copied webview bundle -> media/");
 }
 

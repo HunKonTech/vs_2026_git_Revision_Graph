@@ -181,7 +181,7 @@ export async function resolveCheckoutTarget(
     "-r",
     "--points-at",
     sha,
-    "--format=%(refname:short)",
+    "--format=%(refname:lstrip=2)",
   ]).catch(() => "");
   const remotes = remote
     .split("\n")
@@ -189,8 +189,11 @@ export async function resolveCheckoutTarget(
     .filter((r) => r && !r.endsWith("/HEAD"));
   if (remotes.length > 0) {
     const remoteRef = remotes[0]!; // e.g. "origin/feature"
-    const localName = remoteRef.split("/").slice(1).join("/"); // "feature"
-    return { ref: localName, track: remoteRef };
+    const slashAt = remoteRef.indexOf("/");
+    if (slashAt > 0) {
+      const localName = remoteRef.slice(slashAt + 1);
+      return { ref: localName, track: remoteRef };
+    }
   }
 
   return { ref: sha };

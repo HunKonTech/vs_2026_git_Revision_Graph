@@ -8,6 +8,14 @@
     <Description xml:space="preserve">A TortoiseSVN-style revision graph for Git, right inside Visual Studio. Commits, local and remote branches, and tags appear as connected, color-coded boxes — just like SVN's classic revision graph. Right-click a commit to branch, check out, or copy its SHA.</Description>
     <MoreInfo>https://github.com/HunKonTech/git_Revision_Graph</MoreInfo>
     <ReleaseNotes>https://github.com/HunKonTech/git_Revision_Graph/releases</ReleaseNotes>
+    <!-- In-IDE Extension Manager artwork. Unlike the Marketplace icon (the
+         Microsoft.VisualStudio.Services.Icons.Default asset below), the icon and
+         preview shown inside Visual Studio's Extensions/Manage dialog — VS 2022's
+         and VS 2026's new manager — come from these <Metadata> elements. Without
+         them the manager renders a blank card (no icon, no description). VS
+         resizes the icon to 32x32 and the preview to 200x200. -->
+    <Icon>Resources\MarketplaceIcon.png</Icon>
+    <PreviewImage>Resources\MarketplaceIcon.png</PreviewImage>
     <Tags>git;revision graph;tortoisesvn;branches;tags;dag;version control;source control</Tags>
   </Metadata>
   <Installation>

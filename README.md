@@ -5,6 +5,10 @@ A **TortoiseSVN-style Revision Graph** for **Git**, for both **Visual Studio
 drawn as connected boxes; right-click a commit to **create a branch from it**
 using the host's native Git.
 
+**▶ [Try the live demo](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — runs the
+real renderer in your browser with a sample repository; every action (create
+branch, checkout, copy SHA, stash, zoom & pan) works against mock data.
+
 ![Example](RevisionGraph.png)
 
 ![VS Code / Visual Studio](RevisionGraph_vs_code.png)
@@ -118,6 +122,11 @@ For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:kon
 # Git Revision Graph (Magyar)
 
 Egy **TortoiseSVN-stílusú revíziógraf** **Git**-hez, mind **Visual Studio (2022 / 2026)**, mind **VS Code** alatt. A commitok, helyi és távoli ágak, valamint tagek összekötött dobozokként jelennek meg; jobb klikkel egy commiton **új ágat hozhatsz létre belőle** a fogadó alkalmazás natív Git-jén keresztül.
+
+**▶ [Próbáld ki az élő demót](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — a
+valódi megjelenítő fut a böngésződben egy minta-repozitóriummal; minden funkció
+(ág létrehozása, checkout, SHA másolás, stash, nagyítás és mozgatás) működik a
+mock adatokon.
 
 ![Example](RevisionGraph.png)
 

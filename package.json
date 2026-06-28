@@ -14,6 +14,7 @@
     "build:webview": "npm run -w @rev-graph/graph-webview build",
     "build:vscode": "npm run -w rev-graph-vscode build",
     "build:vs-assets": "node scripts/copy-vs-assets.mjs",
+    "build:demo": "npm run build:core && npm run build:webview && node scripts/build-demo.mjs",
     "build": "npm run build:core && npm run build:webview && npm run build:vscode && npm run build:vs-assets",
     "package:vscode": "node scripts/package-vscode.mjs",
     "package:all": "pwsh scripts/build-installers.ps1",

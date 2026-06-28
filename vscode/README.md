@@ -3,6 +3,8 @@
 A **TortoiseSVN-style revision graph** for Git inside **VS Code**.
 Commits, local & remote branches, and tags are displayed as connected, color-coded boxes.
 
+**▶ [Try the live demo in your browser](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — no install required; runs the real renderer on a sample repository.
+
 ![Git Revision Graph](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
 
 ## How to open
@@ -39,6 +41,8 @@ Open a folder or workspace that contains a Git repository, then either:
 
 Egy **TortoiseSVN-stílusú revíziógraf** Git-hez **VS Code**-on belül.
 A commitok, helyi és távoli ágak, valamint tagek összekötött, színkódolt dobozokként jelennek meg.
+
+**▶ [Próbáld ki az élő demót a böngésződben](https://hunkontech.github.io/vs_2026_git_Revision_Graph/)** — telepítés nélkül; a valódi megjelenítő fut egy minta-repozitóriummal.
 
 ![Git Revision Graph](https://raw.githubusercontent.com/HunKonTech/git_Revision_Graph/main/RevisionGraph_vs_code.png)
 

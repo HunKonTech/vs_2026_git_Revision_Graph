@@ -161,7 +161,10 @@ def format_platform_list(platforms: list[str]) -> str:
 
 
 def _x_weighted_length(text: str) -> int:
-    return len(_URL_RE.sub("x" * _X_URL_LENGTH, text))
+    # X shortens every URL to a fixed-length t.co link, and counts characters
+    # outside the Basic Multilingual Plane (most emoji) as weight 2.
+    normalized = _URL_RE.sub("x" * _X_URL_LENGTH, text)
+    return sum(2 if ord(ch) > 0xFFFF else 1 for ch in normalized)
 
 
 def ensure_post_length(text: str) -> None:

@@ -551,8 +551,7 @@ jobs:
           BUFFER_POST_MODE: ${{ secrets.BUFFER_POST_MODE }}
           NEW_VERSION: ${{ needs.release.outputs.new_version }}
           BUFFER_POST_TEMPLATE: |
-            Git Revision Graph: a TortoiseSVN-style Git history visualizer for VS Code & Visual Studio. See all branches, commits & tags as connected boxes, then right-click any commit to create a branch — using native Git.
-            New build, fresh features — check it out! 🚀
+            Git Revision Graph — TortoiseSVN-style Git history for VS Code & Visual Studio. Branches, commits & tags as connected boxes; right-click any commit to branch, using native Git. New build! 🚀
 
             {release_url}
         run: |

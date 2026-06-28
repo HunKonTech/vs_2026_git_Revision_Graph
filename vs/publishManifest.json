@@ -2,7 +2,8 @@
   "$schema": "http://json.schemastore.org/vsix-publish",
   "categories": ["Source Control"],
   "identity": {
-    "internalName": "GitRevisionGraph"
+    "internalName": "GitRevisionGraph",
+    "icon": "Resources/MarketplaceIcon.png"
   },
   "description": "A TortoiseSVN-style revision graph for Git, right inside Visual Studio. Commits, local and remote branches, and tags appear as connected, color-coded boxes — just like SVN's classic revision graph. Right-click a commit to branch, check out, or copy its SHA.",
   "overview": "overview.md",

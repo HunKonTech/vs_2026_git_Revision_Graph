@@ -118,6 +118,7 @@ export type WebviewToHost =
   | { type: "fetch" }
   | { type: "pull" }
   | { type: "push" }
+  | { type: "pushBranch"; name: string }
   | { type: "sync" };
 
 /** Type guard helper used by hosts when handling untyped postMessage data. */

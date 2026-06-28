@@ -564,6 +564,10 @@ namespace RevisionGraph.Git
         /// <summary>Push the current branch to its upstream.</summary>
         public Task PushAsync() => RunAsync(_repoRoot, "push");
 
+        /// <summary>Push a specific local branch to origin and set up tracking.</summary>
+        public Task PushBranchAsync(string branchName) =>
+            RunAsync(_repoRoot, "push", "--set-upstream", "origin", branchName);
+
         /// <summary>Sync = pull then push, the common "sync changes" gesture.</summary>
         public async Task SyncAsync()
         {

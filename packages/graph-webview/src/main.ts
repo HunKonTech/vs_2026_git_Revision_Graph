@@ -92,6 +92,7 @@ function boot(): void {
 
       const sha = commit.sha;
       const localBranches = commit.refs.filter((r) => r.type === "localBranch");
+      const allRefs = lastData?.refs ?? [];
 
       const items: MenuItem[] = [
         {
@@ -102,11 +103,16 @@ function boot(): void {
           label: t("menu.checkout"),
           action: () => bridge.post({ type: "checkout", sha, ref: boxBranchRef(commit) }),
         },
-        {
+      ];
+
+      // Rename is only offered for local (unpushed) commits, and never on phantom
+      // branch placeholders (which carry no real commit of their own).
+      if (commit.unpushed && !commit.phantom) {
+        items.push({
           label: t("menu.renameCommit"),
           action: () => bridge.post({ type: "renameCommit", sha }),
-        },
-      ];
+        });
+      }
 
       // Undo is only offered for local (unpushed) commits, and never on phantom
       // branch placeholders (which carry no real commit of their own).
@@ -126,11 +132,22 @@ function boot(): void {
         action: () => bridge.post({ type: "copySha", sha }),
       });
 
-      // One delete entry per local branch that points at this commit.
+      // One push/delete entry per local branch that points at this commit.
+      // "Push" is offered only when the branch has no remote counterpart yet.
       localBranches.forEach((ref, i) => {
+        const hasRemote = allRefs.some(
+          (r) => r.type === "remoteBranch" && r.name.endsWith("/" + ref.name),
+        );
+        if (!hasRemote) {
+          items.push({
+            label: t("menu.pushBranch", { name: ref.name }),
+            separatorBefore: i === 0,
+            action: () => bridge.post({ type: "pushBranch", name: ref.name }),
+          });
+        }
         items.push({
           label: t("menu.deleteBranch", { name: ref.name }),
-          separatorBefore: i === 0,
+          separatorBefore: i === 0 && hasRemote,
           action: () => bridge.post({ type: "deleteBranch", name: ref.name }),
         });
       });

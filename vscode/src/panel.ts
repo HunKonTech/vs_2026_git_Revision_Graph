@@ -8,6 +8,7 @@ import {
   fetchCli,
   pullCli,
   pushCli,
+  pushBranchCli,
   deleteBranchCli,
   isCommitPushedCli,
   rewordCommitCli,
@@ -142,6 +143,9 @@ export class GraphPanel {
         break;
       case "push":
         await this.runRemoteOp("Push", pushCli);
+        break;
+      case "pushBranch":
+        await this.runRemoteOp(`Push "${msg.name}"`, (root) => pushBranchCli(root, msg.name));
         break;
       case "sync":
         // Sync = pull then push, the common "sync changes" gesture.

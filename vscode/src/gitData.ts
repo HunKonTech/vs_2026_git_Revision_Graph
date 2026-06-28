@@ -268,6 +268,11 @@ export async function pushCli(repoRoot: string): Promise<void> {
   await git(repoRoot, ["push"]);
 }
 
+/** Push a specific local branch to origin and set up tracking. */
+export async function pushBranchCli(repoRoot: string, branchName: string): Promise<void> {
+  await git(repoRoot, ["push", "--set-upstream", "origin", branchName]);
+}
+
 /** Delete a local branch. `force` uses -D (drops the merged-state safety check). */
 export async function deleteBranchCli(
   repoRoot: string,

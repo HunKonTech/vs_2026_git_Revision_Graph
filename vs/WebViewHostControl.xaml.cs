@@ -189,6 +189,10 @@ namespace RevisionGraph
                 case "push":
                     await RunRemoteOpAsync("Push", g => g.PushAsync()).ConfigureAwait(true);
                     break;
+                case "pushBranch":
+                    if (!string.IsNullOrEmpty(msg.Name))
+                        await RunRemoteOpAsync($"Push \"{msg.Name}\"", g => g.PushBranchAsync(msg.Name)).ConfigureAwait(true);
+                    break;
                 case "sync":
                     await RunRemoteOpAsync("Sync", g => g.SyncAsync()).ConfigureAwait(true);
                     break;

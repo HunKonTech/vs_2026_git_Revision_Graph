@@ -446,4 +446,43 @@ describe("computeLayout", () => {
     expect(link.fromId).toBe("stash@{0}");
     expect(link.toSha).toBe("A");
   });
+
+  it("hugs the content on the stash's own row, not the width of the whole graph", () => {
+    // Branches x and y fan out near the top (lanes >= 1), then the trunk runs
+    // down alone to A. A stash based on A sits just right of the trunk on its
+    // own (near-empty) row — not stranded past the widest row above it.
+    const layout = computeLayout(
+      data(
+        [
+          commit("X", ["T1"]),
+          commit("Y", ["T1"]),
+          commit("T1", ["T2"]),
+          commit("T2", ["A"]),
+          commit("A"),
+        ],
+        {
+          refs: [
+            { name: "main", type: "localBranch", targetSha: "T1", isCurrent: true },
+            { name: "x", type: "localBranch", targetSha: "X" },
+            { name: "y", type: "localBranch", targetSha: "Y" },
+          ],
+          head: "T1",
+          stashes: [
+            { index: 0, sha: "S0", baseSha: "A", message: "WIP", date: "2026-01-01T00:00:00Z" },
+          ],
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const stash = layout.commits.find((c) => c.stash)!;
+    const base = layout.commits.find((c) => c.sha === "A")!;
+    expect(stash.row).toBe(base.row);
+    // One gutter lane right of the only content on A's row (the trunk).
+    expect(stash.lane).toBe(base.lane + 2);
+    // The graph is wider higher up; the old "right of the whole graph" rule
+    // would have placed the stash at maxNonStashLane + 2.
+    const maxNonStash = Math.max(...layout.commits.filter((c) => !c.stash).map((c) => c.lane));
+    expect(maxNonStash).toBeGreaterThanOrEqual(2);
+    expect(stash.lane).toBeLessThan(maxNonStash + 2);
+  });
 });

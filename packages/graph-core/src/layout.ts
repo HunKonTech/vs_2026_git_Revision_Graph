@@ -438,24 +438,48 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     });
   }
 
-  // ---- Phase 4: stash entries in dedicated column(s) to the right. ----
-  // Each stash sits at its base commit's row, in a reserved lane right of the
-  // whole graph, joined by a connector to the commit it was created from. Stashes
-  // sharing a row spill into the next stash lane so their boxes never overlap.
+  // ---- Phase 4: stash entries placed just right of their own row. ----
+  // Each stash sits at its base commit's row, joined by a connector to the commit
+  // it was created from. Rather than reserving a column right of the *entire*
+  // graph (which strands the stash far to the right when its row is nearly empty),
+  // a stash hugs the rightmost real content on its own row, leaving one empty
+  // gutter lane for the connector. Stashes sharing a row spill further right so
+  // their boxes never overlap.
   const stashes = data.stashes ?? [];
   if (stashes.length > 0) {
-    // Leave one empty lane between the graph and the stash column so the
-    // connector has a clean gutter to run through.
-    const stashLaneBase = maxLane + 2;
-    const laneRows: Set<number>[] = [];
+    // Rightmost lane actually occupied at each row, from commit/phantom boxes and
+    // from any edge running vertically through that row. Lets a stash sit beside
+    // the content on its row instead of beside the whole graph.
+    const rowMaxLane = new Map<number, number>();
+    const bump = (row: number, lane: number) => {
+      const cur = rowMaxLane.get(row);
+      if (cur === undefined || lane > cur) rowMaxLane.set(row, lane);
+    };
+    for (const pc of positioned) bump(pc.row, pc.lane);
+    for (const e of edges) {
+      const lo = Math.min(e.fromRow, e.toRow);
+      const hi = Math.max(e.fromRow, e.toRow);
+      for (let r = lo; r <= hi; r++) {
+        bump(r, e.fromLane);
+        bump(r, e.toLane);
+      }
+    }
+    // Stash lanes already taken on each row, so multiple stashes on one row spill.
+    const stashUsed = new Map<number, Set<number>>();
     for (const s of stashes) {
       const base = posBySha.get(s.baseSha);
       const row = base ? base.row : 0;
-      let li = 0;
-      while (li < laneRows.length && laneRows[li]!.has(row)) li++;
-      if (li === laneRows.length) laneRows.push(new Set());
-      laneRows[li]!.add(row);
-      const lane = stashLaneBase + li;
+      // One empty gutter lane past the rightmost content on this row (never left
+      // of the base commit itself).
+      const occupied = Math.max(rowMaxLane.get(row) ?? 0, base ? base.lane : 0);
+      let lane = occupied + 2;
+      let used = stashUsed.get(row);
+      if (!used) {
+        used = new Set();
+        stashUsed.set(row, used);
+      }
+      while (used.has(lane)) lane++;
+      used.add(lane);
       const nodeId = `stash@{${s.index}}`;
       positioned.push({
         sha: s.sha,

@@ -29,7 +29,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: self-hosted
+    # Pin to the Windows x64 self-hosted runner.
+    runs-on: [self-hosted, windows, X64]
     steps:
       - uses: actions/checkout@v4
 
@@ -44,16 +45,6 @@ jobs:
       - name: Build demo
         run: npm run build:demo
 
-      # actions/upload-pages-artifact invokes `gtar` (GNU tar), which is absent
-      # on macOS self-hosted runners (they ship BSD tar). Provide it via Homebrew.
-      - name: Ensure GNU tar (gtar) is available
-        run: |
-          if ! command -v gtar >/dev/null 2>&1; then
-            brew install gnu-tar
-          fi
-          # Make sure the next step (upload-pages-artifact) can resolve `gtar`.
-          echo "$(dirname "$(command -v gtar || echo "$(brew --prefix)/bin")")" >> "$GITHUB_PATH"
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -61,7 +52,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: self-hosted
+    runs-on: [self-hosted, windows, X64]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

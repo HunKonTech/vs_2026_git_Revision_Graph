@@ -28,6 +28,7 @@ type Dict = {
   "toolbar.reset": string;
   "toolbar.settings": string;
   "details.header": string;
+  "details.close": string;
   "details.sha": string;
   "details.shortSha": string;
   "details.message": string;
@@ -129,6 +130,7 @@ const DICTS: Record<Lang, Dict> = {
     "toolbar.reset": "⤢ Reset view",
     "toolbar.settings": "⚙ Settings",
     "details.header": "Commit Details",
+    "details.close": "Close",
     "details.sha": "SHA",
     "details.shortSha": "Short SHA",
     "details.message": "Message",
@@ -229,6 +231,7 @@ const DICTS: Record<Lang, Dict> = {
     "toolbar.reset": "⤢ Nézet visszaállítása",
     "toolbar.settings": "⚙ Beállítások",
     "details.header": "Commit részletei",
+    "details.close": "Bezárás",
     "details.sha": "SHA",
     "details.shortSha": "Rövid SHA",
     "details.message": "Üzenet",

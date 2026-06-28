@@ -502,7 +502,19 @@ function showCommitDetails(
 
   const header = document.createElement("div");
   header.className = "details-header";
-  header.textContent = t("details.header");
+  const title = document.createElement("span");
+  title.className = "details-title";
+  title.textContent = t("details.header");
+  header.appendChild(title);
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "settings-close-x";
+  closeBtn.type = "button";
+  closeBtn.textContent = "×";
+  closeBtn.setAttribute("aria-label", t("details.close"));
+  closeBtn.addEventListener("click", () => {
+    panel.dataset.hidden = "";
+  });
+  header.appendChild(closeBtn);
   panel.appendChild(header);
 
   addDetailRow(panel, t("details.sha"), commit.sha, "details-sha");

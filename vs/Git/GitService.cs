@@ -78,7 +78,9 @@ namespace RevisionGraph.Git
             // where structure (not commit time) drives vertical placement.
             var logTask = RunAsync(
                 _repoRoot,
-                "log", "--all", "--topo-order", "--max-count=" + maxCommits,
+                // --exclude=refs/stash (before --all) keeps the stash's internal
+                // commits out of the DAG; they are surfaced as stash nodes instead.
+                "log", "--exclude=refs/stash", "--all", "--topo-order", "--max-count=" + maxCommits,
                 "--pretty=format:%H" + FS + "%P" + FS + "%s" + FS + "%an" + FS + "%ae" + FS + "%aI" + RS);
 
             var refsTask = RunAsync(

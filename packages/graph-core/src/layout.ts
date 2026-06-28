@@ -444,7 +444,9 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   // sharing a row spill into the next stash lane so their boxes never overlap.
   const stashes = data.stashes ?? [];
   if (stashes.length > 0) {
-    const stashLaneBase = maxLane + 1;
+    // Leave one empty lane between the graph and the stash column so the
+    // connector has a clean gutter to run through.
+    const stashLaneBase = maxLane + 2;
     const laneRows: Set<number>[] = [];
     for (const s of stashes) {
       const base = posBySha.get(s.baseSha);

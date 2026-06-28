@@ -142,6 +142,9 @@ function boot(): void {
     },
     onNodeClick(commit) {
       showCommitDetails(detailsPanel, commit, currentHead);
+      // Highlight the path from the root to the selected commit/branch. Stash
+      // nodes aren't part of the commit ancestry, so they just clear it.
+      view.selectPath(commit.stash ? null : commit.sha);
     },
   });
 

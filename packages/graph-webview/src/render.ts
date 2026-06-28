@@ -51,6 +51,14 @@ export class GraphView {
   private head: string | null = null;
   /** Whether any ref in the current layout is flagged as the current branch. */
   private hasCurrentRef = false;
+  /** First-parent-and-beyond adjacency (sha → parent shas present in the graph). */
+  private adjacency = new Map<string, string[]>();
+  /** Edge DOM elements with their endpoint shas, for path highlighting. */
+  private edgeRecords: Array<{ el: SVGPathElement; from: string; to: string; stash: boolean }> = [];
+  /** Node DOM elements with their sha, for path highlighting. */
+  private nodeRecords: Array<{ el: SVGGElement; sha: string }> = [];
+  /** Sha of the node whose ancestry path is currently highlighted, if any. */
+  private selectedSha: string | null = null;
 
   // pan/zoom state
   private scale = 1;
@@ -78,6 +86,11 @@ export class GraphView {
     this.scrollEl.appendChild(this.svg);
     this.container.appendChild(this.scrollEl);
     this.installPanZoom();
+
+    // Clicking empty canvas clears any highlighted ancestry path.
+    this.scrollEl.addEventListener("mousedown", (e) => {
+      if (!(e.target as Element).closest(".node")) this.selectPath(null);
+    });
   }
 
   /** Switch between the modern (free pan/zoom) and classic (scroll-only) modes. */
@@ -131,6 +144,14 @@ export class GraphView {
   setData(data: GraphData, mainBranch?: string): void {
     this.layout = computeLayout(data, { mainBranch });
     this.head = data.head ?? null;
+    this.selectedSha = null;
+    // Parent adjacency for ancestry highlighting — real commits only (skip stash
+    // nodes), keyed by sha so phantom duplicates collapse onto the same entry.
+    this.adjacency = new Map();
+    for (const c of this.layout.commits) {
+      if (c.stash) continue;
+      this.adjacency.set(c.sha, c.parents);
+    }
     // Rows are structural levels and several commits may share a row, so a row's
     // height is the tallest box on it (each box is sized to list all its refs).
     this.rowHeights = new Array(this.layout.rowCount).fill(CONTENT_H);
@@ -156,6 +177,51 @@ export class GraphView {
     return this.layout?.commits.find((c) => c.sha === sha);
   }
 
+  /**
+   * Highlight the ancestry path of a commit: every connection through which it is
+   * reached from the root(s), dimming everything else. Pass null (or the already
+   * selected sha) to clear. Walks parent edges once (O(V+E)) and only toggles a
+   * CSS class per element — no DOM rebuild — so it stays cheap on large graphs.
+   */
+  selectPath(sha: string | null): void {
+    if (sha === null || sha === this.selectedSha || !this.adjacency.has(sha)) {
+      this.selectedSha = null;
+      this.viewport.classList.remove("has-selection");
+      for (const r of this.edgeRecords) r.el.classList.remove("edge-path");
+      for (const r of this.nodeRecords) r.el.classList.remove("node-path");
+      return;
+    }
+
+    this.selectedSha = sha;
+    const visited = this.ancestorsOf(sha);
+    this.viewport.classList.add("has-selection");
+    for (const r of this.edgeRecords) {
+      const on = !r.stash && visited.has(r.from) && visited.has(r.to);
+      r.el.classList.toggle("edge-path", on);
+    }
+    for (const r of this.nodeRecords) {
+      r.el.classList.toggle("node-path", visited.has(r.sha));
+    }
+  }
+
+  /** All ancestors of `sha` (inclusive), following parent links breadth-first. */
+  private ancestorsOf(sha: string): Set<string> {
+    const visited = new Set<string>([sha]);
+    const stack = [sha];
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      const parents = this.adjacency.get(cur);
+      if (!parents) continue;
+      for (const p of parents) {
+        if (!visited.has(p)) {
+          visited.add(p);
+          stack.push(p);
+        }
+      }
+    }
+    return visited;
+  }
+
   /** Reset the view to the top-left of the graph (the trunk). */
   resetView(): void {
     if (this.mode === "classic") {
@@ -172,6 +238,9 @@ export class GraphView {
 
   private draw(): void {
     while (this.viewport.firstChild) this.viewport.removeChild(this.viewport.firstChild);
+    this.viewport.classList.remove("has-selection");
+    this.edgeRecords = [];
+    this.nodeRecords = [];
     if (!this.layout) return;
 
     // No viewBox: 1 SVG unit == 1 CSS pixel, so nodes always render at their
@@ -182,13 +251,19 @@ export class GraphView {
     const edgeLayer = document.createElementNS(SVG_NS, "g");
     edgeLayer.classList.add("edges");
     for (const e of this.layout.edges) {
-      edgeLayer.appendChild(this.edgePath(e));
+      const el = this.edgePath(e);
+      edgeLayer.appendChild(el);
+      this.edgeRecords.push({ el, from: e.fromSha, to: e.toSha, stash: e.isStash === true });
     }
     this.viewport.appendChild(edgeLayer);
 
     const nodeLayer = document.createElementNS(SVG_NS, "g");
     nodeLayer.classList.add("nodes");
-    for (const c of this.layout.commits) nodeLayer.appendChild(this.nodeBox(c));
+    for (const c of this.layout.commits) {
+      const el = this.nodeBox(c);
+      nodeLayer.appendChild(el);
+      this.nodeRecords.push({ el, sha: c.sha });
+    }
     this.viewport.appendChild(nodeLayer);
   }
 
@@ -214,16 +289,23 @@ export class GraphView {
     if (e.isMerge) path.classList.add("edge-merge");
 
     if (e.isStash) {
-      // Stash → base: a smooth side connector. The stash box sits at the base's
-      // row but in a lane to the right, so join the stash's left edge to the
-      // base's right edge at each box's vertical midpoint.
+      // Stash → base: orthogonal right-angle routing like the branch edges,
+      // instead of a curve. The stash sits at its base's row but in a lane to the
+      // right; route both box-bottoms down into the box-free gap below the row,
+      // run horizontally across it, so the line never crosses an intervening box.
       path.classList.add("edge-stash");
-      const fromX = this.boxX(e.fromLane);
-      const fromY = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H) / 2;
-      const toX = this.boxX(e.toLane) + BOX_W;
-      const toY = this.boxY(e.toRow) + (this.ownHeight.get(e.toId) ?? CONTENT_H) / 2;
-      const midX = (fromX + toX) / 2;
-      path.setAttribute("d", `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`);
+      const stashCx = this.boxX(e.fromLane) + BOX_W / 2;
+      const stashBottom = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
+      const baseCx = this.boxX(e.toLane) + BOX_W / 2;
+      const baseBottom = this.boxY(e.toRow) + (this.ownHeight.get(e.toId) ?? CONTENT_H);
+      const gapY = this.rowBottom(e.toRow) + ROW_GAP / 2;
+      const pts: Array<[number, number]> = [
+        [baseCx, baseBottom],
+        [baseCx, gapY],
+        [stashCx, gapY],
+        [stashCx, stashBottom],
+      ];
+      path.setAttribute("d", roundedPath(pts, 8));
       return path;
     }
 

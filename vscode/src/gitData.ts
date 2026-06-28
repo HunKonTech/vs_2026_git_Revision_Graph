@@ -50,6 +50,10 @@ export async function readGraphData(repoRoot: string, maxCommits: number): Promi
   const [logOut, refsOut, headSha, stashes] = await Promise.all([
     git(repoRoot, [
       "log",
+      // Keep the stash's internal commits (the stash commit itself and its index
+      // snapshot) out of the DAG — they are surfaced separately as stash nodes.
+      // `--exclude` must precede `--all` to take effect.
+      "--exclude=refs/stash",
       "--all",
       // Topological order keeps each branch's commits contiguous instead of
       // interleaving branches by timestamp — the SVN revision-graph behaviour,

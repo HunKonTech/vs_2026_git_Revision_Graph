@@ -9,8 +9,6 @@
     <MoreInfo>https://github.com/HunKonTech/git_Revision_Graph</MoreInfo>
     <ReleaseNotes>https://github.com/HunKonTech/git_Revision_Graph/releases</ReleaseNotes>
     <Tags>git;revision graph;tortoisesvn;branches;tags;dag;version control;source control</Tags>
-    <Icon>Resources\MarketplaceIcon.png</Icon>
-    <PreviewImage>Resources\MarketplacePreview.png</PreviewImage>
   </Metadata>
   <Installation>
     <!-- VS 2022 (17.0) through the next major (covers VS 2026 previews). -->
@@ -33,5 +31,9 @@
     <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
     <!-- Registers the custom image moniker (command icon) with the image service. -->
     <Asset Type="Microsoft.VisualStudio.ImageManifest" d:Source="File" Path="RevisionGraph.imagemanifest" />
+    <!-- Marketplace / Extension Manager icon. Same artwork as the VS Code
+         extension's icons\marketplace-icon.png. In the VSIX 2.0 schema the icon
+         is an asset, not a <Metadata><Icon> element (that is the old 1.0 schema). -->
+    <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" d:Source="File" Path="Resources\MarketplaceIcon.png" />
   </Assets>
 </PackageManifest>

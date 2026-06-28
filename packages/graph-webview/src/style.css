@@ -324,6 +324,19 @@ body,
 }
 .legend[data-collapsed] .legend-body { display: none; }
 
+/* Light theme: the legend's default dark-glass panel hides the (now dark) text,
+   so switch to a light translucent panel and a dark hover wash. data-theme is
+   set on the graph container by GraphView.setTheme. */
+[data-theme="light"] .legend {
+  background: rgba(255, 255, 255, 0.82);
+}
+[data-theme="light"] .legend-header:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+[data-theme="light"] .legend-swatch {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
 /* settings modal */
 .settings-overlay {
   position: fixed;

@@ -772,6 +772,135 @@ namespace RevisionGraph.Git
             await PushAsync().ConfigureAwait(false);
         }
 
+        /// <summary>True when commit <paramref name="a"/> is an ancestor of <paramref name="b"/>.</summary>
+        private async Task<bool> IsAncestorAsync(string a, string b)
+        {
+            var cap = await RunCaptureAsync(_repoRoot, "merge-base", "--is-ancestor", a, b).ConfigureAwait(false);
+            return cap.ExitCode == 0;
+        }
+
+        /// <summary>Map a git name-status letter to a merge file status (added|modified|deleted).</summary>
+        private static string MapMergeStatus(string code)
+        {
+            var c = code.Length > 0 ? code[0] : '\0';
+            if (c == 'A') return "added";
+            if (c == 'D') return "deleted";
+            return "modified";
+        }
+
+        /// <summary>Parse <c>git diff --name-status -z</c> output into merge preview files.</summary>
+        private static List<MergePreviewFile> ParseNameStatusZ(string outp)
+        {
+            var files = new List<MergePreviewFile>();
+            var parts = (outp ?? string.Empty).Split('\0');
+            int i = 0;
+            while (i < parts.Length)
+            {
+                var code = i < parts.Length ? parts[i++].Trim() : null;
+                if (string.IsNullOrEmpty(code)) continue;
+                var path = i < parts.Length ? parts[i++] : null;
+                if (!string.IsNullOrEmpty(path))
+                    files.Add(new MergePreviewFile { Path = path, Status = MapMergeStatus(code) });
+            }
+            return files;
+        }
+
+        /// <summary>
+        /// Dry-run preview of merging <paramref name="source"/> into the current
+        /// branch via <c>git merge-tree --write-tree</c> (no working-tree changes):
+        /// which files change relative to the current branch, which conflict, whether
+        /// a fast-forward is possible, and a default commit message. Mirrors
+        /// computeMergePreview in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<MergePreview> ComputeMergePreviewAsync(string source)
+        {
+            var target = await GetCurrentBranchAsync().ConfigureAwait(false);
+            if (string.IsNullOrEmpty(target)) target = "HEAD";
+            var preview = new MergePreview
+            {
+                Source = source,
+                Target = target,
+                DefaultMessage = "Merge branch '" + source + "'" + (target != "HEAD" ? " into " + target : ""),
+            };
+
+            var headTip = (await RunSafeAsync(_repoRoot, "rev-parse", "HEAD").ConfigureAwait(false)).Trim();
+            var sourceTip = (await RunSafeAsync(_repoRoot, "rev-parse", source).ConfigureAwait(false)).Trim();
+            if (string.IsNullOrEmpty(headTip)) { preview.Error = "No commit is checked out."; return preview; }
+            if (string.IsNullOrEmpty(sourceTip)) { preview.Error = "Branch \"" + source + "\" was not found."; return preview; }
+
+            if (await IsAncestorAsync(sourceTip, headTip).ConfigureAwait(false))
+            {
+                preview.UpToDate = true;
+                return preview;
+            }
+            preview.CanFastForward = await IsAncestorAsync(headTip, sourceTip).ConfigureAwait(false);
+
+            // git merge-tree --write-tree (git 2.38+): stdout line 1 is the merged
+            // tree oid; on conflict (exit 1) the following non-empty lines (until a
+            // blank line) are the conflicted paths (--name-only).
+            var mt = await RunCaptureAsync(
+                _repoRoot, "merge-tree", "--write-tree", "--name-only", headTip, sourceTip).ConfigureAwait(false);
+            var mtLines = (mt.StdOut ?? string.Empty).Replace("\r", string.Empty).Split('\n');
+            var resultTree = mtLines.Length > 0 ? mtLines[0].Trim() : string.Empty;
+            var looksLikeOid = System.Text.RegularExpressions.Regex.IsMatch(resultTree, "^[0-9a-f]{7,64}$");
+
+            if ((mt.ExitCode == 0 || mt.ExitCode == 1) && looksLikeOid)
+            {
+                var conflicts = new List<string>();
+                for (int i = 1; i < mtLines.Length; i++)
+                {
+                    var line = mtLines[i].Trim();
+                    if (line.Length == 0) break; // blank line ends the conflicted-files section
+                    conflicts.Add(line);
+                }
+                var diffOut = await TryRunAsync("diff", "--name-status", "-z", headTip, resultTree).ConfigureAwait(false);
+                var files = ParseNameStatusZ(diffOut);
+                var conflictSet = new HashSet<string>(conflicts);
+                foreach (var f in files) if (conflictSet.Contains(f.Path)) f.Status = "conflict";
+                var known = new HashSet<string>();
+                foreach (var f in files) known.Add(f.Path);
+                foreach (var c in conflicts)
+                    if (!known.Contains(c)) files.Add(new MergePreviewFile { Path = c, Status = "conflict" });
+                files.Sort((x, y) => string.Compare(x.Path, y.Path, StringComparison.Ordinal));
+                preview.Files = files;
+                preview.Conflicts = conflicts;
+                return preview;
+            }
+
+            // Older git: approximate the change set from the merge base, conflicts unknown.
+            var mergeBase = (await RunSafeAsync(_repoRoot, "merge-base", headTip, sourceTip).ConfigureAwait(false)).Trim();
+            var fromRef = string.IsNullOrEmpty(mergeBase) ? headTip : mergeBase;
+            var fallbackOut = await TryRunAsync("diff", "--name-status", "-z", fromRef, sourceTip).ConfigureAwait(false);
+            var fallbackFiles = ParseNameStatusZ(fallbackOut);
+            fallbackFiles.Sort((x, y) => string.Compare(x.Path, y.Path, StringComparison.Ordinal));
+            preview.Files = fallbackFiles;
+            return preview;
+        }
+
+        /// <summary>
+        /// Merge <paramref name="source"/> into the current branch. <paramref name="noFastForward"/>
+        /// forces a merge commit; <paramref name="message"/> is the merge-commit message
+        /// (ignored by git on a fast-forward). On conflict the merge is left in progress
+        /// so the user resolves it with Visual Studio's merge tooling.
+        /// </summary>
+        public async Task<OpOutcome> MergeAsync(string source, string message, bool noFastForward)
+        {
+            var args = new List<string> { "merge" };
+            if (noFastForward) args.Add("--no-ff");
+            if (!string.IsNullOrWhiteSpace(message)) { args.Add("-m"); args.Add(message.Trim()); }
+            args.Add(source);
+            try
+            {
+                await RunAsync(_repoRoot, args.ToArray()).ConfigureAwait(false);
+                return OpOutcome.Ok;
+            }
+            catch
+            {
+                if (await HasUnmergedPathsAsync().ConfigureAwait(false)) return OpOutcome.Conflict;
+                throw;
+            }
+        }
+
         private static async Task<string> RunSafeAsync(string cwd, params string[] args)
         {
             try { return await RunAsync(cwd, args).ConfigureAwait(false); }
@@ -786,6 +915,50 @@ namespace RevisionGraph.Git
         private static Task<string> RunWithEnvAsync(
             string cwd, IDictionary<string, string> env, params string[] args)
             => RunCoreAsync(cwd, env, args);
+
+        /// <summary>stdout + exit code of a git run that may legitimately exit non-zero.</summary>
+        private sealed class GitCapture
+        {
+            public int ExitCode { get; set; }
+            public string StdOut { get; set; }
+        }
+
+        /// <summary>
+        /// Run git and return stdout *and* the exit code without throwing — needed
+        /// for commands like <c>git merge-tree</c> that exit 1 to flag conflicts
+        /// while still printing a useful result to stdout.
+        /// </summary>
+        private static Task<GitCapture> RunCaptureAsync(string cwd, params string[] args)
+        {
+            var tcs = new TaskCompletionSource<GitCapture>();
+            var psi = new ProcessStartInfo
+            {
+                FileName = GitExe,
+                WorkingDirectory = cwd,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+            };
+            psi.Arguments = string.Join(" ", System.Array.ConvertAll(
+                args, a => a.Contains(" ") ? "\"" + a.Replace("\"", "\\\"") + "\"" : a));
+
+            var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            var stdout = new StringBuilder();
+            proc.OutputDataReceived += (_, e) => { if (e.Data != null) stdout.AppendLine(e.Data); };
+            proc.ErrorDataReceived += (_, __) => { /* ignored — captured commands use stdout */ };
+            proc.Exited += (_, __) =>
+            {
+                try { tcs.TrySetResult(new GitCapture { ExitCode = proc.ExitCode, StdOut = stdout.ToString() }); }
+                finally { proc.Dispose(); }
+            };
+
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            return tcs.Task;
+        }
 
         private static Task<string> RunCoreAsync(
             string cwd, IDictionary<string, string> env, string[] args)

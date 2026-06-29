@@ -22,6 +22,8 @@ import {
   stashDropCli,
   readCommitChanges,
   readFileDiff,
+  computeMergePreview,
+  mergeCli,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -148,6 +150,12 @@ export class GraphPanel {
         break;
       case "requestFileDiff":
         await this.handleFileDiff(msg.sha, msg.path, msg.status, msg.oldPath);
+        break;
+      case "requestMergePreview":
+        await this.handleMergePreview(msg.source);
+        break;
+      case "merge":
+        await this.handleMerge(msg.source, msg.message, msg.noFastForward ?? false);
         break;
       case "fetch":
         await this.runRemoteOp("Fetch", fetchCli);
@@ -448,6 +456,45 @@ export class GraphPanel {
     } catch (err) {
       this.post({ type: "error", message: `Failed to read file diff: ${String(err)}` });
     }
+  }
+
+  /** Compute and send a dry-run preview of merging `source` into the current branch. */
+  private async handleMergePreview(source: string): Promise<void> {
+    if (!source) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const preview = await computeMergePreview(repo.rootUri.fsPath, source);
+      this.post({ type: "mergePreview", preview });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to preview merge: ${String(err)}` });
+    }
+  }
+
+  /**
+   * Merge `source` into the current branch. Reports the outcome for a localized
+   * status line; on conflict, reveals the Source Control view so the user resolves
+   * it with the built-in merge editor (the merge is left in progress).
+   */
+  private async handleMerge(
+    source: string,
+    message: string | undefined,
+    noFastForward: boolean,
+  ): Promise<void> {
+    if (!source) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const result = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Merging "${source}"…`, cancellable: false },
+        () => mergeCli(repo.rootUri.fsPath, source, message, noFastForward),
+      );
+      this.post({ type: "opResult", op: "merge", result });
+      if (result === "conflict") await revealConflicts();
+    } catch (err) {
+      this.post({ type: "opResult", op: "merge", result: "error", detail: String(err) });
+    }
+    await this.refresh();
   }
 
   private post(msg: HostToWebview): void {

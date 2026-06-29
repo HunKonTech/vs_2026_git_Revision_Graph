@@ -38,9 +38,117 @@
     if (headRef) headRef.targetSha = state.head;
   }
 
+  // Commits reachable from a tip (the tip + all ancestors), by walking parents.
+  function reachable(tipSha) {
+    const byId = new Map(state.commits.map((c) => [c.sha, c]));
+    const seen = new Set();
+    const stack = [tipSha];
+    while (stack.length) {
+      const sha = stack.pop();
+      if (!sha || seen.has(sha)) continue;
+      seen.add(sha);
+      const c = byId.get(sha);
+      if (c) for (const p of c.parents) stack.push(p);
+    }
+    return seen;
+  }
+
+  // The current local branch — the merge target.
+  const currentBranchName = () =>
+    (state.refs.find((r) => r.type === "localBranch" && r.isCurrent) || {}).name;
+
   const handlers = {
     ready: refresh,
     requestRefresh: refresh,
+
+    // Simulate the dry-run merge preview from the mock graph + mock per-commit
+    // changes: collect the files the source-only commits touched, and flag a file
+    // as a conflict when a target-only commit also touched it.
+    requestMergePreview(msg) {
+      const target = currentBranchName() || "HEAD";
+      const src = findLocal(msg.source) || findRemote(msg.source);
+      const base = {
+        source: msg.source,
+        target,
+        upToDate: false,
+        canFastForward: false,
+        files: [],
+        conflicts: [],
+        defaultMessage:
+          "Merge branch '" + msg.source + "'" + (target !== "HEAD" ? " into " + target : ""),
+      };
+      const tgt = state.refs.find((r) => r.type === "localBranch" && r.isCurrent);
+      if (!src || !tgt) {
+        send({ type: "mergePreview", preview: Object.assign(base, { error: "Branch not found." }) });
+        return;
+      }
+      const srcReach = reachable(src.targetSha);
+      const tgtReach = reachable(tgt.targetSha);
+      if (tgtReach.has(src.targetSha)) {
+        // source already contained in target → up to date.
+        send({ type: "mergePreview", preview: Object.assign(base, { upToDate: true }) });
+        return;
+      }
+      const canFastForward = srcReach.has(tgt.targetSha); // target is an ancestor of source
+      const changes = window.__MOCK_CHANGES__ || {};
+      const mapStatus = (s) => (s === "renamed" ? "modified" : s);
+      // Paths touched by commits unique to the target side (for conflict flagging).
+      const targetTouched = new Set();
+      for (const sha of tgtReach) {
+        if (srcReach.has(sha)) continue;
+        for (const f of changes[sha] || []) targetTouched.add(f.path);
+      }
+      // Files introduced by commits unique to the source side.
+      const byPath = new Map();
+      for (const sha of srcReach) {
+        if (tgtReach.has(sha)) continue;
+        for (const f of changes[sha] || []) byPath.set(f.path, mapStatus(f.status));
+      }
+      const conflicts = [];
+      const files = [];
+      for (const [path, status] of byPath) {
+        const isConflict = targetTouched.has(path);
+        if (isConflict) conflicts.push(path);
+        files.push({ path, status: isConflict ? "conflict" : status });
+      }
+      files.sort((a, b) => a.path.localeCompare(b.path));
+      send({ type: "mergePreview", preview: Object.assign(base, { canFastForward, files, conflicts }) });
+    },
+
+    // Simulate the merge: fast-forward the current branch, or synthesize a merge
+    // commit, then refresh and report success.
+    merge(msg) {
+      const tgt = state.refs.find((r) => r.type === "localBranch" && r.isCurrent);
+      const src = findLocal(msg.source) || findRemote(msg.source);
+      if (!tgt || !src) {
+        send({ type: "opResult", op: "merge", result: "error", detail: "Branch not found." });
+        return;
+      }
+      const srcReach = reachable(src.targetSha);
+      const tgtReach = reachable(tgt.targetSha);
+      if (tgtReach.has(src.targetSha)) {
+        send({ type: "opResult", op: "merge", result: "ok" }); // already up to date
+        return;
+      }
+      const canFF = srcReach.has(tgt.targetSha);
+      if (canFF && !msg.noFastForward) {
+        tgt.targetSha = src.targetSha; // fast-forward
+      } else {
+        const sha = "m" + Math.floor(performance.now()).toString(16).padStart(6, "0").slice(-7);
+        state.commits.unshift({
+          sha,
+          parents: [tgt.targetSha, src.targetSha],
+          summary: (msg.message || "Merge branch '" + msg.source + "'").split("\n")[0],
+          author: "You",
+          authorEmail: "you@example.com",
+          date: new Date().toISOString(),
+        });
+        tgt.targetSha = sha;
+      }
+      setCurrent(tgt.name);
+      refresh();
+      send({ type: "opResult", op: "merge", result: "ok" });
+    },
 
     checkout(msg) {
       const ref = msg.ref;

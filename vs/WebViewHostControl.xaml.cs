@@ -186,6 +186,12 @@ namespace RevisionGraph
                 case "requestFileDiff":
                     await HandleFileDiffAsync(msg.Sha, msg.Path, msg.Status, msg.OldPath).ConfigureAwait(true);
                     break;
+                case "requestMergePreview":
+                    await HandleMergePreviewAsync(msg.Source).ConfigureAwait(true);
+                    break;
+                case "merge":
+                    await MergeAsync(msg.Source, msg.Message, msg.NoFastForward ?? false).ConfigureAwait(true);
+                    break;
                 case "fetch":
                     await RunRemoteOpAsync("Fetch", g => g.FetchAsync()).ConfigureAwait(true);
                     break;
@@ -546,6 +552,46 @@ namespace RevisionGraph
             {
                 PostToWebview(new { type = "error", message = "Failed to read file diff: " + ex.Message });
             }
+        }
+
+        /// <summary>Compute and send a dry-run preview of merging a branch into the current one.</summary>
+        private async Task HandleMergePreviewAsync(string source)
+        {
+            if (_git == null || string.IsNullOrEmpty(source)) return;
+            try
+            {
+                var preview = await _git.ComputeMergePreviewAsync(source).ConfigureAwait(true);
+                PostToWebview(new { type = "mergePreview", preview });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to preview merge: " + ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Merge a branch into the current one. Reports the outcome for a localized
+        /// status line; conflicts are reported so the webview tells the user to resolve
+        /// them with Visual Studio's merge tooling (the merge is left in progress).
+        /// </summary>
+        private async Task MergeAsync(string source, string message, bool noFastForward)
+        {
+            if (_git == null || string.IsNullOrEmpty(source)) return;
+            try
+            {
+                var outcome = await _git.MergeAsync(source, message, noFastForward).ConfigureAwait(true);
+                PostToWebview(new
+                {
+                    type = "opResult",
+                    op = "merge",
+                    result = outcome == GitService.OpOutcome.Conflict ? "conflict" : "ok",
+                });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "opResult", op = "merge", result = "error", detail = ex.Message });
+            }
+            await RefreshAsync().ConfigureAwait(true);
         }
 
         private static string Short(string sha)

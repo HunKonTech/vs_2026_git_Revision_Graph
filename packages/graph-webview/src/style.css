@@ -1083,3 +1083,132 @@ body,
 .diff-minimap:hover .diff-minimap-viewport {
   background: rgba(128, 128, 128, 0.3);
 }
+
+/* Merge dialog */
+.merge-modal {
+  width: 460px;
+}
+.merge-route {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.merge-arrow {
+  opacity: 0.7;
+  font-size: 16px;
+}
+.merge-chip {
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+.merge-chip-source {
+  background: var(--local-bg, rgba(88, 166, 255, 0.18));
+}
+.merge-chip-target {
+  background: var(--head-bg, rgba(46, 160, 67, 0.22));
+  border-color: var(--accent);
+}
+.merge-preview {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: rgba(128, 128, 128, 0.06);
+}
+.merge-status {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.merge-status-error {
+  color: #f85149;
+}
+.merge-note {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-bottom: 2px;
+}
+.merge-note-conflict {
+  color: #e3a008;
+  opacity: 1;
+}
+.merge-empty {
+  font-size: 12px;
+  opacity: 0.7;
+  padding: 4px 0;
+}
+.merge-files {
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.merge-files-group {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+  margin: 8px 0 2px;
+}
+.merge-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+  white-space: nowrap;
+}
+.merge-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.merge-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+}
+.merge-mark-added { background: #2ea043; }
+.merge-mark-modified { background: #bb8009; }
+.merge-mark-deleted { background: #f85149; }
+.merge-mark-conflict { background: #d1242f; }
+.merge-message {
+  width: 100%;
+  box-sizing: border-box;
+}
+.merge-hint {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-top: 3px;
+}
+.merge-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+.merge-checkbox input {
+  margin-top: 2px;
+}
+.merge-checkbox-text {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}

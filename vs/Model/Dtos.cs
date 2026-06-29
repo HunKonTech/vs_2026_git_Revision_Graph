@@ -76,12 +76,43 @@ namespace RevisionGraph.Model
         public bool? TooLarge { get; set; }
     }
 
+    /// <summary>One file a (hypothetical) merge would change.</summary>
+    public sealed class MergePreviewFile
+    {
+        public string Path { get; set; }
+        /// <summary>One of: added | modified | deleted | conflict.</summary>
+        public string Status { get; set; }
+    }
+
+    /// <summary>
+    /// Dry-run preview of merging <c>Source</c> into the current branch, computed
+    /// without touching the working tree. Mirrors MergePreview in the TS protocol.
+    /// </summary>
+    public sealed class MergePreview
+    {
+        public string Source { get; set; }
+        public string Target { get; set; }
+        public bool UpToDate { get; set; }
+        public bool CanFastForward { get; set; }
+        public List<MergePreviewFile> Files { get; set; } = new List<MergePreviewFile>();
+        public List<string> Conflicts { get; set; } = new List<string>();
+        public string DefaultMessage { get; set; }
+        /// <summary>Set when the preview couldn't be computed.</summary>
+        public string Error { get; set; }
+    }
+
     /// <summary>Incoming message from the webview (webview -> host).</summary>
     public sealed class WebviewMessage
     {
         public string Type { get; set; }
         public string Sha { get; set; }
         public string Ref { get; set; }
+        /// <summary>Branch to merge in, for requestMergePreview / merge.</summary>
+        public string Source { get; set; }
+        /// <summary>Merge-commit message for the merge action.</summary>
+        public string Message { get; set; }
+        /// <summary>Force a merge commit even when a fast-forward is possible.</summary>
+        public bool? NoFastForward { get; set; }
         /// <summary>Branch name for createBranch (when the SVN-style dialog
         /// supplied it) and for deleteBranch.</summary>
         public string Name { get; set; }

@@ -12,6 +12,9 @@ import type {
   CommitChangeFile,
   DiffFileStatus,
   FileDiff,
+  MergePreview,
+  MergePreviewFile,
+  MergeFileStatus,
 } from "@rev-graph/protocol";
 
 const run = promisify(execFile);
@@ -52,6 +55,25 @@ async function gitEnv(
     windowsHide: true,
   });
   return stdout;
+}
+
+/**
+ * Run a git command and return its stdout *and* exit code, without throwing on a
+ * non-zero exit. Needed for commands like `git merge-tree`, which exit 1 to signal
+ * conflicts while still printing their useful result to stdout.
+ */
+async function gitCapture(cwd: string, args: string[]): Promise<{ stdout: string; code: number }> {
+  try {
+    const { stdout } = await run(gitPath, args, {
+      cwd,
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+    });
+    return { stdout, code: 0 };
+  } catch (err) {
+    const e = err as { stdout?: string; code?: number };
+    return { stdout: typeof e.stdout === "string" ? e.stdout : "", code: typeof e.code === "number" ? e.code : 1 };
+  }
 }
 
 /** Read the full graph (commits + refs, local & remote) for a repo. */
@@ -509,6 +531,149 @@ export async function stashPopCli(repoRoot: string, index: number): Promise<OpOu
 /** Delete a stash entry without applying it. */
 export async function stashDropCli(repoRoot: string, index: number): Promise<void> {
   await git(repoRoot, ["stash", "drop", `stash@{${index}}`]);
+}
+
+/* ------------------------------------------------------------------ */
+/* merge                                                               */
+/* ------------------------------------------------------------------ */
+
+/** True when commit `a` is an ancestor of commit `b` (so b already contains a). */
+async function isAncestor(repoRoot: string, a: string, b: string): Promise<boolean> {
+  const { code } = await gitCapture(repoRoot, ["merge-base", "--is-ancestor", a, b]);
+  return code === 0;
+}
+
+/** Map a git name-status letter to a merge file status (no -M, so no renames). */
+function mapMergeStatus(code: string): MergeFileStatus {
+  const c = code[0] ?? "";
+  if (c === "A") return "added";
+  if (c === "D") return "deleted";
+  return "modified";
+}
+
+/** Parse `git diff --name-status -z` output into merge preview files. */
+function parseNameStatusZ(out: string): MergePreviewFile[] {
+  const files: MergePreviewFile[] = [];
+  const parts = out.split("\0");
+  let i = 0;
+  while (i < parts.length) {
+    const code = parts[i++]?.trim();
+    if (!code) continue;
+    const path = parts[i++];
+    if (path) files.push({ path, status: mapMergeStatus(code) });
+  }
+  return files;
+}
+
+/**
+ * Dry-run preview of merging `source` into the current branch (HEAD) — computed
+ * without touching the working tree via `git merge-tree --write-tree`. Reports
+ * which files the merge would change (relative to the current branch), which ones
+ * conflict, whether the merge can fast-forward, and a default commit message.
+ *
+ * Falls back to a base..source diff (conflicts undetectable) on git versions that
+ * lack `merge-tree --write-tree`, and reports an `error` when there is no current
+ * branch or `source` can't be resolved.
+ */
+export async function computeMergePreview(repoRoot: string, source: string): Promise<MergePreview> {
+  const target = (await currentBranchCli(repoRoot)) || "HEAD";
+  const base: MergePreview = {
+    source,
+    target,
+    upToDate: false,
+    canFastForward: false,
+    files: [],
+    conflicts: [],
+    defaultMessage: `Merge branch '${source}'` + (target !== "HEAD" ? ` into ${target}` : ""),
+  };
+
+  const headTip = (await git(repoRoot, ["rev-parse", "HEAD"]).catch(() => "")).trim();
+  const sourceTip = (await git(repoRoot, ["rev-parse", source]).catch(() => "")).trim();
+  if (!headTip) return { ...base, error: "No commit is checked out." };
+  if (!sourceTip) return { ...base, error: `Branch "${source}" was not found.` };
+
+  if (await isAncestor(repoRoot, sourceTip, headTip)) {
+    return { ...base, upToDate: true };
+  }
+  const canFastForward = await isAncestor(repoRoot, headTip, sourceTip);
+
+  // `git merge-tree --write-tree` (git 2.38+) computes the merged tree in memory.
+  // stdout line 1 is the resulting tree's oid; on conflict (exit 1) the following
+  // non-empty lines (until a blank line) are the conflicted paths (--name-only).
+  const mt = await gitCapture(repoRoot, [
+    "merge-tree",
+    "--write-tree",
+    "--name-only",
+    headTip,
+    sourceTip,
+  ]);
+  const mtLines = mt.stdout.split("\n");
+  const resultTree = (mtLines[0] ?? "").trim();
+  const looksLikeOid = /^[0-9a-f]{7,64}$/.test(resultTree);
+
+  if ((mt.code === 0 || mt.code === 1) && looksLikeOid) {
+    const conflicts: string[] = [];
+    for (let i = 1; i < mtLines.length; i++) {
+      const line = mtLines[i]!.trim();
+      if (!line) break; // blank line ends the conflicted-files section
+      conflicts.push(line);
+    }
+    // The real result the merge produces, relative to the current branch.
+    const diffOut = await git(repoRoot, [
+      "diff",
+      "--name-status",
+      "-z",
+      headTip,
+      resultTree,
+    ]).catch(() => "");
+    const files = parseNameStatusZ(diffOut);
+    const conflictSet = new Set(conflicts);
+    for (const f of files) if (conflictSet.has(f.path)) f.status = "conflict";
+    // A conflicted path always differs from the base, but guard the rare case the
+    // result diff missed one so the user still sees every conflict.
+    const known = new Set(files.map((f) => f.path));
+    for (const c of conflicts) if (!known.has(c)) files.push({ path: c, status: "conflict" });
+    files.sort((a, b) => a.path.localeCompare(b.path));
+    return { ...base, canFastForward, files, conflicts };
+  }
+
+  // Older git: approximate the change set from the merge base, conflicts unknown.
+  const mergeBase = (await git(repoRoot, ["merge-base", headTip, sourceTip]).catch(() => "")).trim();
+  const fromRef = mergeBase || headTip;
+  const diffOut = await git(repoRoot, [
+    "diff",
+    "--name-status",
+    "-z",
+    fromRef,
+    sourceTip,
+  ]).catch(() => "");
+  const files = parseNameStatusZ(diffOut).sort((a, b) => a.path.localeCompare(b.path));
+  return { ...base, canFastForward, files, conflicts: [] };
+}
+
+/**
+ * Merge `source` into the current branch. `noFastForward` forces a merge commit
+ * even when a fast-forward is possible; `message` (when given) is the merge-commit
+ * message (ignored by git on a fast-forward). On conflict the merge is left in
+ * progress so the user resolves it with the IDE's merge editor.
+ */
+export async function mergeCli(
+  repoRoot: string,
+  source: string,
+  message: string | undefined,
+  noFastForward: boolean,
+): Promise<OpOutcome> {
+  const args = ["merge"];
+  if (noFastForward) args.push("--no-ff");
+  if (message && message.trim()) args.push("-m", message.trim());
+  args.push(source);
+  try {
+    await git(repoRoot, args);
+    return "ok";
+  } catch (err) {
+    if (await hasUnmergedPaths(repoRoot)) return "conflict";
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ */

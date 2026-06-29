@@ -101,6 +101,8 @@ function boot(): void {
       const sha = commit.sha;
       const localBranches = commit.refs.filter((r) => r.type === "localBranch");
       const allRefs = lastData?.refs ?? [];
+      // The branch currently checked out — the merge target.
+      const currentBranch = allRefs.find((r) => r.type === "localBranch" && r.isCurrent)?.name;
 
       const items: MenuItem[] = [
         {
@@ -152,6 +154,15 @@ function boot(): void {
       // One push/delete entry per local branch that points at this commit.
       // "Push" is offered only when the branch has no remote counterpart yet.
       localBranches.forEach((ref, i) => {
+        // Merge this branch into the current checkout (not offered for the branch
+        // already checked out — you can't merge a branch into itself).
+        if (currentBranch && ref.name !== currentBranch) {
+          items.push({
+            label: t("menu.mergeBranch", { source: ref.name, target: currentBranch }),
+            separatorBefore: i === 0,
+            action: () => startMerge(ref.name, currentBranch),
+          });
+        }
         const hasRemote = allRefs.some(
           (r) => r.type === "remoteBranch" && r.name.endsWith("/" + ref.name),
         );
@@ -283,6 +294,9 @@ function boot(): void {
       case "fileDiff":
         setFileDiff(msg.diff);
         break;
+      case "mergePreview":
+        setMergePreview(msg.preview);
+        break;
       case "error": {
         const message = msg.message;
         renderStatus(() => t("status.error", { message }));
@@ -308,10 +322,25 @@ function boot(): void {
     bridge.post({ type: "requestCommitChanges", sha });
   }
 
+  // Open the merge dialog for "merge `source` into `target`" and ask the host for
+  // a dry-run preview (which the dialog fills in when it arrives).
+  function startMerge(source: string, target: string): void {
+    openMergeDialog({
+      source,
+      target,
+      onMerge: (message, noFastForward) => {
+        renderStatus(() => t("status.merging"));
+        bridge.post({ type: "merge", source, message: message || undefined, noFastForward });
+      },
+    });
+    bridge.post({ type: "requestMergePreview", source });
+  }
+
   function renderData(data: GraphData): void {
     closeContextMenu();
     closeNewBranchDialog();
     closeChangesDialog();
+    closeMergeDialog();
     detailsPanel.dataset.hidden = "";
     currentHead = data.head ?? null;
     lastData = data;
@@ -448,7 +477,9 @@ function boot(): void {
 /** Map an undo/stash op outcome to its localized status-line key. */
 function opResultKey(op: OpKind, result: Exclude<OpResult, "error">): MsgKey {
   if (result === "conflict") {
-    return op === "undo" ? "status.undoConflict" : "status.stashConflict";
+    if (op === "undo") return "status.undoConflict";
+    if (op === "merge") return "status.mergeConflict";
+    return "status.stashConflict";
   }
   switch (op) {
     case "undo":
@@ -459,6 +490,8 @@ function opResultKey(op: OpKind, result: Exclude<OpResult, "error">): MsgKey {
       return "status.stashPopped";
     case "stashDrop":
       return "status.stashDropped";
+    case "merge":
+      return "status.merged";
   }
 }
 

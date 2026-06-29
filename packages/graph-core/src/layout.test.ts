@@ -294,6 +294,28 @@ describe("computeLayout", () => {
     expect(layout.edges.some((e) => e.fromId === phantom.nodeId && e.toSha === "C")).toBe(true);
   });
 
+  it("moves the symbolic HEAD ref onto the current branch's phantom, not the owner", () => {
+    // HEAD is on `feature` (current), which shares main's tip C. The symbolic
+    // head-type ref also sits on C. It must travel with the phantom so only the
+    // real current branch box reads as HEAD — main must NOT also look checked-out.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "C" },
+          { name: "feature", type: "localBranch", targetSha: "C", isCurrent: true },
+          { name: "head", type: "head", targetSha: "C" },
+        ],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    const phantom = layout.commits.find((c) => c.phantom)!;
+    const mainTip = layout.commits.find((c) => c.sha === "C" && !c.phantom)!;
+    // HEAD chip rides with the current branch, off main's box.
+    expect(mainTip.refs.some((r) => r.type === "head")).toBe(false);
+    expect(phantom.refs.some((r) => r.type === "head")).toBe(true);
+  });
+
   it("splits a brand-new branch created on an interior commit into its own lane", () => {
     // `feature` was just created on main's *older* commit B (not the tip C) —
     // it has no commits of its own, so it must split off rather than tint B.

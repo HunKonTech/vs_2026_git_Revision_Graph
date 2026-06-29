@@ -264,7 +264,20 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     // commit. The branch that actually owns the column keeps its commits in place.
     if (owner.branch === ref.name) continue;
     extraRefs.add(ref);
-    phantoms.push({ branch: ref.name, refs: [ref], anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
+    const phRefs: GitRef[] = [ref];
+    // The symbolic HEAD ref sits on the current branch's commit. When that branch
+    // is split into a phantom, the HEAD ref would otherwise stay on the column
+    // owner and wrongly paint *that* box as the current checkout — so two boxes
+    // (owner + phantom) both read as HEAD. Move it onto the phantom so only the
+    // real current branch is marked.
+    if (ref.isCurrent) {
+      const headRef = (refsBySha.get(sha) ?? []).find((r) => r.type === "head");
+      if (headRef) {
+        extraRefs.add(headRef);
+        phRefs.push(headRef);
+      }
+    }
+    phantoms.push({ branch: ref.name, refs: phRefs, anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
   }
 
   // Phantoms sit one generation above their anchor, which can extend the grid.

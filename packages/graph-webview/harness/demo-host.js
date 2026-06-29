@@ -115,6 +115,40 @@
       send({ type: "mergePreview", preview: Object.assign(base, { canFastForward, files, conflicts }) });
     },
 
+    // Serve a per-file merge diff for the merge dialog's right pane. Reuses the
+    // mock per-commit changes; a conflicted file is shown with conflict markers so
+    // the demo mirrors what the real host produces from the merged tree.
+    requestMergeFileDiff(msg) {
+      const changes = window.__MOCK_CHANGES__ || {};
+      let found = null;
+      for (const sha of Object.keys(changes)) {
+        const f = (changes[sha] || []).find((x) => x.path === msg.path);
+        if (f) { found = f; break; }
+      }
+      const status = msg.status;
+      const oldText = found ? found.oldText || "" : "";
+      let newText = found ? found.newText || "" : "";
+      if (status === "conflict") {
+        const target = currentBranchName() || "HEAD";
+        newText =
+          "<<<<<<< " + target + "\n" + oldText +
+          "=======\n" + (found ? found.newText || "" : "") +
+          ">>>>>>> " + msg.source + "\n";
+      }
+      const diffStatus = status === "added" ? "added" : status === "deleted" ? "deleted" : "modified";
+      send({
+        type: "mergeFileDiff",
+        diff: {
+          sha: "",
+          path: msg.path,
+          status: diffStatus,
+          oldText: status === "added" ? "" : oldText,
+          newText: status === "deleted" ? "" : newText,
+          binary: !!(found && found.binary),
+        },
+      });
+    },
+
     // Simulate the merge: fast-forward the current branch, or synthesize a merge
     // commit, then refresh and report success.
     merge(msg) {

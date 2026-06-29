@@ -676,6 +676,48 @@ export async function mergeCli(
   }
 }
 
+/**
+ * The before/after text of one file a merge of `source` would change — the current
+ * branch (HEAD) on the left, the merged result on the right — for the merge dialog's
+ * side-by-side diff. Computed without touching the working tree: the "after" side
+ * reads from the in-memory merged tree (`git merge-tree --write-tree`), so a
+ * conflicted file's "after" text includes git's conflict markers. Added files have
+ * no before, deleted files no after. Falls back to the source tip's content on git
+ * versions without `merge-tree --write-tree`.
+ */
+export async function readMergeFileDiff(
+  repoRoot: string,
+  source: string,
+  path: string,
+  status: MergeFileStatus,
+): Promise<FileDiff> {
+  // conflict renders side-by-side (HEAD vs merged-with-markers), like a modification.
+  const diffStatus: DiffFileStatus =
+    status === "added" ? "added" : status === "deleted" ? "deleted" : "modified";
+  const base: FileDiff = { sha: "", path, status: diffStatus, oldText: "", newText: "" };
+
+  // The "after" side comes from the merged tree; fall back to the source tip.
+  const mt = await gitCapture(repoRoot, ["merge-tree", "--write-tree", "--name-only", "HEAD", source]);
+  const resultTree = (mt.stdout.split("\n")[0] ?? "").trim();
+  const newRev = (mt.code === 0 || mt.code === 1) && /^[0-9a-f]{7,64}$/.test(resultTree) ? resultTree : source;
+
+  const needOld = status !== "added";
+  const needNew = status !== "deleted";
+
+  const sizes = await Promise.all([
+    needOld ? blobSize(repoRoot, "HEAD", path) : Promise.resolve(0),
+    needNew ? blobSize(repoRoot, newRev, path) : Promise.resolve(0),
+  ]);
+  if (sizes.some((s) => s > MAX_DIFF_BYTES)) return { ...base, tooLarge: true };
+
+  const [oldText, newText] = await Promise.all([
+    needOld ? blobText(repoRoot, "HEAD", path) : Promise.resolve(""),
+    needNew ? blobText(repoRoot, newRev, path) : Promise.resolve(""),
+  ]);
+  if (hasNulByte(oldText) || hasNulByte(newText)) return { ...base, binary: true };
+  return { ...base, oldText, newText };
+}
+
 /* ------------------------------------------------------------------ */
 /* commit changes / diff                                               */
 /* ------------------------------------------------------------------ */

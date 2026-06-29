@@ -1,5 +1,7 @@
 import { t, onLangChange, type MsgKey } from "./i18n.js";
-import type { MergePreview, MergeFileStatus } from "@rev-graph/protocol";
+import { getDiffMinimap, onDiffMinimapChange } from "./diffMinimap.js";
+import { buildDiffView, attachMinimaps, buildChangeNav, MM_W } from "./diffView.js";
+import type { MergePreview, MergePreviewFile, MergeFileStatus, FileDiff } from "@rev-graph/protocol";
 
 /**
  * The "Merge Branch" dialog. Opened from the context menu when the user wants to
@@ -8,9 +10,13 @@ import type { MergePreview, MergeFileStatus } from "@rev-graph/protocol";
  * dry-run preview (which files the merge changes, which conflict, whether it can
  * fast-forward) and an editable, auto-generated merge-commit message.
  *
- * The preview arrives asynchronously from the host:
- *  - `requestMergePreview` is posted by main.ts when the dialog opens,
- *  - the host replies `mergePreview` → setMergePreview() fills the body.
+ * Clicking a file in the preview shows its diff in the right pane using the SAME
+ * renderer as the "View changes" dialog (see diffView.ts) — current branch on the
+ * left, the merged result on the right; conflicted files include conflict markers.
+ *
+ * The preview/diff arrive asynchronously from the host:
+ *  - `requestMergePreview` → `mergePreview` → setMergePreview(),
+ *  - `requestMergeFileDiff` → `mergeFileDiff` → setMergeFileDiff().
  * Confirming calls back into main.ts (onMerge) with the message + fast-forward choice.
  */
 export interface MergeDialogContext {
@@ -18,6 +24,8 @@ export interface MergeDialogContext {
   source: string;
   /** Branch the merge lands on (current checkout). */
   target: string;
+  /** Asked to fetch the merge diff of a file the user selected. */
+  onRequestFileDiff: (file: MergePreviewFile) => void;
   /** Confirm: run the merge with this message and fast-forward choice. */
   onMerge: (message: string, noFastForward: boolean) => void;
 }
@@ -41,13 +49,19 @@ const STATUS_ORDER: MergeFileStatus[] = ["conflict", "added", "modified", "delet
 
 let openOverlay: HTMLElement | null = null;
 let langUnsub: (() => void) | null = null;
+let minimapUnsub: (() => void) | null = null;
+// Tears down the current diff's minimap strips (listeners + DOM); null when none.
+let minimapCleanup: (() => void) | null = null;
 
-// Dialog state, module-scoped so the host-message handler can update it.
+// Dialog state, module-scoped so the host-message handlers can update it.
 let ctx: MergeDialogContext | null = null;
 let preview: MergePreview | null = null; // null = still loading
+let selected: MergePreviewFile | null = null; // file whose diff is shown
+let diff: FileDiff | null = null; // diff for `selected`, null while loading
 // The user's edited message, retained across re-renders (language switch).
 let messageValue: string | null = null;
 let noFastForward = false;
+let diffPaneEl: HTMLElement | null = null;
 
 /** Close the merge dialog if open. */
 export function closeMergeDialog(): void {
@@ -59,10 +73,19 @@ export function closeMergeDialog(): void {
     langUnsub();
     langUnsub = null;
   }
+  if (minimapUnsub) {
+    minimapUnsub();
+    minimapUnsub = null;
+  }
+  minimapCleanup?.();
+  minimapCleanup = null;
   ctx = null;
   preview = null;
+  selected = null;
+  diff = null;
   messageValue = null;
   noFastForward = false;
+  diffPaneEl = null;
 }
 
 /** Open the dialog; the preview arrives later via setMergePreview. */
@@ -70,6 +93,8 @@ export function openMergeDialog(context: MergeDialogContext): void {
   closeMergeDialog();
   ctx = context;
   preview = null;
+  selected = null;
+  diff = null;
   messageValue = null;
   noFastForward = false;
 
@@ -93,22 +118,32 @@ export function openMergeDialog(context: MergeDialogContext): void {
     header.appendChild(closeBtn);
     modal.appendChild(header);
 
-    // ---- Body ----
-    const body = el("div", "settings-modal-body");
+    // ---- Body: preview + file list (left) | diff (right) ----
+    const body = el("div", "merge-body");
+
+    const left = el("div", "merge-left");
 
     // Source → target route.
-    body.appendChild(el("div", "settings-section-title", t("merge.route")));
+    left.appendChild(el("div", "settings-section-title", t("merge.route")));
     const route = el("div", "merge-route");
     route.appendChild(branchChip(ctx.source, "source"));
     route.appendChild(el("span", "merge-arrow", "→"));
     route.appendChild(branchChip(ctx.target, "target"));
-    body.appendChild(route);
+    left.appendChild(route);
 
-    // Preview area (loading → result).
-    body.appendChild(renderPreview());
+    // Preview status + grouped, clickable file list.
+    left.appendChild(renderPreview());
 
-    // Merge-commit message.
-    body.appendChild(el("div", "settings-section-title", t("merge.message")));
+    const diffPane = el("div", "changes-diff merge-diff");
+    diffPaneEl = diffPane;
+    renderDiff();
+
+    body.append(left, diffPane);
+    modal.appendChild(body);
+
+    // ---- Merge-commit message ----
+    const footerArea = el("div", "merge-footer-area");
+    footerArea.appendChild(el("div", "settings-section-title", t("merge.message")));
     const msgInput = document.createElement("input");
     msgInput.type = "text";
     msgInput.className = "settings-input merge-message";
@@ -120,10 +155,10 @@ export function openMergeDialog(context: MergeDialogContext): void {
     msgInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") submit();
     });
-    body.appendChild(msgInput);
+    footerArea.appendChild(msgInput);
     // When the merge can fast-forward, the message is unused unless --no-ff.
     if (preview?.canFastForward && !noFastForward) {
-      body.appendChild(el("div", "merge-hint", t("merge.messageFfHint")));
+      footerArea.appendChild(el("div", "merge-hint", t("merge.messageFfHint")));
     }
 
     // No-fast-forward toggle (only meaningful when a fast-forward is possible).
@@ -142,10 +177,9 @@ export function openMergeDialog(context: MergeDialogContext): void {
       txt.appendChild(el("span", "", t("merge.noFastForward")));
       txt.appendChild(el("span", "merge-hint", t("merge.noFastForwardHint")));
       ffRow.appendChild(txt);
-      body.appendChild(ffRow);
+      footerArea.appendChild(ffRow);
     }
-
-    modal.appendChild(body);
+    modal.appendChild(footerArea);
 
     // ---- Footer ----
     const footer = el("div", "settings-modal-footer");
@@ -167,7 +201,7 @@ export function openMergeDialog(context: MergeDialogContext): void {
     }
   }
 
-  /** The preview block: loading spinner, error, "up to date", or the file list. */
+  /** The left-pane preview: loading, error, "up to date", or the file list. */
   function renderPreview(): HTMLElement {
     const wrap = el("div", "merge-preview");
     if (preview === null) {
@@ -205,7 +239,8 @@ export function openMergeDialog(context: MergeDialogContext): void {
       return wrap;
     }
 
-    // Grouped, scrollable file list (conflicts first).
+    // Grouped, scrollable, clickable file list (conflicts first).
+    wrap.appendChild(el("div", "settings-section-title", t("merge.files")));
     const list = el("div", "merge-files");
     for (const status of STATUS_ORDER) {
       const group = preview.files.filter((f) => f.status === status);
@@ -214,10 +249,12 @@ export function openMergeDialog(context: MergeDialogContext): void {
       for (const f of group) {
         const row = el("div", "merge-file");
         row.dataset.status = status;
+        if (selected && selected.path === f.path) row.classList.add("selected");
         row.appendChild(el("span", `merge-mark merge-mark-${status}`, STATUS_MARK[status]));
         const name = el("span", "merge-file-name", f.path);
         name.title = f.path;
         row.appendChild(name);
+        row.addEventListener("click", () => selectFile(f));
         list.appendChild(row);
       }
     }
@@ -225,8 +262,47 @@ export function openMergeDialog(context: MergeDialogContext): void {
     return wrap;
   }
 
+  /** Select a file: highlight it, show the loading state, and fetch its diff. */
+  function selectFile(file: MergePreviewFile): void {
+    selected = file;
+    diff = null;
+    render();
+    ctx?.onRequestFileDiff(file);
+  }
+
+  /** (Re)draw the right-pane diff from the current `selected`/`diff`. */
+  function renderDiff(): void {
+    if (!diffPaneEl) return;
+    diffPaneEl.innerHTML = "";
+    const scroll = el("div", "changes-diff-scroll");
+    const showEmpty = (key: MsgKey): void => {
+      scroll.appendChild(el("div", "changes-empty", t(key)));
+      diffPaneEl!.appendChild(scroll);
+    };
+    minimapCleanup?.();
+    minimapCleanup = null;
+    if (!preview || preview.upToDate || preview.error || preview.files.length === 0) {
+      return showEmpty("changes.selectFile");
+    }
+    if (!selected) return showEmpty("changes.selectFile");
+    if (!diff) return showEmpty("changes.loading");
+    if (diff.binary) return showEmpty("changes.binary");
+    if (diff.tooLarge) return showEmpty("changes.tooLarge");
+
+    const minimapOn = getDiffMinimap();
+    const { view, blocks, minimaps } = buildDiffView(diff, minimapOn);
+    scroll.appendChild(view);
+    diffPaneEl.appendChild(scroll);
+    minimapCleanup = minimapOn ? attachMinimaps(diffPaneEl, scroll, minimaps) : null;
+    if (blocks.length > 1) {
+      diffPaneEl.appendChild(buildChangeNav(scroll, blocks, minimapOn ? MM_W + 10 : 14));
+    }
+  }
+
   render();
   langUnsub = onLangChange(render);
+  // Redraw the diff pane when the minimap setting is toggled in Settings.
+  minimapUnsub = onDiffMinimapChange(() => renderDiff());
 
   overlay.addEventListener("mousedown", (e) => {
     if (e.target === overlay) closeMergeDialog();
@@ -234,17 +310,46 @@ export function openMergeDialog(context: MergeDialogContext): void {
   document.body.appendChild(overlay);
   openOverlay = overlay;
 
-  // Expose the renderer so setMergePreview can refresh the body in place.
+  // Expose the renderers so the host-message setters can refresh in place.
   pendingRender = render;
+  pendingRenderDiff = renderDiff;
 }
 
 let pendingRender: (() => void) | null = null;
+let pendingRenderDiff: (() => void) | null = null;
 
 /** Host delivered the merge preview (ignored if it's for a stale source/target). */
 export function setMergePreview(incoming: MergePreview): void {
   if (!ctx || ctx.source !== incoming.source || ctx.target !== incoming.target) return;
   preview = incoming;
+  // Auto-select the first file so the user immediately sees a diff.
+  if (!selected && !incoming.upToDate && !incoming.error && incoming.files.length > 0) {
+    const first = orderedFirst(incoming.files);
+    if (first) {
+      selected = first;
+      diff = null;
+      pendingRender?.();
+      ctx.onRequestFileDiff(first);
+      return;
+    }
+  }
   pendingRender?.();
+}
+
+/** Host delivered a merge file diff (ignored unless it matches the current selection). */
+export function setMergeFileDiff(incoming: FileDiff): void {
+  if (!ctx || !selected || selected.path !== incoming.path) return;
+  diff = incoming;
+  pendingRenderDiff?.();
+}
+
+/** First file in STATUS_ORDER grouping (matches the visual list order). */
+function orderedFirst(list: MergePreviewFile[]): MergePreviewFile | null {
+  for (const status of STATUS_ORDER) {
+    const hit = list.find((f) => f.status === status);
+    if (hit) return hit;
+  }
+  return list[0] ?? null;
 }
 
 /* small DOM helpers (mirror newBranchDialog.ts / changesDialog.ts) */

@@ -9,7 +9,7 @@ import {
   setChangesFiles,
   setFileDiff,
 } from "./changesDialog.js";
-import { openMergeDialog, closeMergeDialog, setMergePreview } from "./mergeDialog.js";
+import { openMergeDialog, closeMergeDialog, setMergePreview, setMergeFileDiff } from "./mergeDialog.js";
 import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
@@ -297,6 +297,9 @@ function boot(): void {
       case "mergePreview":
         setMergePreview(msg.preview);
         break;
+      case "mergeFileDiff":
+        setMergeFileDiff(msg.diff);
+        break;
       case "error": {
         const message = msg.message;
         renderStatus(() => t("status.error", { message }));
@@ -328,6 +331,8 @@ function boot(): void {
     openMergeDialog({
       source,
       target,
+      onRequestFileDiff: (file) =>
+        bridge.post({ type: "requestMergeFileDiff", source, path: file.path, status: file.status }),
       onMerge: (message, noFastForward) => {
         renderStatus(() => t("status.merging"));
         bridge.post({ type: "merge", source, message: message || undefined, noFastForward });

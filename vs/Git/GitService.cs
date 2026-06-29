@@ -901,6 +901,50 @@ namespace RevisionGraph.Git
             }
         }
 
+        /// <summary>
+        /// The before/after text of one file a merge of <paramref name="source"/> would
+        /// change — the current branch (HEAD) on the left, the merged result on the right.
+        /// The "after" side reads from the in-memory merged tree (git merge-tree
+        /// --write-tree), so a conflicted file includes git's conflict markers. Falls
+        /// back to the source tip on git versions without merge-tree --write-tree.
+        /// Mirrors readMergeFileDiff in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<FileDiff> ReadMergeFileDiffAsync(string source, string path, string status)
+        {
+            // conflict renders side-by-side (HEAD vs merged-with-markers), like a modification.
+            var diffStatus = status == "added" ? "added" : status == "deleted" ? "deleted" : "modified";
+            var diff = new FileDiff { Sha = "", Path = path, Status = diffStatus, OldText = "", NewText = "" };
+
+            var mt = await RunCaptureAsync(
+                _repoRoot, "merge-tree", "--write-tree", "--name-only", "HEAD", source).ConfigureAwait(false);
+            var firstLine = (mt.StdOut ?? string.Empty).Replace("\r", string.Empty).Split('\n');
+            var resultTree = firstLine.Length > 0 ? firstLine[0].Trim() : string.Empty;
+            var looksLikeOid = System.Text.RegularExpressions.Regex.IsMatch(resultTree, "^[0-9a-f]{7,64}$");
+            var newRev = ((mt.ExitCode == 0 || mt.ExitCode == 1) && looksLikeOid) ? resultTree : source;
+
+            var needOld = status != "added";
+            var needNew = status != "deleted";
+
+            var oldSize = needOld ? await BlobSizeAsync("HEAD", path).ConfigureAwait(false) : 0;
+            var newSize = needNew ? await BlobSizeAsync(newRev, path).ConfigureAwait(false) : 0;
+            if (oldSize > MaxDiffBytes || newSize > MaxDiffBytes)
+            {
+                diff.TooLarge = true;
+                return diff;
+            }
+
+            var oldText = needOld ? await BlobTextAsync("HEAD", path).ConfigureAwait(false) : "";
+            var newText = needNew ? await BlobTextAsync(newRev, path).ConfigureAwait(false) : "";
+            if (oldText.IndexOf('\0') >= 0 || newText.IndexOf('\0') >= 0)
+            {
+                diff.Binary = true;
+                return diff;
+            }
+            diff.OldText = oldText;
+            diff.NewText = newText;
+            return diff;
+        }
+
         private static async Task<string> RunSafeAsync(string cwd, params string[] args)
         {
             try { return await RunAsync(cwd, args).ConfigureAwait(false); }

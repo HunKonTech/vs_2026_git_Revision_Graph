@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { HostToWebview, WebviewToHost, ThemeTokens, DiffFileStatus } from "@rev-graph/protocol";
+import type { HostToWebview, WebviewToHost, ThemeTokens, DiffFileStatus, MergeFileStatus } from "@rev-graph/protocol";
 import {
   readGraphData,
   checkoutCli,
@@ -24,6 +24,7 @@ import {
   readFileDiff,
   computeMergePreview,
   mergeCli,
+  readMergeFileDiff,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -153,6 +154,9 @@ export class GraphPanel {
         break;
       case "requestMergePreview":
         await this.handleMergePreview(msg.source);
+        break;
+      case "requestMergeFileDiff":
+        await this.handleMergeFileDiff(msg.source, msg.path, msg.status);
         break;
       case "merge":
         await this.handleMerge(msg.source, msg.message, msg.noFastForward ?? false);
@@ -468,6 +472,23 @@ export class GraphPanel {
       this.post({ type: "mergePreview", preview });
     } catch (err) {
       this.post({ type: "error", message: `Failed to preview merge: ${String(err)}` });
+    }
+  }
+
+  /** Send the webview the before/after text of one file a merge would change. */
+  private async handleMergeFileDiff(
+    source: string,
+    path: string,
+    status: MergeFileStatus,
+  ): Promise<void> {
+    if (!source || !path) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const diff = await readMergeFileDiff(repo.rootUri.fsPath, source, path, status);
+      this.post({ type: "mergeFileDiff", diff });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to read merge diff: ${String(err)}` });
     }
   }
 

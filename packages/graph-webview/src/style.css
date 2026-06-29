@@ -1086,7 +1086,35 @@ body,
 
 /* Merge dialog */
 .merge-modal {
-  width: 460px;
+  width: 1040px;
+  max-width: calc(100vw - 32px);
+  height: calc(100vh - 64px);
+  max-height: calc(100vh - 48px);
+}
+/* Body: preview + file list (left) | diff (right). */
+.merge-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.merge-left {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 8px 16px;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+.merge-diff {
+  /* reuses .changes-diff layout for the side-by-side diff renderer */
+  padding: 0;
+}
+/* Message + fast-forward toggle, below the body and above the footer. */
+.merge-footer-area {
+  flex: none;
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--border);
 }
 .merge-route {
   display: flex;
@@ -1149,9 +1177,20 @@ body,
   padding: 4px 0;
 }
 .merge-files {
-  margin-top: 6px;
-  max-height: 220px;
-  overflow-y: auto;
+  margin-top: 2px;
+}
+.merge-file {
+  cursor: pointer;
+  border-radius: 4px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.merge-file:hover {
+  background: rgba(128, 128, 128, 0.14);
+}
+.merge-file.selected {
+  background: var(--accent);
+  color: #fff;
 }
 .merge-files-group {
   font-size: 10px;

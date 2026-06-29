@@ -189,6 +189,9 @@ namespace RevisionGraph
                 case "requestMergePreview":
                     await HandleMergePreviewAsync(msg.Source).ConfigureAwait(true);
                     break;
+                case "requestMergeFileDiff":
+                    await HandleMergeFileDiffAsync(msg.Source, msg.Path, msg.Status).ConfigureAwait(true);
+                    break;
                 case "merge":
                     await MergeAsync(msg.Source, msg.Message, msg.NoFastForward ?? false).ConfigureAwait(true);
                     break;
@@ -566,6 +569,21 @@ namespace RevisionGraph
             catch (Exception ex)
             {
                 PostToWebview(new { type = "error", message = "Failed to preview merge: " + ex.Message });
+            }
+        }
+
+        /// <summary>Send the webview the before/after text of one file a merge would change.</summary>
+        private async Task HandleMergeFileDiffAsync(string source, string path, string status)
+        {
+            if (_git == null || string.IsNullOrEmpty(source) || string.IsNullOrEmpty(path)) return;
+            try
+            {
+                var diff = await _git.ReadMergeFileDiffAsync(source, path, status).ConfigureAwait(true);
+                PostToWebview(new { type = "mergeFileDiff", diff });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to read merge diff: " + ex.Message });
             }
         }
 

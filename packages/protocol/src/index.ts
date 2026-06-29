@@ -160,6 +160,9 @@ export type HostToWebview =
   | { type: "fileDiff"; diff: FileDiff }
   // A dry-run merge preview (answers `requestMergePreview`).
   | { type: "mergePreview"; preview: MergePreview }
+  // The before/after content of one file the merge would change (answers
+  // `requestMergeFileDiff`). Reuses FileDiff so the shared diff view renders it.
+  | { type: "mergeFileDiff"; diff: FileDiff }
   | { type: "error"; message: string };
 
 /* ------------------------------------------------------------------ */
@@ -183,6 +186,9 @@ export type WebviewToHost =
   | { type: "requestFileDiff"; sha: string; path: string; status: DiffFileStatus; oldPath?: string }
   // Ask the host for a dry-run preview of merging `source` into the current branch.
   | { type: "requestMergePreview"; source: string }
+  // Ask the host for the before/after content of one file the merge would change
+  // (current branch vs the merged result; conflicted files include conflict markers).
+  | { type: "requestMergeFileDiff"; source: string; path: string; status: MergeFileStatus }
   // Merge `source` into the current branch. `message` is the (editable) merge-commit
   // message; `noFastForward` forces a merge commit even when a fast-forward is possible.
   | { type: "merge"; source: string; message?: string; noFastForward?: boolean }

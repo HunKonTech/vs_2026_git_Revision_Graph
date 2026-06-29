@@ -9,6 +9,7 @@ import {
   setChangesFiles,
   setFileDiff,
 } from "./changesDialog.js";
+import { openMergeDialog, closeMergeDialog, setMergePreview } from "./mergeDialog.js";
 import { getBranchDialogMode } from "./branchDialogMode.js";
 import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";

@@ -4,7 +4,8 @@
  * "Release" and "Release/vs_code" and the branch leaf "1.0.0".
  *
  * Folders are selectable in the New Branch dialog (they become the new branch's
- * location prefix); branch leaves are shown for context but are not selectable.
+ * location prefix); selecting a branch leaf fills the name with that branch's own
+ * name, which then trips the dialog's "already exists" duplicate check.
  */
 
 export interface BranchTreeNode {

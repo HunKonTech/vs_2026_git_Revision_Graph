@@ -82,6 +82,38 @@ export interface FileDiff {
   tooLarge?: boolean;
 }
 
+/** How a file is affected by a (still hypothetical) merge. */
+export type MergeFileStatus = "added" | "modified" | "deleted" | "conflict";
+
+/** One file the merge would change, for the merge preview list. */
+export interface MergePreviewFile {
+  path: string;
+  status: MergeFileStatus;
+}
+
+/**
+ * A dry-run preview of merging `source` into `target` (the current branch),
+ * computed by the host without touching the working tree (`git merge-tree`).
+ */
+export interface MergePreview {
+  /** Branch being merged in (the one the user right-clicked). */
+  source: string;
+  /** Branch the merge lands on (the current checkout). */
+  target: string;
+  /** `source` is already contained in `target` — nothing to merge. */
+  upToDate: boolean;
+  /** The merge can fast-forward (no merge commit required). */
+  canFastForward: boolean;
+  /** Files the merge would change, relative to `target`. */
+  files: MergePreviewFile[];
+  /** Paths git reports as conflicting (also flagged inside `files`). */
+  conflicts: string[];
+  /** Auto-generated default merge-commit message (the user may edit it). */
+  defaultMessage: string;
+  /** Set when the preview couldn't be computed (detached HEAD, old git, …). */
+  error?: string;
+}
+
 /** The full graph payload sent from host to webview. */
 export interface GraphData {
   commits: GitCommit[];
@@ -110,7 +142,7 @@ export interface ThemeTokens {
 /* ------------------------------------------------------------------ */
 
 /** Operations whose outcome the host reports back for a localized status line. */
-export type OpKind = "undo" | "stashApply" | "stashPop" | "stashDrop";
+export type OpKind = "undo" | "stashApply" | "stashPop" | "stashDrop" | "merge";
 
 /** Outcome of an op: clean success, a conflict left for the IDE resolver, or a failure. */
 export type OpResult = "ok" | "conflict" | "error";
@@ -126,6 +158,8 @@ export type HostToWebview =
   | { type: "commitChanges"; sha: string; files: CommitChangeFile[] }
   // The before/after content of one file (answers `requestFileDiff`).
   | { type: "fileDiff"; diff: FileDiff }
+  // A dry-run merge preview (answers `requestMergePreview`).
+  | { type: "mergePreview"; preview: MergePreview }
   | { type: "error"; message: string };
 
 /* ------------------------------------------------------------------ */
@@ -147,6 +181,11 @@ export type WebviewToHost =
   | { type: "requestCommitChanges"; sha: string }
   // Ask the host for the before/after content of one changed file.
   | { type: "requestFileDiff"; sha: string; path: string; status: DiffFileStatus; oldPath?: string }
+  // Ask the host for a dry-run preview of merging `source` into the current branch.
+  | { type: "requestMergePreview"; source: string }
+  // Merge `source` into the current branch. `message` is the (editable) merge-commit
+  // message; `noFastForward` forces a merge commit even when a fast-forward is possible.
+  | { type: "merge"; source: string; message?: string; noFastForward?: boolean }
   // Undo a *local* (unpushed) commit, returning its changes to the working tree
   // as unstaged edits. Leaves no trace in history (reset / rebase-drop, not a
   // revert commit). Deeper commits may conflict → resolved in the IDE.

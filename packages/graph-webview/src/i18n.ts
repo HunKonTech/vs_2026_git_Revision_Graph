@@ -89,6 +89,7 @@ type Dict = {
   "menu.renameCommit": string;
   "menu.undoCommit": string;
   "menu.viewChanges": string;
+  "menu.mergeBranch": string;
   "changes.title": string;
   "changes.files": string;
   "changes.added": string;
@@ -109,6 +110,29 @@ type Dict = {
   "menu.stashApply": string;
   "menu.stashPop": string;
   "menu.stashDrop": string;
+  "merge.title": string;
+  "merge.route": string;
+  "merge.source": string;
+  "merge.target": string;
+  "merge.loading": string;
+  "merge.upToDate": string;
+  "merge.fastForward": string;
+  "merge.summary": string;
+  "merge.conflictsWarning": string;
+  "merge.noChanges": string;
+  "merge.files": string;
+  "merge.added": string;
+  "merge.modified": string;
+  "merge.deleted": string;
+  "merge.conflict": string;
+  "merge.message": string;
+  "merge.messagePlaceholder": string;
+  "merge.messageFfHint": string;
+  "merge.noFastForward": string;
+  "merge.noFastForwardHint": string;
+  "merge.merge": string;
+  "merge.cancel": string;
+  "merge.previewError": string;
   "newBranch.title": string;
   "newBranch.startPoint": string;
   "newBranch.startPointOn": string;
@@ -118,6 +142,7 @@ type Dict = {
   "newBranch.namePlaceholder": string;
   "newBranch.fullName": string;
   "newBranch.invalid": string;
+  "newBranch.exists": string;
   "newBranch.checkout": string;
   "newBranch.create": string;
   "newBranch.cancel": string;
@@ -141,6 +166,9 @@ type Dict = {
   "status.stashPopped": string;
   "status.stashDropped": string;
   "status.stashConflict": string;
+  "status.merging": string;
+  "status.merged": string;
+  "status.mergeConflict": string;
 };
 
 const DICTS: Record<Lang, Dict> = {
@@ -216,6 +244,7 @@ const DICTS: Record<Lang, Dict> = {
     "menu.renameCommit": "Rename commit message…",
     "menu.undoCommit": "Undo commit (keep changes)…",
     "menu.viewChanges": "View changes…",
+    "menu.mergeBranch": 'Merge "{source}" into "{target}"…',
     "changes.title": "Changes in {sha}",
     "changes.files": "Files",
     "changes.added": "Added",
@@ -236,6 +265,29 @@ const DICTS: Record<Lang, Dict> = {
     "menu.stashApply": "Apply stash",
     "menu.stashPop": "Pop stash (apply & remove)",
     "menu.stashDrop": "Drop stash…",
+    "merge.title": "Merge Branch",
+    "merge.route": "Merging into the current branch",
+    "merge.source": "From (source)",
+    "merge.target": "Into (current)",
+    "merge.loading": "Analyzing merge…",
+    "merge.upToDate": "Already up to date — nothing to merge.",
+    "merge.fastForward": "Fast-forward — no merge commit needed (tick “Create a merge commit” to force one).",
+    "merge.summary": "{files} file(s) changed, {conflicts} conflict(s).",
+    "merge.conflictsWarning": "This merge has conflicts — you can still merge, then resolve them in the editor.",
+    "merge.noChanges": "No file changes.",
+    "merge.files": "Resulting changes",
+    "merge.added": "Added",
+    "merge.modified": "Modified",
+    "merge.deleted": "Deleted",
+    "merge.conflict": "Conflict",
+    "merge.message": "Merge commit message",
+    "merge.messagePlaceholder": "Merge branch 'source'",
+    "merge.messageFfHint": "Ignored on a fast-forward merge (no commit is created).",
+    "merge.noFastForward": "Create a merge commit (no fast-forward)",
+    "merge.noFastForwardHint": "Always record a merge commit, even when the branch could fast-forward.",
+    "merge.merge": "Merge",
+    "merge.cancel": "Cancel",
+    "merge.previewError": "Couldn't compute a preview: {message}",
     "newBranch.title": "Create Branch",
     "newBranch.startPoint": "New branch starting from {sha}",
     "newBranch.startPointOn": "on {refs}",
@@ -245,6 +297,7 @@ const DICTS: Record<Lang, Dict> = {
     "newBranch.namePlaceholder": "my-branch",
     "newBranch.fullName": "Full name: {name}",
     "newBranch.invalid": "Invalid branch name",
+    "newBranch.exists": "A branch with this name already exists",
     "newBranch.checkout": "Checkout branch after creation",
     "newBranch.create": "Create",
     "newBranch.cancel": "Cancel",
@@ -268,6 +321,9 @@ const DICTS: Record<Lang, Dict> = {
     "status.stashPopped": "Stash popped.",
     "status.stashDropped": "Stash dropped.",
     "status.stashConflict": "Stash conflicts — resolve them in the editor.",
+    "status.merging": "Merging…",
+    "status.merged": "Merge completed.",
+    "status.mergeConflict": "Merge has conflicts — resolve them in the editor, then commit.",
   },
   hu: {
     "toolbar.refresh": "⟳ Frissítés",
@@ -341,6 +397,7 @@ const DICTS: Record<Lang, Dict> = {
     "menu.renameCommit": "Commit üzenet átnevezése…",
     "menu.undoCommit": "Commit visszavonása (változások megtartása)…",
     "menu.viewChanges": "Változások megtekintése…",
+    "menu.mergeBranch": '"{source}" beolvasztása ide: "{target}"…',
     "changes.title": "Változások — {sha}",
     "changes.files": "Fájlok",
     "changes.added": "Hozzáadva",
@@ -361,6 +418,29 @@ const DICTS: Record<Lang, Dict> = {
     "menu.stashApply": "Stash alkalmazása",
     "menu.stashPop": "Stash kivétele (alkalmaz és töröl)",
     "menu.stashDrop": "Stash eldobása…",
+    "merge.title": "Branch beolvasztása (merge)",
+    "merge.route": "Beolvasztás az aktuális branchbe",
+    "merge.source": "Honnan (forrás)",
+    "merge.target": "Ide (aktuális)",
+    "merge.loading": "Merge elemzése…",
+    "merge.upToDate": "Már naprakész — nincs mit beolvasztani.",
+    "merge.fastForward": "Fast-forward — nem kell merge commit (pipáld be a „Merge commit létrehozása”-t, ha mégis kell).",
+    "merge.summary": "{files} fájl változik, {conflicts} konfliktus.",
+    "merge.conflictsWarning": "Ennek a merge-nek vannak konfliktusai — beolvaszthatod, majd a szerkesztőben feloldhatod őket.",
+    "merge.noChanges": "Nincs fájlváltozás.",
+    "merge.files": "Eredő változások",
+    "merge.added": "Hozzáadva",
+    "merge.modified": "Módosítva",
+    "merge.deleted": "Törölve",
+    "merge.conflict": "Konfliktus",
+    "merge.message": "Merge commit üzenete",
+    "merge.messagePlaceholder": "Merge branch 'forrás'",
+    "merge.messageFfHint": "Fast-forward merge esetén nincs hatása (nem jön létre commit).",
+    "merge.noFastForward": "Merge commit létrehozása (nincs fast-forward)",
+    "merge.noFastForwardHint": "Mindig készüljön merge commit, akkor is, ha lehetne fast-forward.",
+    "merge.merge": "Beolvasztás",
+    "merge.cancel": "Mégse",
+    "merge.previewError": "Az előnézet nem számítható ki: {message}",
     "newBranch.title": "Branch létrehozása",
     "newBranch.startPoint": "Új branch innen indul: {sha}",
     "newBranch.startPointOn": "({refs})",
@@ -370,6 +450,7 @@ const DICTS: Record<Lang, Dict> = {
     "newBranch.namePlaceholder": "uj-branch",
     "newBranch.fullName": "Teljes név: {name}",
     "newBranch.invalid": "Érvénytelen branch név",
+    "newBranch.exists": "Már létezik ilyen nevű branch",
     "newBranch.checkout": "Checkout a branch-re létrehozás után",
     "newBranch.create": "Létrehozás",
     "newBranch.cancel": "Mégse",
@@ -393,6 +474,9 @@ const DICTS: Record<Lang, Dict> = {
     "status.stashPopped": "Stash kivéve.",
     "status.stashDropped": "Stash eldobva.",
     "status.stashConflict": "Stash konfliktus — oldd fel a szerkesztőben.",
+    "status.merging": "Beolvasztás…",
+    "status.merged": "A merge elkészült.",
+    "status.mergeConflict": "A merge konfliktusos — oldd fel a szerkesztőben, majd commitold.",
   },
 };
 

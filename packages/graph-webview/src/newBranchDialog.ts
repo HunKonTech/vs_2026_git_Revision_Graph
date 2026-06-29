@@ -54,6 +54,9 @@ export function openNewBranchDialog(ctx: NewBranchContext): void {
   let selectedFolder = ""; // "" = repository root (no prefix)
   let checkout = true;
 
+  // Existing full branch names, for the "already exists" duplicate check.
+  const existing = new Set(ctx.branchNames.map((n) => n.trim()).filter(Boolean));
+
   const overlay = document.createElement("div");
   overlay.className = "settings-overlay";
   const modal = document.createElement("div");
@@ -104,8 +107,10 @@ export function openNewBranchDialog(ctx: NewBranchContext): void {
 
     const fullNameLine = el("div", "newbranch-fullname");
     const invalidLine = el("div", "newbranch-invalid", t("newBranch.invalid"));
+    const existsLine = el("div", "newbranch-invalid", t("newBranch.exists"));
     body.appendChild(fullNameLine);
     body.appendChild(invalidLine);
+    body.appendChild(existsLine);
 
     // Checkout checkbox.
     const checkoutRow = document.createElement("label");
@@ -134,14 +139,26 @@ export function openNewBranchDialog(ctx: NewBranchContext): void {
     function refreshValidity(): void {
       const full = fullName();
       const has = nameInput.value.trim().length > 0;
-      const valid = has && isValidBranchName(full);
+      const validName = has && isValidBranchName(full);
+      const duplicate = has && existing.has(full);
+      const valid = validName && !duplicate;
       fullNameLine.textContent = full ? t("newBranch.fullName", { name: full }) : "";
-      invalidLine.classList.toggle("visible", has && !valid);
+      // Invalid characters and "already exists" are mutually exclusive messages —
+      // a duplicate is by definition a syntactically valid name.
+      invalidLine.classList.toggle("visible", has && !validName);
+      existsLine.classList.toggle("visible", duplicate);
+      nameInput.classList.toggle("error", has && !valid);
+      // Mark the matching branch leaf in the tree red so it's clear which one clashes.
+      treeBox.querySelectorAll(".newbranch-leaf.clash").forEach((r) => r.classList.remove("clash"));
+      if (duplicate) {
+        const clash = treeBox.querySelector(`.newbranch-leaf[data-path="${cssEscape(full)}"]`);
+        clash?.classList.add("clash");
+      }
       createBtn.toggleAttribute("disabled", !valid);
     }
     function submit(): void {
       const full = fullName();
-      if (!isValidBranchName(full)) return;
+      if (!isValidBranchName(full) || existing.has(full)) return;
       const co = cb.checked;
       closeNewBranchDialog();
       ctx.onCreate(full, co);
@@ -156,19 +173,35 @@ export function openNewBranchDialog(ctx: NewBranchContext): void {
       if (e.key === "Enter") submit();
     });
 
-    // Folder selection (event-delegated so it survives re-render).
+    // Tree selection (event-delegated so it survives re-render). Folders set the
+    // location prefix; branch leaves additionally fill the name with that branch's
+    // own name — which then trips the "already exists" check.
     treeBox.addEventListener("click", (e) => {
-      const row = (e.target as HTMLElement).closest(".newbranch-folder") as HTMLElement | null;
-      if (!row) return;
-      selectedFolder = row.dataset.path ?? "";
-      treeBox.querySelectorAll(".newbranch-folder.selected").forEach((r) => r.classList.remove("selected"));
-      row.classList.add("selected");
+      const target = e.target as HTMLElement;
+      const folder = target.closest(".newbranch-folder") as HTMLElement | null;
+      const leaf = target.closest(".newbranch-leaf") as HTMLElement | null;
+      if (folder) {
+        selectedFolder = folder.dataset.path ?? "";
+      } else if (leaf) {
+        const path = leaf.dataset.path ?? "";
+        const slash = path.lastIndexOf("/");
+        selectedFolder = slash >= 0 ? path.slice(0, slash) : "";
+        nameValue = slash >= 0 ? path.slice(slash + 1) : path;
+        nameInput.value = nameValue;
+      } else {
+        return;
+      }
+      treeBox.querySelectorAll(".selected").forEach((r) => r.classList.remove("selected"));
+      (folder ?? leaf)!.classList.add("selected");
       refreshValidity();
     });
 
-    // Restore the selected folder's highlight after a re-render.
-    const sel = treeBox.querySelector(`.newbranch-folder[data-path="${cssEscape(selectedFolder)}"]`);
-    sel?.classList.add("selected");
+    // Restore the selection highlight after a re-render (folder, or a leaf whose
+    // path equals the current full name).
+    const selFolder = treeBox.querySelector(`.newbranch-folder[data-path="${cssEscape(selectedFolder)}"]`);
+    selFolder?.classList.add("selected");
+    const selLeaf = treeBox.querySelector(`.newbranch-leaf[data-path="${cssEscape(fullName())}"]`);
+    selLeaf?.classList.add("selected");
 
     refreshValidity();
     setTimeout(() => nameInput.focus(), 0);
@@ -190,7 +223,7 @@ function renderNode(node: BranchTreeNode, container: HTMLElement, depth: number)
     container.appendChild(folderRow(node.name, node.path, depth));
     for (const child of node.children) renderNode(child, container, depth + 1);
   } else {
-    container.appendChild(leafRow(node.name, depth));
+    container.appendChild(leafRow(node.name, node.path, depth));
   }
 }
 
@@ -203,8 +236,9 @@ function folderRow(label: string, path: string, depth: number): HTMLElement {
   return row;
 }
 
-function leafRow(label: string, depth: number): HTMLElement {
+function leafRow(label: string, path: string, depth: number): HTMLElement {
   const row = el("div", "newbranch-leaf", "");
+  row.dataset.path = path;
   row.style.paddingLeft = `${6 + depth * 16}px`;
   row.appendChild(el("span", "newbranch-leaf-icon", "⎇"));
   row.appendChild(el("span", "newbranch-leaf-label", label));

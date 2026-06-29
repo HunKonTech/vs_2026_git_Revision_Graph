@@ -63,7 +63,13 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: [self-hosted, windows, X64]
+    # The deploy step only calls the GitHub Pages REST API (no build, tar, or
+    # bash), so it has no reason to run on the self-hosted runner — doing so
+    # exposed it to that machine's memory pressure and runner contention with
+    # the concurrent release build, which canceled the job mid-poll. This repo
+    # is public, so GitHub-hosted runners are free and reliable here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

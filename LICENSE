@@ -1,84 +1,84 @@
-HunKon Personal Use License v1.0
+unKon Free Use License v2.0
 
 Copyright (c) 2026 Benedek Koncsik
 All rights reserved.
 
 1. Definitions
 
-For the purposes of this License:
-
-- "Software" means this repository, its source code, binaries, releases, assets, documentation, and any related files distributed by the Licensor.
+- "Software" means this repository, its source code, binaries, releases, assets,
+  documentation, and any related files distributed by the Licensor.
 - "Licensor" means Benedek Koncsik.
-- "You" means any individual or legal entity that accesses, downloads, installs, copies, or uses the Software.
-- "Personal Use" means private, non-commercial use by a natural person for their own personal purposes, without any direct or indirect commercial, business, organizational, governmental, institutional, or revenue-generating purpose.
-- "Commercial Use" means any use by or for a business, company, sole proprietor, contractor, freelancer serving clients, organization, institution, school, university, government body, or any use connected to revenue generation, internal business operations, client work, production, research for business purposes, SaaS, hosted services, consulting, resale, support services, or any other professional activity.
+- "You" means any individual or legal entity that accesses, downloads, installs,
+  copies, or uses the Software.
+- "Commercial Exploitation" means selling, licensing for fee, sublicensing,
+  renting, leasing, offering as a paid service (SaaS, hosted, API, or otherwise),
+  bundling with a product sold for money, or any other activity where the Software
+  itself (or a service built directly on it) generates revenue.
 
 2. License Grant
 
-Subject to the terms of this License, the Licensor grants You a limited, revocable, non-exclusive, non-transferable, non-sublicensable license to:
+Subject to the terms of this License, the Licensor grants You a free, worldwide,
+non-exclusive, non-transferable, non-sublicensable license to:
 
-- download and use the Software solely for Personal Use;
-- install and run unmodified copies of the Software solely for Personal Use.
+- download, install, and run the Software for any personal or internal business
+  purpose;
+- make unmodified copies solely for backup or internal use.
 
 No ownership rights are transferred to You.
 
-3. Commercial Use Restriction
+3. Restrictions
 
-You may not use the Software for Commercial Use without the Licensor’s prior explicit written permission.
+You may NOT:
 
-If You wish to obtain a commercial license or written permission for Commercial Use, You must contact the Licensor directly.
+a) Commercially exploit the Software — you may not sell it, charge for access to
+   it, include it in a paid product or service, or otherwise use it as a source
+   of revenue (see "Commercial Exploitation" above).
 
-4. Restrictions
+b) Modify, adapt, translate, alter, or create derivative works of the Software
+   without the Licensor's prior explicit written permission.
 
-Except where the Licensor has given prior explicit written permission, You may not:
+c) Fork, redistribute, publish, sublicense, mirror, or re-host the Software,
+   in whole or in part, without prior explicit written permission.
 
-- use the Software for any Commercial Use;
-- modify, adapt, translate, alter, or create derivative works of the Software;
-- fork this repository;
-- copy, redistribute, publish, sublicense, rent, lease, lend, sell, or otherwise make the Software available to any third party;
-- mirror or re-host the Software, in whole or in part;
-- remove, alter, or obscure any copyright, license, attribution, or proprietary notices;
-- reverse engineer, decompile, disassemble, or otherwise attempt to derive source code from any compiled portion of the Software, except where such restriction is prohibited by applicable law;
-- use the Software in violation of any applicable law or regulation.
+d) Remove, alter, or obscure any copyright, license, or attribution notice.
 
-5. No Contribution or Redistribution Rights
+e) Use the Software in violation of any applicable law or regulation.
 
-This License does not grant You any right to publicly distribute modified or unmodified versions of the Software, to submit and publish derivative variants, or to maintain public copies of the Software.
+4. Attribution
 
-Any rights not expressly granted under this License are reserved by the Licensor.
+Any permitted use of the Software must retain this copyright notice and license
+text in all copies or substantial portions of the Software.
 
-6. Intellectual Property
+5. Intellectual Property
 
-The Software is licensed, not sold.
-The Software and all associated intellectual property rights remain the exclusive property of the Licensor.
+The Software is licensed, not sold. All intellectual property rights remain the
+exclusive property of the Licensor.
 
-7. Termination
+6. Termination
 
-This License automatically terminates immediately if You violate any term of this License.
+This License terminates automatically if You violate any of its terms. Upon
+termination You must immediately cease all use and delete all copies.
 
-Upon termination, You must immediately cease all use of the Software and delete all copies in Your possession or control.
+7. No Warranty
 
-8. No Warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, OR THAT THE SOFTWARE WILL BE ERROR-FREE OR UNINTERRUPTED.
+8. Limitation of Liability
 
-9. Limitation of Liability
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR
+ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH THE
+SOFTWARE OR ITS USE.
 
-TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSOR SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, LOSSES, OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT, OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF OR INABILITY TO USE THE SOFTWARE.
+9. Governing Law
 
-10. Governing Law
+This License is governed by the laws of Hungary, without regard to conflict of
+law rules.
 
-This License shall be governed by and construed in accordance with the laws applicable in the Licensor’s jurisdiction, without regard to conflict of law rules.
+10. Contact
 
-11. Entire Agreement
-
-This License constitutes the entire agreement between You and the Licensor concerning the Software and supersedes any prior or contemporaneous understandings regarding its subject matter.
-
-12. Contact
-
-For commercial licensing requests or written permission, contact:
+For commercial licensing, modification permission, or any other inquiry:
 
 Benedek Koncsik
 koncsik.benedek.andras@gmail.com
-
-(No payment required — I am simply curious to know where and by approximately how many people the Software is being used.)

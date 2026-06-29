@@ -1,4 +1,5 @@
 import { t, onLangChange } from "./i18n.js";
+import { getDiffMinimap, onDiffMinimapChange } from "./diffMinimap.js";
 import { computeLineDiff, type DiffRow } from "@rev-graph/graph-core";
 import type { CommitChangeFile, DiffFileStatus, FileDiff } from "@rev-graph/protocol";
 
@@ -106,6 +107,9 @@ function fileCategory(name: string): string {
 
 let openOverlay: HTMLElement | null = null;
 let langUnsub: (() => void) | null = null;
+let minimapUnsub: (() => void) | null = null;
+// Tears down the current diff's minimap strips (listeners + DOM); null when none.
+let minimapCleanup: (() => void) | null = null;
 
 // Dialog state, module-scoped so the host-message handlers can update it.
 let ctx: ChangesDialogContext | null = null;
@@ -129,6 +133,12 @@ export function closeChangesDialog(): void {
     langUnsub();
     langUnsub = null;
   }
+  if (minimapUnsub) {
+    minimapUnsub();
+    minimapUnsub = null;
+  }
+  minimapCleanup?.();
+  minimapCleanup = null;
   ctx = null;
   files = null;
   selected = null;
@@ -301,16 +311,26 @@ export function openChangesDialog(context: ChangesDialogContext): void {
     if (diff.binary) return showEmpty("changes.binary");
     if (diff.tooLarge) return showEmpty("changes.tooLarge");
 
-    const { view, blocks } = buildDiffView(diff);
+    const minimapOn = getDiffMinimap();
+    const { view, blocks, minimaps } = buildDiffView(diff, minimapOn);
     scroll.appendChild(view);
-    // Two arrows that step between change blocks (a run of consecutive changed
-    // lines counts as one). Only worth showing when there's more than one.
-    if (blocks.length > 1) diffPaneEl.appendChild(buildChangeNav(scroll, blocks));
     diffPaneEl.appendChild(scroll);
+    // Overview strips (must come after the scroll container is in the DOM so they
+    // can measure their gutter columns). Tear down any from a previous render.
+    minimapCleanup?.();
+    minimapCleanup = minimapOn ? attachMinimaps(diffPaneEl, scroll, minimaps) : null;
+    // Two arrows that step between change blocks (a run of consecutive changed
+    // lines counts as one). Only worth showing when there's more than one. Nudge
+    // them left of the minimap gutter so they don't sit on top of it.
+    if (blocks.length > 1) {
+      diffPaneEl.appendChild(buildChangeNav(scroll, blocks, minimapOn ? MM_W + 10 : 14));
+    }
   }
 
   render();
   langUnsub = onLangChange(render);
+  // Redraw the diff pane when the minimap setting is toggled in Settings.
+  minimapUnsub = onDiffMinimapChange(() => renderDiff());
 
   overlay.addEventListener("mousedown", (e) => {
     if (e.target === overlay) closeChangesDialog();
@@ -363,45 +383,97 @@ function orderedFirst(list: CommitChangeFile[]): CommitChangeFile | null {
   return list[0] ?? null;
 }
 
+/** Minimap gutter width in px — must match `.diff-minimap` width in style.css. */
+const MM_W = 56;
+
+/** One row of the minimap overview, mirroring one rendered diff row on one side. */
+interface MiniRow {
+  kind: CellKind;
+  /** Length of the line's text, used to size the miniature bar. */
+  len: number;
+}
+/** A minimap overview for one side of the diff (the old/left or new/right column). */
+interface MinimapSpec {
+  side: "left" | "right";
+  rows: MiniRow[];
+}
+
 /** A rendered diff plus the anchor element starting each change block. */
 interface DiffView {
   view: HTMLElement;
   /** First DOM cell of each change block (a run of consecutive changed lines). */
   blocks: HTMLElement[];
+  /** Minimap overviews to draw beside the diff (empty when the minimap is off). */
+  minimaps: MinimapSpec[];
 }
 
 /**
  * Build the diff view. Added files show one column of new content, deleted files
  * one column of old content, everything else a two-column side-by-side diff.
+ *
+ * When `minimap` is on, each content column reserves a gutter column (so the
+ * overview strip never covers code) and a {@link MinimapSpec} is produced for it:
+ * both sides for a modification, only the new (right) side for an addition, only
+ * the old (left) side for a deletion.
  */
-function buildDiffView(d: FileDiff): DiffView {
-  if (d.status === "added") return singleColumn(d.newText, "add", "changes.changed");
-  if (d.status === "deleted") return singleColumn(d.oldText, "del", "changes.original");
-  return sideBySide(computeLineDiff(d.oldText, d.newText));
+function buildDiffView(d: FileDiff, minimap: boolean): DiffView {
+  if (d.status === "added") return singleColumn(d.newText, "add", "changes.changed", minimap);
+  if (d.status === "deleted") return singleColumn(d.oldText, "del", "changes.original", minimap);
+  return sideBySide(computeLineDiff(d.oldText, d.newText), minimap);
+}
+
+/** Append a fixed-width gutter cell reserving room for a minimap strip. */
+function spacerCell(anchor?: "mid" | "end"): HTMLElement {
+  const c = el("div", "diff-spacer");
+  if (anchor) c.classList.add(`diff-mm-anchor-${anchor}`);
+  return c;
 }
 
 /** A one-sided view (added → new only, deleted → old only). */
-function singleColumn(text: string, kind: "add" | "del", headerKey: "changes.original" | "changes.changed"): DiffView {
+function singleColumn(
+  text: string,
+  kind: "add" | "del",
+  headerKey: "changes.original" | "changes.changed",
+  minimap: boolean,
+): DiffView {
   const wrap = el("div", "diff-grid diff-grid-single");
+  if (minimap) {
+    wrap.classList.add("has-minimap");
+    wrap.style.setProperty("--mm-w", `${MM_W}px`);
+  }
   wrap.appendChild(headerCell(t(headerKey), 2));
+  if (minimap) wrap.appendChild(spacerCell("end"));
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
   // Every line is a change here, so the whole file is a single contiguous block.
   const blocks: HTMLElement[] = [];
+  const mini: MiniRow[] = [];
   lines.forEach((line, i) => {
     const num = numCell(i + 1, kind);
     if (i === 0) blocks.push(num);
     wrap.appendChild(num);
     wrap.appendChild(codeCell(line, kind));
+    if (minimap) wrap.appendChild(spacerCell());
+    mini.push({ kind, len: line.length });
   });
-  return { view: wrap, blocks };
+  // Addition → new (right) strip; deletion → old (left) strip.
+  const minimaps = minimap ? [{ side: kind === "add" ? "right" : "left", rows: mini } as MinimapSpec] : [];
+  return { view: wrap, blocks, minimaps };
 }
 
 /** A two-column side-by-side view aligned by computeLineDiff. */
-function sideBySide(rows: DiffRow[]): DiffView {
+function sideBySide(rows: DiffRow[], minimap: boolean): DiffView {
   const wrap = el("div", "diff-grid diff-grid-split");
+  if (minimap) {
+    wrap.classList.add("has-minimap");
+    wrap.style.setProperty("--mm-w", `${MM_W}px`);
+  }
   wrap.appendChild(headerCell(t("changes.original"), 2));
+  if (minimap) wrap.appendChild(spacerCell("mid"));
   wrap.appendChild(headerCell(t("changes.changed"), 2));
+  if (minimap) wrap.appendChild(spacerCell("end"));
   const blocks: HTMLElement[] = [];
+  const leftMini: MiniRow[] = [];
+  const rightMini: MiniRow[] = [];
   let inBlock = false; // are we inside a run of consecutive changed lines?
   for (const row of rows) {
     const isChange = row.kind !== "context";
@@ -411,6 +483,7 @@ function sideBySide(rows: DiffRow[]): DiffView {
     const anchor = row.left ? numCell(row.left.num, leftKind) : fillerCell();
     wrap.appendChild(anchor);
     wrap.appendChild(row.left ? codeCell(row.left.text, leftKind) : fillerCell());
+    if (minimap) wrap.appendChild(spacerCell());
     if (row.right) {
       wrap.appendChild(numCell(row.right.num, rightKind));
       wrap.appendChild(codeCell(row.right.text, rightKind));
@@ -418,10 +491,150 @@ function sideBySide(rows: DiffRow[]): DiffView {
       wrap.appendChild(fillerCell());
       wrap.appendChild(fillerCell());
     }
+    if (minimap) wrap.appendChild(spacerCell());
     if (isChange && !inBlock) blocks.push(anchor); // first row of a new block
     inBlock = isChange;
+    leftMini.push({ kind: leftKind, len: row.left?.text.length ?? 0 });
+    rightMini.push({ kind: rightKind, len: row.right?.text.length ?? 0 });
   }
-  return { view: wrap, blocks };
+  const minimaps: MinimapSpec[] = minimap
+    ? [
+        { side: "left", rows: leftMini },
+        { side: "right", rows: rightMini },
+      ]
+    : [];
+  return { view: wrap, blocks, minimaps };
+}
+
+/**
+ * Attach the minimap overview strips to the diff pane. Each strip is a miniature
+ * of the whole file (faint line bars, added lines green / removed lines red),
+ * pinned full-height over its gutter column. A viewport box tracks what's
+ * visible and follows the diff as it scrolls; grabbing and dragging the strip
+ * scrolls the diff. Returns a cleanup that removes the strips and listeners.
+ */
+function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSpec[]): () => void {
+  if (specs.length === 0) return () => {};
+  const dpr = window.devicePixelRatio || 1;
+  const twoSided = specs.length > 1;
+
+  const built = specs.map((spec) => {
+    const container = el("div", "diff-minimap");
+    container.dataset.side = spec.side;
+    const canvas = document.createElement("canvas");
+    canvas.className = "diff-minimap-canvas";
+    const viewport = el("div", "diff-minimap-viewport");
+    container.append(canvas, viewport);
+    pane.appendChild(container);
+    return { spec, container, canvas, viewport };
+  });
+
+  const updateViewport = (b: (typeof built)[number]): void => {
+    const sh = scroll.scrollHeight || 1;
+    const h = b.container.clientHeight;
+    b.viewport.style.top = `${(scroll.scrollTop / sh) * h}px`;
+    b.viewport.style.height = `${Math.max(14, (scroll.clientHeight / sh) * h)}px`;
+  };
+
+  const draw = (b: (typeof built)[number]): void => {
+    const w = b.container.clientWidth;
+    const h = b.container.clientHeight;
+    const cx = b.canvas.getContext("2d");
+    if (!cx || w === 0 || h === 0) return;
+    b.canvas.width = Math.round(w * dpr);
+    b.canvas.height = Math.round(h * dpr);
+    b.canvas.style.width = `${w}px`;
+    b.canvas.style.height = `${h}px`;
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx.clearRect(0, 0, w, h);
+    const rows = b.spec.rows;
+    if (rows.length === 0) return;
+    const rowH = h / rows.length;
+    const barH = Math.max(1, rowH - 0.4);
+    rows.forEach((r, i) => {
+      if (r.kind === "empty") return;
+      const y = i * rowH;
+      if (r.kind === "add" || r.kind === "del") {
+        cx.fillStyle = r.kind === "add" ? "rgba(46,160,67,0.18)" : "rgba(248,81,73,0.18)";
+        cx.fillRect(0, y, w, Math.max(barH, 1.2));
+      }
+      cx.fillStyle =
+        r.kind === "add" ? "rgba(46,160,67,0.9)" : r.kind === "del" ? "rgba(248,81,73,0.9)" : "rgba(128,128,128,0.5)";
+      const lineW = Math.min(1, Math.max(0.08, r.len / 64)) * (w - 8);
+      cx.fillRect(4, y + rowH * 0.15, lineW, barH * 0.7);
+    });
+  };
+
+  const anchorLeft = (sel: string): number | null => {
+    const a = scroll.querySelector(sel);
+    if (!a) return null;
+    return (a as HTMLElement).getBoundingClientRect().left - pane.getBoundingClientRect().left;
+  };
+
+  const layout = (): void => {
+    const h = pane.clientHeight;
+    const midLeft = twoSided ? anchorLeft(".diff-mm-anchor-mid") : null;
+    for (const b of built) {
+      b.container.style.height = `${h}px`;
+      if (twoSided && b.spec.side === "left" && midLeft != null) {
+        b.container.style.left = `${midLeft}px`;
+        b.container.style.right = "";
+      } else {
+        b.container.style.right = "0px";
+        b.container.style.left = "";
+      }
+      draw(b);
+      updateViewport(b);
+    }
+  };
+
+  const onScroll = (): void => {
+    for (const b of built) updateViewport(b);
+  };
+  scroll.addEventListener("scroll", onScroll, { passive: true });
+
+  // Grab-and-drag: clicking or dragging anywhere on a strip centers the diff's
+  // visible window on that point, so the strip behaves like a scrollbar thumb.
+  for (const b of built) {
+    const scrollToY = (clientY: number): void => {
+      const rect = b.container.getBoundingClientRect();
+      const sh = scroll.scrollHeight;
+      const ch = scroll.clientHeight;
+      const target = ((clientY - rect.top) / rect.height) * sh - ch / 2;
+      scroll.scrollTop = Math.max(0, Math.min(sh - ch, target));
+    };
+    let dragging = false;
+    b.container.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      b.container.setPointerCapture(e.pointerId);
+      scrollToY(e.clientY);
+    });
+    b.container.addEventListener("pointermove", (e) => {
+      if (dragging) scrollToY(e.clientY);
+    });
+    const end = (e: PointerEvent): void => {
+      dragging = false;
+      try {
+        b.container.releasePointerCapture(e.pointerId);
+      } catch {
+        /* pointer may already be released */
+      }
+    };
+    b.container.addEventListener("pointerup", end);
+    b.container.addEventListener("pointercancel", end);
+  }
+
+  const ro = new ResizeObserver(() => layout());
+  ro.observe(pane);
+  // Draw once the grid has laid out and scrollHeight is known.
+  requestAnimationFrame(layout);
+
+  return () => {
+    ro.disconnect();
+    scroll.removeEventListener("scroll", onScroll);
+    for (const b of built) b.container.remove();
+  };
 }
 
 /**
@@ -429,9 +642,10 @@ function sideBySide(rows: DiffRow[]): DiffView {
  * of the diff pane. Clicking an arrow scrolls the diff so the target block sits
  * just below the sticky column headers; a counter shows position (e.g. 2 / 7).
  */
-function buildChangeNav(scroll: HTMLElement, blocks: HTMLElement[]): HTMLElement {
+function buildChangeNav(scroll: HTMLElement, blocks: HTMLElement[], rightPx: number): HTMLElement {
   let index = -1; // nothing focused yet; first ▼ press lands on block 0
   const nav = el("div", "changes-nav");
+  nav.style.right = `${rightPx}px`;
   const counter = el("span", "changes-nav-count");
 
   const sync = (): void => {

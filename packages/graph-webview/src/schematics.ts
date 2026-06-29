@@ -442,6 +442,71 @@ export function darkThemeSchematic(): string {
   return themeSchematic(true);
 }
 
+// ---------------------------------------------------------------------------
+// Diff minimap — a side-by-side file diff (original | this commit). The "on"
+// variant draws a VS Code-style overview strip down the right edge of each
+// pane, with a draggable viewport box; the "off" variant omits them. The little
+// coloured ticks on the strips echo added (green) / removed (red) lines.
+// ---------------------------------------------------------------------------
+
+/** A column of faint "code" lines, with a couple tinted to mark changes. */
+function codeLines(x: number, y: number, w: number, tint: "add" | "del"): string {
+  const col = tint === "add" ? "rgba(46,160,67,0.55)" : "rgba(248,81,73,0.55)";
+  let s = "";
+  for (let i = 0; i < 7; i++) {
+    const ly = y + i * 14;
+    const changed = i === 2 || i === 3;
+    const lw = w * (0.5 + ((i * 37) % 50) / 100); // varied line lengths
+    if (changed) s += rect(x, ly - 6, w, 12, { fill: tint === "add" ? "rgba(46,160,67,0.16)" : "rgba(248,81,73,0.16)" });
+    s += rect(x, ly, lw, 3, { fill: changed ? col : C.muted });
+  }
+  return s;
+}
+
+/** A minimap overview strip: a faint panel, tinted ticks, and a viewport box. */
+function minimapStrip(x: number, y: number, w: number, h: number, tint: "add" | "del"): string {
+  const col = tint === "add" ? "rgba(46,160,67,0.8)" : "rgba(248,81,73,0.8)";
+  let s = rect(x, y, w, h, { fill: C.faint, stroke: C.border, r: 2 });
+  // Miniature lines (every other row tinted around the "change").
+  for (let i = 0; i < 11; i++) {
+    const ly = y + 4 + i * ((h - 8) / 11);
+    const changed = i === 4 || i === 5;
+    const lw = (w - 6) * (0.45 + ((i * 29) % 50) / 100);
+    s += rect(x + 3, ly, lw, 1.5, { fill: changed ? col : "rgba(128,128,128,0.45)" });
+  }
+  // Draggable viewport box over the top portion.
+  s += rect(x + 1, y + 2, w - 2, h * 0.42, { fill: "rgba(128,128,128,0.18)", stroke: C.accent, r: 2, sw: 1 });
+  return s;
+}
+
+function diffMinimapSchematic(on: boolean): string {
+  let s = open();
+  s += windowChrome("Changes");
+  const mmW = on ? 12 : 0;
+  const gap = 8;
+  const half = (W - 24 - gap) / 2;
+  const codeW = half - mmW - (on ? 4 : 0);
+  const top = 42;
+  const colH = 7 * 14;
+  // Left pane = original (removals), right pane = this commit (additions).
+  s += text(16, 40, "Original", { size: 8, weight: 600, opacity: 0.7 });
+  s += codeLines(16, top + 8, codeW, "del");
+  s += text(16 + half + gap, 40, "This commit", { size: 8, weight: 600, opacity: 0.7 });
+  s += codeLines(16 + half + gap, top + 8, codeW, "add");
+  if (on) {
+    s += minimapStrip(16 + codeW + 4, top, mmW, colH + 6, "del");
+    s += minimapStrip(16 + half + gap + codeW + 4, top, mmW, colH + 6, "add");
+  }
+  return s + close();
+}
+
+export function diffMinimapOnSchematic(): string {
+  return diffMinimapSchematic(true);
+}
+export function diffMinimapOffSchematic(): string {
+  return diffMinimapSchematic(false);
+}
+
 /**
  * Every schematic by id, for the build-time `.svg` emitter. The native dialog is
  * emitted in both IDE flavours so each host can ship its own file if needed.
@@ -454,4 +519,6 @@ export const ALL_SCHEMATICS: { id: string; svg: () => string }[] = [
   { id: "display-classic", svg: classicGraphSchematic },
   { id: "theme-light", svg: lightThemeSchematic },
   { id: "theme-dark", svg: darkThemeSchematic },
+  { id: "diff-minimap-on", svg: diffMinimapOnSchematic },
+  { id: "diff-minimap-off", svg: diffMinimapOffSchematic },
 ];

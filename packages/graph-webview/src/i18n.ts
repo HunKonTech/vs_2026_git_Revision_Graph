@@ -55,6 +55,12 @@ type Dict = {
   "settings.displayClassicHint": string;
   "settings.sectionGeneral": string;
   "settings.sectionGraph": string;
+  "settings.sectionChanges": string;
+  "settings.diffMinimap": string;
+  "settings.diffMinimapOn": string;
+  "settings.diffMinimapOff": string;
+  "settings.diffMinimapOnHint": string;
+  "settings.diffMinimapOffHint": string;
   "settings.svnBranchDialog": string;
   "settings.svnBranchDialogHint": string;
   "settings.branchDialog": string;
@@ -175,6 +181,12 @@ const DICTS: Record<Lang, Dict> = {
     "settings.displayClassicHint": "Fixed canvas — trunk pinned left, no zoom, scroll only (like the SVN revision graph).",
     "settings.sectionGeneral": "General",
     "settings.sectionGraph": "Graph",
+    "settings.sectionChanges": "Changes view",
+    "settings.diffMinimap": "Diff minimap",
+    "settings.diffMinimapOn": "Shown",
+    "settings.diffMinimapOff": "Hidden",
+    "settings.diffMinimapOnHint": "Show a VS Code-style overview strip beside the diff — drag it to scroll; change markers included.",
+    "settings.diffMinimapOffHint": "No overview strip — scroll the diff normally.",
     "settings.svnBranchDialog": "SVN-style branch dialog",
     "settings.svnBranchDialogHint":
       "Show a folder-tree picker when creating a branch (instead of a simple prompt).",
@@ -294,6 +306,12 @@ const DICTS: Record<Lang, Dict> = {
     "settings.displayClassicHint": "Rögzített vászon — a fő ág balra rögzítve, nincs nagyítás, csak görgetés (mint az SVN revision graph).",
     "settings.sectionGeneral": "Általános",
     "settings.sectionGraph": "Gráf",
+    "settings.sectionChanges": "Változások nézet",
+    "settings.diffMinimap": "Diff minitérkép",
+    "settings.diffMinimapOn": "Látható",
+    "settings.diffMinimapOff": "Rejtett",
+    "settings.diffMinimapOnHint": "VS Code-stílusú áttekintő sáv a diff mellett — húzva görgethető; a változásokat is jelöli.",
+    "settings.diffMinimapOffHint": "Nincs áttekintő sáv — a diff hagyományosan görgethető.",
     "settings.svnBranchDialog": "SVN-stílusú branch ablak",
     "settings.svnBranchDialogHint":
       "Branch létrehozásakor mappafa-választó jelenjen meg (egyszerű beírás helyett).",

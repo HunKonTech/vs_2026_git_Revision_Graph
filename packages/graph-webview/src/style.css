@@ -1002,6 +1002,17 @@ body,
 .diff-grid-split {
   grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
 }
+/* With the minimap on, each content column reserves a gutter column so the
+   overview strip (positioned over it) never sits on top of code. */
+.diff-grid-single.has-minimap {
+  grid-template-columns: auto minmax(0, 1fr) var(--mm-w);
+}
+.diff-grid-split.has-minimap {
+  grid-template-columns: auto minmax(0, 1fr) var(--mm-w) auto minmax(0, 1fr) var(--mm-w);
+}
+.diff-spacer {
+  background: var(--bg);
+}
 .diff-header {
   position: sticky;
   top: 0;
@@ -1032,3 +1043,34 @@ body,
 .diff-num.diff-add { background: rgba(46, 160, 67, 0.28); opacity: 0.7; }
 .diff-num.diff-del { background: rgba(248, 81, 73, 0.28); opacity: 0.7; }
 .diff-empty { background: rgba(128, 128, 128, 0.06); }
+
+/* VS Code-style minimap: a full-height overview strip pinned over a gutter
+   column of the diff. Width must match MM_W in changesDialog.ts. */
+.diff-minimap {
+  position: absolute;
+  top: 0;
+  width: 56px;
+  z-index: 2;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  overflow: hidden;
+}
+.diff-minimap-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* The draggable "what's visible" box, overlaid on the strip. */
+.diff-minimap-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(128, 128, 128, 0.22);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.diff-minimap:hover .diff-minimap-viewport {
+  background: rgba(128, 128, 128, 0.3);
+}

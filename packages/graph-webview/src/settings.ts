@@ -3,6 +3,7 @@ import { getMainBranch, setMainBranch } from "./mainBranch.js";
 import { getDisplayMode, setDisplayMode, type DisplayMode } from "./displayMode.js";
 import { getBranchDialogMode, setBranchDialogMode } from "./branchDialogMode.js";
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from "./theme.js";
+import { getDiffMinimap, setDiffMinimap } from "./diffMinimap.js";
 import { detectHost } from "./host.js";
 import {
   svnDialogSchematic,
@@ -11,6 +12,8 @@ import {
   classicGraphSchematic,
   lightThemeSchematic,
   darkThemeSchematic,
+  diffMinimapOnSchematic,
+  diffMinimapOffSchematic,
 } from "./schematics.js";
 
 /** Context the settings dialog needs from the app. */
@@ -94,6 +97,11 @@ export function toggleSettings(ctx: SettingsContext): void {
     graph.appendChild(mainBranchRow(ctx));
     graph.appendChild(displayModeRow());
     body.appendChild(graph);
+
+    // Changes-view section: the diff minimap toggle.
+    const changes = section(t("settings.sectionChanges"));
+    changes.appendChild(diffMinimapRow());
+    body.appendChild(changes);
 
     modal.appendChild(body);
 
@@ -339,6 +347,30 @@ function displayModeRow(): HTMLElement {
     },
   ];
   row.appendChild(cardGroup(cards, getDisplayMode(), (key) => setDisplayMode(key as DisplayMode)));
+  return row;
+}
+
+/**
+ * Diff-minimap picker: two clickable schematic cards — overview strip shown vs
+ * hidden. Mirrors the VS Code editor minimap, drawn beside the file diff.
+ */
+function diffMinimapRow(): HTMLElement {
+  const row = stackedRow(t("settings.diffMinimap"));
+  const cards: CardDef[] = [
+    {
+      key: "on",
+      title: t("settings.diffMinimapOn"),
+      caption: t("settings.diffMinimapOnHint"),
+      svg: diffMinimapOnSchematic(),
+    },
+    {
+      key: "off",
+      title: t("settings.diffMinimapOff"),
+      caption: t("settings.diffMinimapOffHint"),
+      svg: diffMinimapOffSchematic(),
+    },
+  ];
+  row.appendChild(cardGroup(cards, getDiffMinimap() ? "on" : "off", (key) => setDiffMinimap(key === "on")));
   return row;
 }
 

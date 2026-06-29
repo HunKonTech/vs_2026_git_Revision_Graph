@@ -294,6 +294,37 @@ describe("computeLayout", () => {
     expect(layout.edges.some((e) => e.fromId === phantom.nodeId && e.toSha === "C")).toBe(true);
   });
 
+  it("keeps a pre-existing branch as column owner when a new checked-out branch shares its tip", () => {
+    // `release` was just created from `feature`'s tip C and checked out.
+    // `feature` already owned C (it has its own commit there) — `release` must be
+    // the phantom, not `feature`, even though `release` is isCurrent.
+    // `main` is at B so it doesn't claim C; `feature` seeds the column for C.
+    const layout = computeLayout(
+      data([commit("C", ["B"]), commit("B", ["A"]), commit("A")], {
+        refs: [
+          { name: "main", type: "localBranch", targetSha: "B" },
+          { name: "feature", type: "localBranch", targetSha: "C" },
+          { name: "release", type: "localBranch", targetSha: "C", isCurrent: true },
+          { name: "head", type: "head", targetSha: "C" },
+        ],
+        head: "C",
+      }),
+      { mainBranch: "main" },
+    );
+    const phantom = layout.commits.find((c) => c.phantom)!;
+    expect(phantom).toBeDefined();
+    // The new branch is the phantom; the pre-existing branch keeps its column.
+    expect(phantom.branch).toBe("release");
+    const featureTip = layout.commits.find((c) => c.sha === "C" && !c.phantom)!;
+    expect(featureTip.branch).toBe("feature");
+    // HEAD travels with the checked-out branch (release) onto its phantom.
+    expect(featureTip.refs.some((r) => r.type === "head")).toBe(false);
+    expect(phantom.refs.some((r) => r.type === "head")).toBe(true);
+    expect(phantom.refs.map((r) => r.name)).toContain("release");
+    expect(featureTip.refs.map((r) => r.name)).toContain("feature");
+    expect(featureTip.refs.map((r) => r.name)).not.toContain("release");
+  });
+
   it("moves the symbolic HEAD ref onto the current branch's phantom, not the owner", () => {
     // HEAD is on `feature` (current), which shares main's tip C. The symbolic
     // head-type ref also sits on C. It must travel with the phantom so only the

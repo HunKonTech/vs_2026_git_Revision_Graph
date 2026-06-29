@@ -573,8 +573,11 @@ function resolveMain(
  */
 function pickBranchName(refs: GitRef[] | undefined): string | null {
   if (!refs) return null;
-  const current = refs.find((r) => r.isCurrent && r.type !== "head");
-  if (current) return current.name;
+  // Do NOT give isCurrent priority: a newly-created branch that shares a tip with
+  // a pre-existing branch would steal the column, demoting the older branch to a
+  // phantom at an arbitrary row. First local branch in refs order wins; the
+  // checked-out branch correctly becomes a phantom with HEAD moved onto it (the
+  // phantom logic at Phase 1b handles that case already).
   const local = refs.find((r) => r.type === "localBranch");
   if (local) return local.name;
   const remote = refs.find((r) => r.type === "remoteBranch");

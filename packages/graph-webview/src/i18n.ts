@@ -98,6 +98,8 @@ type Dict = {
   "changes.tooLarge": string;
   "changes.renamedFrom": string;
   "changes.close": string;
+  "changes.prevChange": string;
+  "changes.nextChange": string;
   "menu.stashApply": string;
   "menu.stashPop": string;
   "menu.stashDrop": string;
@@ -217,6 +219,8 @@ const DICTS: Record<Lang, Dict> = {
     "changes.tooLarge": "File is too large to diff.",
     "changes.renamedFrom": "Renamed from {path}",
     "changes.close": "Close",
+    "changes.prevChange": "Previous change",
+    "changes.nextChange": "Next change",
     "menu.stashApply": "Apply stash",
     "menu.stashPop": "Pop stash (apply & remove)",
     "menu.stashDrop": "Drop stash…",
@@ -334,6 +338,8 @@ const DICTS: Record<Lang, Dict> = {
     "changes.tooLarge": "A fájl túl nagy a diff megjelenítéséhez.",
     "changes.renamedFrom": "Átnevezve innen: {path}",
     "changes.close": "Bezárás",
+    "changes.prevChange": "Előző változás",
+    "changes.nextChange": "Következő változás",
     "menu.stashApply": "Stash alkalmazása",
     "menu.stashPop": "Stash kivétele (alkalmaz és töröl)",
     "menu.stashDrop": "Stash eldobása…",

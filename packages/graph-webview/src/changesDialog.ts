@@ -289,23 +289,24 @@ export function openChangesDialog(context: ChangesDialogContext): void {
   function renderDiff(): void {
     if (!diffPaneEl) return;
     diffPaneEl.innerHTML = "";
-    if (!selected) {
-      diffPaneEl.appendChild(el("div", "changes-empty", t("changes.selectFile")));
-      return;
-    }
-    if (!diff) {
-      diffPaneEl.appendChild(el("div", "changes-empty", t("changes.loading")));
-      return;
-    }
-    if (diff.binary) {
-      diffPaneEl.appendChild(el("div", "changes-empty", t("changes.binary")));
-      return;
-    }
-    if (diff.tooLarge) {
-      diffPaneEl.appendChild(el("div", "changes-empty", t("changes.tooLarge")));
-      return;
-    }
-    diffPaneEl.appendChild(buildDiffView(diff));
+    // The diff content always lives in its own scroll container so the change
+    // navigator (below) can stay pinned over it instead of scrolling away.
+    const scroll = el("div", "changes-diff-scroll");
+    const showEmpty = (key: Parameters<typeof t>[0]): void => {
+      scroll.appendChild(el("div", "changes-empty", t(key)));
+      diffPaneEl!.appendChild(scroll);
+    };
+    if (!selected) return showEmpty("changes.selectFile");
+    if (!diff) return showEmpty("changes.loading");
+    if (diff.binary) return showEmpty("changes.binary");
+    if (diff.tooLarge) return showEmpty("changes.tooLarge");
+
+    const { view, blocks } = buildDiffView(diff);
+    scroll.appendChild(view);
+    // Two arrows that step between change blocks (a run of consecutive changed
+    // lines counts as one). Only worth showing when there's more than one.
+    if (blocks.length > 1) diffPaneEl.appendChild(buildChangeNav(scroll, blocks));
+    diffPaneEl.appendChild(scroll);
   }
 
   render();
@@ -362,43 +363,54 @@ function orderedFirst(list: CommitChangeFile[]): CommitChangeFile | null {
   return list[0] ?? null;
 }
 
+/** A rendered diff plus the anchor element starting each change block. */
+interface DiffView {
+  view: HTMLElement;
+  /** First DOM cell of each change block (a run of consecutive changed lines). */
+  blocks: HTMLElement[];
+}
+
 /**
  * Build the diff view. Added files show one column of new content, deleted files
  * one column of old content, everything else a two-column side-by-side diff.
  */
-function buildDiffView(d: FileDiff): HTMLElement {
+function buildDiffView(d: FileDiff): DiffView {
   if (d.status === "added") return singleColumn(d.newText, "add", "changes.changed");
   if (d.status === "deleted") return singleColumn(d.oldText, "del", "changes.original");
   return sideBySide(computeLineDiff(d.oldText, d.newText));
 }
 
 /** A one-sided view (added → new only, deleted → old only). */
-function singleColumn(text: string, kind: "add" | "del", headerKey: "changes.original" | "changes.changed"): HTMLElement {
+function singleColumn(text: string, kind: "add" | "del", headerKey: "changes.original" | "changes.changed"): DiffView {
   const wrap = el("div", "diff-grid diff-grid-single");
   wrap.appendChild(headerCell(t(headerKey), 2));
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  // Every line is a change here, so the whole file is a single contiguous block.
+  const blocks: HTMLElement[] = [];
   lines.forEach((line, i) => {
-    wrap.appendChild(numCell(i + 1, kind));
+    const num = numCell(i + 1, kind);
+    if (i === 0) blocks.push(num);
+    wrap.appendChild(num);
     wrap.appendChild(codeCell(line, kind));
   });
-  return wrap;
+  return { view: wrap, blocks };
 }
 
 /** A two-column side-by-side view aligned by computeLineDiff. */
-function sideBySide(rows: DiffRow[]): HTMLElement {
+function sideBySide(rows: DiffRow[]): DiffView {
   const wrap = el("div", "diff-grid diff-grid-split");
   wrap.appendChild(headerCell(t("changes.original"), 2));
   wrap.appendChild(headerCell(t("changes.changed"), 2));
+  const blocks: HTMLElement[] = [];
+  let inBlock = false; // are we inside a run of consecutive changed lines?
   for (const row of rows) {
+    const isChange = row.kind !== "context";
     const leftKind = row.kind === "del" || row.kind === "change" ? "del" : row.kind === "context" ? "ctx" : "empty";
     const rightKind = row.kind === "add" || row.kind === "change" ? "add" : row.kind === "context" ? "ctx" : "empty";
-    if (row.left) {
-      wrap.appendChild(numCell(row.left.num, leftKind));
-      wrap.appendChild(codeCell(row.left.text, leftKind));
-    } else {
-      wrap.appendChild(fillerCell());
-      wrap.appendChild(fillerCell());
-    }
+    // The leftmost cell of this row, used as the scroll anchor for a new block.
+    const anchor = row.left ? numCell(row.left.num, leftKind) : fillerCell();
+    wrap.appendChild(anchor);
+    wrap.appendChild(row.left ? codeCell(row.left.text, leftKind) : fillerCell());
     if (row.right) {
       wrap.appendChild(numCell(row.right.num, rightKind));
       wrap.appendChild(codeCell(row.right.text, rightKind));
@@ -406,8 +418,45 @@ function sideBySide(rows: DiffRow[]): HTMLElement {
       wrap.appendChild(fillerCell());
       wrap.appendChild(fillerCell());
     }
+    if (isChange && !inBlock) blocks.push(anchor); // first row of a new block
+    inBlock = isChange;
   }
-  return wrap;
+  return { view: wrap, blocks };
+}
+
+/**
+ * Build the floating "previous / next change" navigator pinned to the top-right
+ * of the diff pane. Clicking an arrow scrolls the diff so the target block sits
+ * just below the sticky column headers; a counter shows position (e.g. 2 / 7).
+ */
+function buildChangeNav(scroll: HTMLElement, blocks: HTMLElement[]): HTMLElement {
+  let index = -1; // nothing focused yet; first ▼ press lands on block 0
+  const nav = el("div", "changes-nav");
+  const counter = el("span", "changes-nav-count");
+
+  const sync = (): void => {
+    counter.textContent = `${Math.max(index, 0) + 1} / ${blocks.length}`;
+  };
+  const go = (i: number): void => {
+    index = Math.max(0, Math.min(blocks.length - 1, i));
+    const block = blocks[index]!;
+    const blockTop = block.getBoundingClientRect().top;
+    const scrollTop = scroll.getBoundingClientRect().top;
+    // 48px clears the sticky "Original | This commit" header row.
+    scroll.scrollTo({ top: scroll.scrollTop + (blockTop - scrollTop) - 48, behavior: "smooth" });
+    sync();
+  };
+
+  const prev = button("changes-nav-btn", "▲", () => go(index <= 0 ? blocks.length - 1 : index - 1));
+  prev.setAttribute("aria-label", t("changes.prevChange"));
+  prev.title = t("changes.prevChange");
+  const next = button("changes-nav-btn", "▼", () => go(index >= blocks.length - 1 ? 0 : index + 1));
+  next.setAttribute("aria-label", t("changes.nextChange"));
+  next.title = t("changes.nextChange");
+
+  nav.append(prev, counter, next);
+  sync();
+  return nav;
 }
 
 type CellKind = "ctx" | "add" | "del" | "empty";

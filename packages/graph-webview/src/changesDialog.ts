@@ -389,8 +389,8 @@ const MM_W = 56;
 /** One row of the minimap overview, mirroring one rendered diff row on one side. */
 interface MiniRow {
   kind: CellKind;
-  /** Length of the line's text, used to size the miniature bar. */
-  len: number;
+  /** The line's text — drawn as little word blocks so the strip looks like code. */
+  text: string;
 }
 /** A minimap overview for one side of the diff (the old/left or new/right column). */
 interface MinimapSpec {
@@ -453,7 +453,7 @@ function singleColumn(
     wrap.appendChild(num);
     wrap.appendChild(codeCell(line, kind));
     if (minimap) wrap.appendChild(spacerCell());
-    mini.push({ kind, len: line.length });
+    mini.push({ kind, text: line });
   });
   // Addition → new (right) strip; deletion → old (left) strip.
   const minimaps = minimap ? [{ side: kind === "add" ? "right" : "left", rows: mini } as MinimapSpec] : [];
@@ -494,8 +494,8 @@ function sideBySide(rows: DiffRow[], minimap: boolean): DiffView {
     if (minimap) wrap.appendChild(spacerCell());
     if (isChange && !inBlock) blocks.push(anchor); // first row of a new block
     inBlock = isChange;
-    leftMini.push({ kind: leftKind, len: row.left?.text.length ?? 0 });
-    rightMini.push({ kind: rightKind, len: row.right?.text.length ?? 0 });
+    leftMini.push({ kind: leftKind, text: row.left?.text ?? "" });
+    rightMini.push({ kind: rightKind, text: row.right?.text ?? "" });
   }
   const minimaps: MinimapSpec[] = minimap
     ? [
@@ -517,6 +517,10 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
   if (specs.length === 0) return () => {};
   const dpr = window.devicePixelRatio || 1;
   const twoSided = specs.length > 1;
+  // Target minimap px per source line (kept small so the strip reads like code,
+  // never a stack of fat blocks). Lines wider than this many columns are clipped.
+  const MM_ROW = 4;
+  const MM_COLS = 48;
 
   const built = specs.map((spec) => {
     const container = el("div", "diff-minimap");
@@ -529,11 +533,26 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
     return { spec, container, canvas, viewport };
   });
 
+  // Shared scroll→minimap geometry, recomputed on every (re)layout. `scale` is
+  // minimap px per *content* px, capped so the whole file always fits the strip
+  // (so short files stay compact at the top, exactly like the VS Code minimap).
+  let scale = 0;
+  let headerH = 0;
+  let realRowH = 1;
+  const recompute = (): void => {
+    const header = scroll.querySelector(".diff-header") as HTMLElement | null;
+    headerH = header ? header.offsetHeight : 0;
+    const numRows = built[0] ? built[0].spec.rows.length : 0;
+    const scrollH = scroll.scrollHeight || 1;
+    realRowH = numRows > 0 ? (scrollH - headerH) / numRows : scrollH;
+    const paneH = pane.clientHeight || 1;
+    scale = Math.min(MM_ROW / Math.max(realRowH, 1), paneH / scrollH);
+  };
+
   const updateViewport = (b: (typeof built)[number]): void => {
-    const sh = scroll.scrollHeight || 1;
-    const h = b.container.clientHeight;
-    b.viewport.style.top = `${(scroll.scrollTop / sh) * h}px`;
-    b.viewport.style.height = `${Math.max(14, (scroll.clientHeight / sh) * h)}px`;
+    // The visible window [scrollTop, scrollTop+clientHeight] in minimap px.
+    b.viewport.style.top = `${scroll.scrollTop * scale}px`;
+    b.viewport.style.height = `${Math.max(14, scroll.clientHeight * scale)}px`;
   };
 
   const draw = (b: (typeof built)[number]): void => {
@@ -549,19 +568,38 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
     cx.clearRect(0, 0, w, h);
     const rows = b.spec.rows;
     if (rows.length === 0) return;
-    const rowH = h / rows.length;
-    const barH = Math.max(1, rowH - 0.4);
+    const miniRowH = realRowH * scale; // minimap px per line
+    const barH = Math.max(1, miniRowH * 0.78);
+    const charW = (w - 6) / MM_COLS;
     rows.forEach((r, i) => {
       if (r.kind === "empty") return;
-      const y = i * rowH;
+      const y = (headerH + i * realRowH) * scale; // line's top, in minimap px
       if (r.kind === "add" || r.kind === "del") {
-        cx.fillStyle = r.kind === "add" ? "rgba(46,160,67,0.18)" : "rgba(248,81,73,0.18)";
-        cx.fillRect(0, y, w, Math.max(barH, 1.2));
+        cx.fillStyle = r.kind === "add" ? "rgba(46,160,67,0.16)" : "rgba(248,81,73,0.16)";
+        cx.fillRect(0, y, w, Math.max(miniRowH, 1.4));
       }
       cx.fillStyle =
-        r.kind === "add" ? "rgba(46,160,67,0.9)" : r.kind === "del" ? "rgba(248,81,73,0.9)" : "rgba(128,128,128,0.5)";
-      const lineW = Math.min(1, Math.max(0.08, r.len / 64)) * (w - 8);
-      cx.fillRect(4, y + rowH * 0.15, lineW, barH * 0.7);
+        r.kind === "add" ? "rgba(46,160,67,0.95)" : r.kind === "del" ? "rgba(248,81,73,0.95)" : "rgba(150,150,150,0.5)";
+      // Draw each run of non-space characters as a little block, so indentation
+      // and word shapes show — the minimap then mirrors the real code layout.
+      const text = r.text;
+      const n = Math.min(text.length, 240);
+      const top = y + (miniRowH - barH) / 2;
+      let col = 0;
+      let runStart = -1;
+      for (let k = 0; k <= n; k++) {
+        const ch = k < n ? text[k]! : " ";
+        const isWord = ch !== " " && ch !== "\t";
+        if (isWord && runStart < 0) runStart = col;
+        if (!isWord && runStart >= 0) {
+          const x = 3 + Math.min(runStart, MM_COLS) * charW;
+          const ww = Math.max(charW * 0.6, (Math.min(col, MM_COLS) - runStart) * charW);
+          cx.fillRect(x, top, Math.min(ww, w - 3 - x), barH);
+          runStart = -1;
+        }
+        col += ch === "\t" ? 4 : 1;
+        if (col > MM_COLS) break;
+      }
     });
   };
 
@@ -574,6 +612,7 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
   const layout = (): void => {
     const h = pane.clientHeight;
     const midLeft = twoSided ? anchorLeft(".diff-mm-anchor-mid") : null;
+    recompute();
     for (const b of built) {
       b.container.style.height = `${h}px`;
       if (twoSided && b.spec.side === "left" && midLeft != null) {
@@ -598,10 +637,11 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
   for (const b of built) {
     const scrollToY = (clientY: number): void => {
       const rect = b.container.getBoundingClientRect();
-      const sh = scroll.scrollHeight;
       const ch = scroll.clientHeight;
-      const target = ((clientY - rect.top) / rect.height) * sh - ch / 2;
-      scroll.scrollTop = Math.max(0, Math.min(sh - ch, target));
+      const contentY = scale > 0 ? (clientY - rect.top) / scale : 0; // minimap px → content px
+      const target = contentY - ch / 2;
+      scroll.scrollTop = Math.max(0, Math.min(scroll.scrollHeight - ch, target));
+      onScroll(); // move the box immediately rather than waiting for the scroll event
     };
     let dragging = false;
     b.container.addEventListener("pointerdown", (e) => {
@@ -627,7 +667,10 @@ function attachMinimaps(pane: HTMLElement, scroll: HTMLElement, specs: MinimapSp
 
   const ro = new ResizeObserver(() => layout());
   ro.observe(pane);
-  // Draw once the grid has laid out and scrollHeight is known.
+  // Lay out immediately — reading geometry forces a reflow, so this works even
+  // when requestAnimationFrame is throttled (e.g. a backgrounded tab). The rAF
+  // pass re-runs once after paint in case line wrapping or fonts shift heights.
+  layout();
   requestAnimationFrame(layout);
 
   return () => {

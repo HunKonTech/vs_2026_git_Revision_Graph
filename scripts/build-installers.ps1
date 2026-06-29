@@ -77,7 +77,15 @@ if ($LASTEXITCODE -ne 0) { Fail "Build sikertelen." }
 # ---------------------------------------------------------------------------
 if (-not $SkipVSCode) {
     Step "VS Code extension csomagolása (standard)"
-    node scripts\package-vscode.mjs
+    # A shared renderert fentebb (build:webview) már felépítettük, ezért a
+    # package-vscode.mjs ne fordítsa újra — egy felesleges esbuild-spawn-nal
+    # kevesebb a memóriaszűkös runneren (lásd 0xC0000409 összeomlás).
+    $env:REV_GRAPH_SKIP_WEBVIEW_BUILD = "1"
+    try {
+        node scripts\package-vscode.mjs
+    } finally {
+        Remove-Item Env:\REV_GRAPH_SKIP_WEBVIEW_BUILD -ErrorAction SilentlyContinue
+    }
     if ($LASTEXITCODE -ne 0) { Fail "VS Code csomag előállítása sikertelen." }
     $vsixFile = Get-ChildItem "$installers\rev-graph-vscode-*.vsix" |
                 Where-Object { $_.Name -notmatch "vs2026" } |

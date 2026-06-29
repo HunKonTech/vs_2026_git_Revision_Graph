@@ -15,9 +15,16 @@ mkdirSync(outDir, { recursive: true });
 const run = (cmd, args, cwd) =>
   execFileSync(cmd, args, { cwd, stdio: "inherit", shell: process.platform === "win32" });
 
-// 1. Build the shared web renderer the extension embeds.
-console.log("==> Building shared web renderer");
-run("npm", ["run", "build:webview"], root);
+// 1. Build the shared web renderer the extension embeds — unless the caller
+//    (build-installers.ps1) already built it this run. Re-running esbuild here
+//    is pure waste, and on a memory-starved Windows runner each extra native
+//    esbuild spawn is another chance to hard-crash (exit 0xC0000409).
+if (process.env.REV_GRAPH_SKIP_WEBVIEW_BUILD === "1") {
+  console.log("==> Reusing already-built web renderer (skip flag set)");
+} else {
+  console.log("==> Building shared web renderer");
+  run("npm", ["run", "build:webview"], root);
+}
 
 // 2. Make the LICENSE available inside the extension package.
 const rootLicense = resolve(root, "LICENSE");

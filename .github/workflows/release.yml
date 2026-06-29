@@ -130,11 +130,13 @@ jobs:
       # -----------------------------------------------------------------------
       # 4. Node.js
       # -----------------------------------------------------------------------
+      # No `cache: 'npm'`: on this self-hosted runner the cache restore fails
+      # ("tar (child): gzip: Cannot exec" — Git's usr/bin isn't on PATH), so it
+      # never restores and just wastes a ~71 MB download every run.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       # -----------------------------------------------------------------------
       # 5. Build

@@ -5,12 +5,19 @@
     <ID Name="RevisionGraphIcon" Value="1" />
   </Symbols>
   <Images>
-    <!-- AllowColorInversion lets the image service recolor the monochrome glyph
-         per theme (dark glyph on light themes, light glyph on dark themes),
-         mirroring the VS Code icon's currentColor behaviour. -->
+    <!-- Explicit per-theme glyphs: a black glyph on light backgrounds and a
+         white glyph on dark backgrounds. Relying on AllowColorInversion alone
+         left the icon invisible in the dark theme, so the inverted source is
+         supplied directly. AllowColorInversion stays on as a fallback for any
+         background that has no matching Source (e.g. high-contrast themes). -->
     <Image Guid="$(RevisionGraphAssets)" ID="$(RevisionGraphIcon)" AllowColorInversion="true">
       <Source Uri="/RevisionGraph;Component/Resources/RevisionGraph.png">
         <Size Value="16" />
+        <Background Value="Light" />
+      </Source>
+      <Source Uri="/RevisionGraph;Component/Resources/RevisionGraph.dark.png">
+        <Size Value="16" />
+        <Background Value="Dark" />
       </Source>
     </Image>
   </Images>

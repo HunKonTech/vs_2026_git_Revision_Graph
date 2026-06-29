@@ -98,6 +98,7 @@
          image manifest can reference it through a pack:// component URI; the
          manifest itself ships in the VSIX and is registered as an asset below. -->
     <Resource Include="Resources\RevisionGraph.png" />
+    <Resource Include="Resources\RevisionGraph.dark.png" />
     <Content Include="RevisionGraph.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>

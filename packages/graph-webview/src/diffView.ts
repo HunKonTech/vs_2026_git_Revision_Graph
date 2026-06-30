@@ -1,6 +1,7 @@
 import { t } from "./i18n.js";
 import { computeLineDiff, type DiffRow } from "@rev-graph/graph-core";
 import type { FileDiff } from "@rev-graph/protocol";
+import { highlightToLines } from "./highlight.js";
 
 /**
  * The side-by-side file-diff renderer, shared by the "View changes" dialog and
@@ -52,10 +53,11 @@ export function buildContentView(filePath: string, text: string, minimap: boolea
   wrap.appendChild(headerCell(filePath, 2));
   if (minimap) wrap.appendChild(spacerCell("end"));
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  const html = highlightToLines(text, filePath);
   const mini: MiniRow[] = [];
   lines.forEach((line, i) => {
     wrap.appendChild(numCell(i + 1, "ctx"));
-    wrap.appendChild(codeCell(line, "ctx"));
+    wrap.appendChild(codeCell(html[i] ?? "", "ctx"));
     if (minimap) wrap.appendChild(spacerCell());
     mini.push({ kind: "ctx", text: line });
   });
@@ -73,9 +75,11 @@ export function buildContentView(filePath: string, text: string, minimap: boolea
  * the old (left) side for a deletion.
  */
 export function buildDiffView(d: FileDiff, minimap: boolean): DiffView {
-  if (d.status === "added") return singleColumn(d.newText, "add", "changes.changed", minimap);
-  if (d.status === "deleted") return singleColumn(d.oldText, "del", "changes.original", minimap);
-  return sideBySide(computeLineDiff(d.oldText, d.newText), minimap);
+  if (d.status === "added") return singleColumn(d.newText, d.path, "add", "changes.changed", minimap);
+  if (d.status === "deleted") return singleColumn(d.oldText, d.path, "del", "changes.original", minimap);
+  const oldHtml = highlightToLines(d.oldText, d.path);
+  const newHtml = highlightToLines(d.newText, d.path);
+  return sideBySide(computeLineDiff(d.oldText, d.newText), oldHtml, newHtml, minimap);
 }
 
 /** Append a fixed-width gutter cell reserving room for a minimap strip. */
@@ -88,6 +92,7 @@ function spacerCell(anchor?: "mid" | "end"): HTMLElement {
 /** A one-sided view (added → new only, deleted → old only). */
 function singleColumn(
   text: string,
+  path: string,
   kind: "add" | "del",
   headerKey: "changes.original" | "changes.changed",
   minimap: boolean,
@@ -100,6 +105,7 @@ function singleColumn(
   wrap.appendChild(headerCell(t(headerKey), 2));
   if (minimap) wrap.appendChild(spacerCell("end"));
   const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  const html = highlightToLines(text, path);
   // Every line is a change here, so the whole file is a single contiguous block.
   const blocks: HTMLElement[] = [];
   const mini: MiniRow[] = [];
@@ -107,7 +113,7 @@ function singleColumn(
     const num = numCell(i + 1, kind);
     if (i === 0) blocks.push(num);
     wrap.appendChild(num);
-    wrap.appendChild(codeCell(line, kind));
+    wrap.appendChild(codeCell(html[i] ?? "", kind));
     if (minimap) wrap.appendChild(spacerCell());
     mini.push({ kind, text: line });
   });
@@ -116,8 +122,11 @@ function singleColumn(
   return { view: wrap, blocks, minimaps };
 }
 
-/** A two-column side-by-side view aligned by computeLineDiff. */
-function sideBySide(rows: DiffRow[], minimap: boolean): DiffView {
+/**
+ * A two-column side-by-side view aligned by computeLineDiff. `leftHtml`/`rightHtml`
+ * are the syntax-highlighted lines of the old/new file, indexed by line number−1.
+ */
+function sideBySide(rows: DiffRow[], leftHtml: string[], rightHtml: string[], minimap: boolean): DiffView {
   const wrap = el("div", "diff-grid diff-grid-split");
   if (minimap) {
     wrap.classList.add("has-minimap");
@@ -138,11 +147,11 @@ function sideBySide(rows: DiffRow[], minimap: boolean): DiffView {
     // The leftmost cell of this row, used as the scroll anchor for a new block.
     const anchor = row.left ? numCell(row.left.num, leftKind) : fillerCell();
     wrap.appendChild(anchor);
-    wrap.appendChild(row.left ? codeCell(row.left.text, leftKind) : fillerCell());
+    wrap.appendChild(row.left ? codeCell(leftHtml[row.left.num - 1] ?? "", leftKind) : fillerCell());
     if (minimap) wrap.appendChild(spacerCell());
     if (row.right) {
       wrap.appendChild(numCell(row.right.num, rightKind));
-      wrap.appendChild(codeCell(row.right.text, rightKind));
+      wrap.appendChild(codeCell(rightHtml[row.right.num - 1] ?? "", rightKind));
     } else {
       wrap.appendChild(fillerCell());
       wrap.appendChild(fillerCell());
@@ -380,9 +389,13 @@ function headerCell(text: string, span: number): HTMLElement {
 function numCell(num: number, kind: CellKind): HTMLElement {
   return el("div", `diff-num diff-${kind}`, String(num));
 }
-function codeCell(text: string, kind: CellKind): HTMLElement {
-  // Render an empty line as a non-breaking space so the row keeps its height.
-  return el("div", `diff-code diff-${kind}`, text === "" ? " " : text);
+function codeCell(html: string, kind: CellKind): HTMLElement {
+  // `html` is highlight.js output (or "" for a blank line). Its source text is
+  // already escaped and the only tags are highlight.js's own spans, so assigning
+  // via innerHTML is safe. A blank line gets a non-breaking space to keep height.
+  const c = el("div", `diff-code diff-${kind}`);
+  c.innerHTML = html === "" ? " " : html;
+  return c;
 }
 function fillerCell(): HTMLElement {
   return el("div", "diff-num diff-empty");

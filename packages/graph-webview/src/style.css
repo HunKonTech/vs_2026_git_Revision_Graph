@@ -1157,6 +1157,82 @@ body,
 .diff-num.diff-del { background: rgba(248, 81, 73, 0.28); opacity: 0.7; }
 .diff-empty { background: rgba(128, 128, 128, 0.06); }
 
+/* Syntax highlighting (highlight.js) inside diff code cells. The renderer picks
+   the language from the file extension and emits `hljs-*` spans; these rules give
+   them IDE-like colours. Defaults target the dark theme; the [data-theme="light"]
+   block below overrides for the light theme. Scoped to .diff-code so highlighting
+   never leaks into the rest of the UI. */
+.diff-code .hljs-comment,
+.diff-code .hljs-quote { color: #6a9955; font-style: italic; }
+.diff-code .hljs-keyword,
+.diff-code .hljs-selector-tag,
+.diff-code .hljs-literal,
+.diff-code .hljs-section,
+.diff-code .hljs-name,
+.diff-code .hljs-tag { color: #569cd6; }
+.diff-code .hljs-built_in,
+.diff-code .hljs-type,
+.diff-code .hljs-class .hljs-title,
+.diff-code .hljs-title.class_ { color: #4ec9b0; }
+.diff-code .hljs-string,
+.diff-code .hljs-regexp,
+.diff-code .hljs-meta .hljs-string { color: #ce9178; }
+.diff-code .hljs-number,
+.diff-code .hljs-symbol,
+.diff-code .hljs-bullet { color: #b5cea8; }
+.diff-code .hljs-title,
+.diff-code .hljs-title.function_ { color: #dcdcaa; }
+.diff-code .hljs-variable,
+.diff-code .hljs-template-variable,
+.diff-code .hljs-attr,
+.diff-code .hljs-attribute,
+.diff-code .hljs-property { color: #9cdcfe; }
+.diff-code .hljs-meta,
+.diff-code .hljs-keyword.hljs-meta { color: #c586c0; }
+.diff-code .hljs-selector-class,
+.diff-code .hljs-selector-id,
+.diff-code .hljs-selector-pseudo { color: #d7ba7d; }
+.diff-code .hljs-doctag,
+.diff-code .hljs-strong { font-weight: bold; }
+.diff-code .hljs-emphasis { font-style: italic; }
+.diff-code .hljs-link { color: #569cd6; text-decoration: underline; }
+.diff-code .hljs-deletion { color: #f85149; }
+.diff-code .hljs-addition { color: #4ec9b0; }
+
+[data-theme="light"] .diff-code .hljs-comment,
+[data-theme="light"] .diff-code .hljs-quote { color: #008000; }
+[data-theme="light"] .diff-code .hljs-keyword,
+[data-theme="light"] .diff-code .hljs-selector-tag,
+[data-theme="light"] .diff-code .hljs-literal,
+[data-theme="light"] .diff-code .hljs-section,
+[data-theme="light"] .diff-code .hljs-name,
+[data-theme="light"] .diff-code .hljs-tag { color: #0000ff; }
+[data-theme="light"] .diff-code .hljs-built_in,
+[data-theme="light"] .diff-code .hljs-type,
+[data-theme="light"] .diff-code .hljs-class .hljs-title,
+[data-theme="light"] .diff-code .hljs-title.class_ { color: #267f99; }
+[data-theme="light"] .diff-code .hljs-string,
+[data-theme="light"] .diff-code .hljs-regexp,
+[data-theme="light"] .diff-code .hljs-meta .hljs-string { color: #a31515; }
+[data-theme="light"] .diff-code .hljs-number,
+[data-theme="light"] .diff-code .hljs-symbol,
+[data-theme="light"] .diff-code .hljs-bullet { color: #098658; }
+[data-theme="light"] .diff-code .hljs-title,
+[data-theme="light"] .diff-code .hljs-title.function_ { color: #795e26; }
+[data-theme="light"] .diff-code .hljs-variable,
+[data-theme="light"] .diff-code .hljs-template-variable,
+[data-theme="light"] .diff-code .hljs-attr,
+[data-theme="light"] .diff-code .hljs-attribute,
+[data-theme="light"] .diff-code .hljs-property { color: #001080; }
+[data-theme="light"] .diff-code .hljs-meta,
+[data-theme="light"] .diff-code .hljs-keyword.hljs-meta { color: #af00db; }
+[data-theme="light"] .diff-code .hljs-selector-class,
+[data-theme="light"] .diff-code .hljs-selector-id,
+[data-theme="light"] .diff-code .hljs-selector-pseudo { color: #800000; }
+[data-theme="light"] .diff-code .hljs-link { color: #0000ff; }
+[data-theme="light"] .diff-code .hljs-deletion { color: #b31d28; }
+[data-theme="light"] .diff-code .hljs-addition { color: #267f99; }
+
 /* VS Code-style minimap: a full-height overview strip pinned over a gutter
    column of the diff. Width must match MM_W in changesDialog.ts. */
 .diff-minimap {

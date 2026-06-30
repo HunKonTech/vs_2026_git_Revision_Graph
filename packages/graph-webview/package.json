@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@rev-graph/graph-core": "0.1.0",
-    "@rev-graph/protocol": "0.1.0"
+    "@rev-graph/protocol": "0.1.0",
+    "highlight.js": "^11.11.1"
   }
 }

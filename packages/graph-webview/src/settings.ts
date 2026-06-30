@@ -544,7 +544,11 @@ function gitSourceRow(onBrowse: () => void): HTMLElement {
   pathWrap.append(pathLabel, pathInputRow);
   row.appendChild(pathWrap);
 
-  function apply(mode: GitMode): void {
+  // Reflect a git source/mode in the UI. When `persist` is true the choice is
+  // also written back via setGitSource(); when false we only repaint (used by
+  // the change subscription, so reacting to a change never re-fires it — that
+  // would recurse: setGitSource → listener → apply → setGitSource → …).
+  function apply(mode: GitMode, persist: boolean): void {
     const isCustom = mode === "custom";
     builtinBtn.classList.toggle("selected", !isCustom);
     customBtn.classList.toggle("selected", isCustom);
@@ -552,13 +556,13 @@ function gitSourceRow(onBrowse: () => void): HTMLElement {
       ? t("settings.gitSourceCustomHint")
       : t("settings.gitSourceBuiltinHint");
     pathWrap.hidden = !isCustom;
-    setGitSource(mode, pathInput.value.trim());
+    if (persist) setGitSource(mode, pathInput.value.trim());
   }
 
-  apply(getGitMode());
+  apply(getGitMode(), false);
 
-  builtinBtn.addEventListener("click", () => apply("builtin"));
-  customBtn.addEventListener("click", () => apply("custom"));
+  builtinBtn.addEventListener("click", () => apply("builtin", true));
+  customBtn.addEventListener("click", () => apply("custom", true));
   pathInput.addEventListener("change", () => {
     if (getGitMode() === "custom") setGitSource("custom", pathInput.value.trim());
   });
@@ -568,7 +572,7 @@ function gitSourceRow(onBrowse: () => void): HTMLElement {
   if (gitPathUnsub) gitPathUnsub();
   gitPathUnsub = onGitSourceChange(() => {
     pathInput.value = getCustomGitPath();
-    apply(getGitMode());
+    apply(getGitMode(), false);
   });
 
   return row;

@@ -114,7 +114,7 @@ All outputs land in `dist/installers/`.
 
 ## License
 
-**HunKon Personal Use License v1.0** — free for personal use.
+**HunKon Free Use License v2.0** — free for personal use.
 For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
 
 ---
@@ -221,5 +221,5 @@ Minden kimenet a `dist/installers/` mappába kerül.
 
 ## Licenc
 
-**HunKon Personal Use License v1.0** — személyes használatra ingyenes.
+**HunKon Free Use License v2.0** — személyes használatra ingyenes.
 Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).

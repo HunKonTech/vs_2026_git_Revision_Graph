@@ -4,7 +4,7 @@
   <Metadata>
     <Identity Id="GitRevisionGraph.benkoncsik.b7e9c2a4"
               Version="0.1.0" Language="en-US" Publisher="BenKoncsik" />
-    <DisplayName>Git Revision Graph</DisplayName>
+    <DisplayName>Revision Graph for Git (SVN style)</DisplayName>
     <Description xml:space="preserve">A TortoiseSVN-style revision graph for Git, right inside Visual Studio. Commits, local and remote branches, and tags appear as connected, color-coded boxes — just like SVN's classic revision graph. Right-click a commit to branch, check out, or copy its SHA.</Description>
     <MoreInfo>https://github.com/HunKonTech/git_Revision_Graph</MoreInfo>
     <ReleaseNotes>https://github.com/HunKonTech/git_Revision_Graph/releases</ReleaseNotes>

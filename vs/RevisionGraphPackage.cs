@@ -12,7 +12,7 @@ namespace RevisionGraph
     /// command that opens it. Works in Visual Studio 2022 and 2026.
     /// </summary>
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-    [InstalledProductRegistration("Git Revision Graph", "TortoiseSVN-style Git revision graph.", "0.1.0")]
+    [InstalledProductRegistration("Revision Graph for Git (SVN style)", "TortoiseSVN-style Git revision graph.", "0.1.0")]
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [ProvideToolWindow(typeof(RevisionGraphToolWindow), Style = VsDockStyle.Tabbed, Window = "DocumentWell")]
     [Guid(PackageGuidString)]

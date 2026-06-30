@@ -372,16 +372,16 @@ function diffMinimapRow(): HTMLElement {
   const row = stackedRow(t("settings.diffMinimap"));
   const cards: CardDef[] = [
     {
-      key: "on",
-      title: t("settings.diffMinimapOn"),
-      caption: t("settings.diffMinimapOnHint"),
-      svg: diffMinimapOnSchematic(),
-    },
-    {
       key: "off",
       title: t("settings.diffMinimapOff"),
       caption: t("settings.diffMinimapOffHint"),
       svg: diffMinimapOffSchematic(),
+    },
+    {
+      key: "on",
+      title: t("settings.diffMinimapOn"),
+      caption: t("settings.diffMinimapOnHint"),
+      svg: diffMinimapOnSchematic(),
     },
   ];
   row.appendChild(cardGroup(cards, getDiffMinimap() ? "on" : "off", (key) => setDiffMinimap(key === "on")));

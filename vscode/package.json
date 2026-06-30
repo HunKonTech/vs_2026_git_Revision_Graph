@@ -44,7 +44,7 @@
       "revGraphContainer": [
         {
           "id": "revGraph.launchView",
-          "name": "Git Revision Graph",
+          "name": "Revision Graph",
           "icon": "icons/revision-graph.svg"
         }
       ]

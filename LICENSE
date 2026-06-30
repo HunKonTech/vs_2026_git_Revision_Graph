@@ -1,84 +1,87 @@
-HunKon Free Use License v2.0
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
 
-Copyright (c) 2026 Benedek Koncsik
-All rights reserved.
+Parameters
 
-1. Definitions
+Licensor:             Benedek Koncsik
+Licensed Work:        Git Revision Graph (SVN style)
+                       The Licensed Work is (c) 2026 Benedek Koncsik
+Additional Use Grant:  You may use, copy, modify, and self-host the Licensed
+                       Work free of charge for any personal, internal, or
+                       non-commercial purpose. You may not sell, resell,
+                       sublicense, or offer the Licensed Work (or a
+                       substantially similar derivative) as a paid product or
+                       paid service to third parties.
+Change Date:           Four years from the date the Licensed Work is
+                       published.
+Change License:        MPL 2.0
 
-- "Software" means this repository, its source code, binaries, releases, assets,
-  documentation, and any related files distributed by the Licensor.
-- "Licensor" means Benedek Koncsik.
-- "You" means any individual or legal entity that accesses, downloads, installs,
-  copies, or uses the Software.
-- "Commercial Exploitation" means selling, licensing for fee, sublicensing,
-  renting, leasing, offering as a paid service (SaaS, hosted, API, or otherwise),
-  bundling with a product sold for money, or any other activity where the Software
-  itself (or a service built directly on it) generates revenue.
+Notice
 
-2. License Grant
+Business Source License 1.1
 
-Subject to the terms of this License, the Licensor grants You a free, worldwide,
-non-exclusive, non-transferable, non-sublicensable license to:
+Terms
 
-- download, install, and run the Software for any personal or internal business
-  purpose;
-- make unmodified copies solely for backup or internal use.
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited
+production use.
 
-No ownership rights are transferred to You.
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available distribution of a specific version of the Licensed Work under this
+License, whichever comes first, the Licensor hereby grants you rights under
+the terms of the Change License, and the rights granted in the paragraph
+above terminate.
 
-3. Restrictions
+If your use of the Licensed Work does not comply with the requirements
+currently in effect as described in this License, you must purchase a
+commercial license from the Licensor, its affiliated entities, or authorized
+resellers, or you must refrain from using the Licensed Work.
 
-You may NOT:
+All copies of the original and modified Licensed Work, and derivative works
+of the Licensed Work, are subject to this License. This License applies
+separately for each version of the Licensed Work and the Change Date may vary
+for each version of the Licensed Work released by Licensor.
 
-a) Commercially exploit the Software — you may not sell it, charge for access to
-   it, include it in a paid product or service, or otherwise use it as a source
-   of revenue (see "Commercial Exploitation" above).
+You must conspicuously display this License on each original or modified copy
+of the Licensed Work. If you receive the Licensed Work in original or
+modified form from a third party, the terms and conditions set forth in this
+License apply to your use of that work.
 
-b) Modify, adapt, translate, alter, or create derivative works of the Software
-   without the Licensor's prior explicit written permission.
+Any use of the Licensed Work in violation of this License will automatically
+terminate your rights under this License for the current and all other
+versions of the Licensed Work.
 
-c) Fork, redistribute, publish, sublicense, mirror, or re-host the Software,
-   in whole or in part, without prior explicit written permission.
+This License does not grant you any right in any trademark or logo of
+Licensor or its affiliates (provided that you may use a trademark or logo of
+Licensor as expressly required by this License).
 
-d) Remove, alter, or obscure any copyright, license, or attribution notice.
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON
+AN "AS IS" BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS,
+EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND
+TITLE.
 
-e) Use the Software in violation of any applicable law or regulation.
+MariaDB hereby grants you permission to use this License's text to license
+your works, and to refer to it using the trademark "Business Source License",
+as long as you comply with the Covenants of Licensor below.
 
-4. Attribution
+Covenants of Licensor
 
-Any permitted use of the Software must retain this copyright notice and license
-text in all copies or substantial portions of the Software.
+In consideration of the right to use this License's text and the "Business
+Source License" name and trademark, Licensor covenants to MariaDB, and to all
+other recipients of the licensed work to be provided by Licensor:
 
-5. Intellectual Property
+1. To specify as the Change License the GPL Version 2.0 or any later version,
+   or a license that is compatible with GPL Version 2.0 or a later version,
+   where "compatible" means that software provided under the Change License
+   can be included in a program with software provided under GPL Version 2.0
+   or a later version. Licensor may specify additional Change Licenses
+   without limitation.
 
-The Software is licensed, not sold. All intellectual property rights remain the
-exclusive property of the Licensor.
+2. To either: (a) specify an additional grant of rights to use that does not
+   impose any additional restriction on the right granted in this License, as
+   the Additional Use Grant; or (b) insert the text "None" to specify a
+   Change Date.
 
-6. Termination
-
-This License terminates automatically if You violate any of its terms. Upon
-termination You must immediately cease all use and delete all copies.
-
-7. No Warranty
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
-
-8. Limitation of Liability
-
-TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR SHALL NOT BE LIABLE FOR
-ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR IN CONNECTION WITH THE
-SOFTWARE OR ITS USE.
-
-9. Governing Law
-
-This License is governed by the laws of Hungary, without regard to conflict of
-law rules.
-
-10. Contact
-
-For commercial licensing, modification permission, or any other inquiry:
-
-Benedek Koncsik
-koncsik.benedek.andras@gmail.com
+3. Not to modify this License in any other way.

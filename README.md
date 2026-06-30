@@ -114,8 +114,7 @@ All outputs land in `dist/installers/`.
 
 ## License
 
-**HunKon Free Use License v2.0** — free for personal use.
-For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
+**[Business Source License 1.1](LICENSE)** — free for personal, internal, and non-commercial use. Selling, reselling, or offering the software as a paid product or service is not permitted. Converts to MPL 2.0 four years after each version's release.
 
 ---
 
@@ -221,5 +220,4 @@ Minden kimenet a `dist/installers/` mappába kerül.
 
 ## Licenc
 
-**HunKon Free Use License v2.0** — személyes használatra ingyenes.
-Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
+**[Business Source License 1.1](LICENSE)** — személyes, belső és nem-kereskedelmi célú használatra ingyenes. A szoftver eladása, továbbértékesítése, vagy fizetős termékként/szolgáltatásként történő kínálása nem megengedett. Verziónként a megjelenéstől számított négy év után MPL 2.0 licencre vált.

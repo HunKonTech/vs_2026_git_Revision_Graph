@@ -33,7 +33,7 @@ Open a folder or workspace that contains a Git repository, then either:
 ## Source code & license
 
 - Source code: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- License: **HunKon Free Use License v2.0** — free for personal use. For commercial use, please contact [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
+- License: **[Business Source License 1.1](https://github.com/HunKonTech/git_Revision_Graph/blob/main/LICENSE)** — free for personal, internal, and non-commercial use. Selling, reselling, or offering the software as a paid product or service is not permitted. Converts to MPL 2.0 four years after each version's release.
 
 ---
 
@@ -72,4 +72,4 @@ Nyiss meg egy mappát vagy munkaterületet, amely egy Git repozitóriumot tartal
 ## Forráskód és licenc
 
 - Forráskód: [https://github.com/HunKonTech/git_Revision_Graph](https://github.com/HunKonTech/git_Revision_Graph)
-- Licenc: **HunKon Free Use License v2.0** — személyes használatra ingyenes. Üzleti célú felhasználás esetén kérlek vedd fel velem a kapcsolatot: [koncsik.benedek.andras@gmail.com](mailto:koncsik.benedek.andras@gmail.com).
+- Licenc: **[Business Source License 1.1](https://github.com/HunKonTech/git_Revision_Graph/blob/main/LICENSE)** — személyes, belső és nem-kereskedelmi célú használatra ingyenes. A szoftver eladása, továbbértékesítése, vagy fizetős termékként/szolgáltatásként történő kínálása nem megengedett. Verziónként a megjelenéstől számított négy év után MPL 2.0 licencre vált.

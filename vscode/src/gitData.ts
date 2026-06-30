@@ -89,19 +89,24 @@ async function gitCapture(cwd: string, args: string[]): Promise<{ stdout: string
 
 /** Read the full graph (commits + refs, local & remote) for a repo. */
 export async function readGraphData(repoRoot: string, maxCommits: number): Promise<GraphData> {
+  const logArgs = [
+    "log",
+    "--exclude=refs/stash",
+    "--all",
+    "--topo-order",
+    `--max-count=${maxCommits}`,
+  ];
+  const gitCommand = `git ${logArgs.join(" ")}`;
+
   const [logOut, refsOut, headSha, stashes] = await Promise.all([
     git(repoRoot, [
-      "log",
+      ...logArgs,
       // Keep the stash's internal commits (the stash commit itself and its index
       // snapshot) out of the DAG — they are surfaced separately as stash nodes.
       // `--exclude` must precede `--all` to take effect.
-      "--exclude=refs/stash",
-      "--all",
       // Topological order keeps each branch's commits contiguous instead of
       // interleaving branches by timestamp — the SVN revision-graph behaviour,
       // where structure (not commit time) drives vertical placement.
-      "--topo-order",
-      `--max-count=${maxCommits}`,
       `--pretty=format:%H${FS}%P${FS}%s${FS}%an${FS}%ae${FS}%aI${RS}`,
     ]),
     git(repoRoot, [
@@ -119,7 +124,7 @@ export async function readGraphData(repoRoot: string, maxCommits: number): Promi
   const refs = parseRefs(refsOut);
   const head = headSha.trim() || null;
 
-  return { commits, refs, head, repoName: path.basename(repoRoot), stashes };
+  return { commits, refs, head, repoName: path.basename(repoRoot), stashes, gitCommand };
 }
 
 /** Read the stash stack, each entry tied to the commit it was created from. */

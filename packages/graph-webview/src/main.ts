@@ -294,8 +294,14 @@ function boot(): void {
       case "commitChanges":
         setChangesFiles(msg.sha, msg.files);
         break;
+      case "commitTree":
+        setCommitTree(msg.sha, msg.paths);
+        break;
       case "fileDiff":
         setFileDiff(msg.diff);
+        break;
+      case "fileContent":
+        setFileContent(msg.sha, msg.path, msg.text, msg.binary, msg.tooLarge);
         break;
       case "mergePreview":
         setMergePreview(msg.preview);
@@ -324,8 +330,11 @@ function boot(): void {
           status: file.status,
           oldPath: file.oldPath,
         }),
+      onRequestFileContent: (path) =>
+        bridge.post({ type: "requestFileContent", sha, path }),
     });
     bridge.post({ type: "requestCommitChanges", sha });
+    bridge.post({ type: "requestCommitTree", sha });
   }
 
   // Open the merge dialog for "merge `source` into `target`" and ask the host for
@@ -353,13 +362,14 @@ function boot(): void {
     currentHead = data.head ?? null;
     lastData = data;
     view.setData(data, getMainBranch());
-    renderStatus(() =>
-      t("status.summary", {
+    renderStatus(() => {
+      const summary = t("status.summary", {
         repo: data.repoName ? `${data.repoName} — ` : "",
         commits: data.commits.length,
         refs: data.refs.length,
-      }),
-    );
+      });
+      return data.gitCommand ? `${summary} — ${data.gitCommand}` : summary;
+    });
   }
 
   // The branch a given box represents, so a checkout targets *that* branch

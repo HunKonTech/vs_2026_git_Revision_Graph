@@ -5,21 +5,24 @@ import type { CommitChangeFile, DiffFileStatus, FileDiff } from "@rev-graph/prot
 
 /**
  * The TortoiseSVN-style "Show changes" dialog: the left pane lists the files a
- * commit touched, grouped and marked by status (added / modified / deleted /
- * renamed); the right pane shows the selected file's diff. Modified files render
- * side-by-side (original | this commit); added files show only the new content,
- * deleted files only the old content.
+ * commit touched with two tabs:
+ *  - "Changed": only the files this commit modified (grouped by status)
+ *  - "All Files": every file in the commit's tree, with changed ones still marked
+ * The right pane shows the selected file's diff (for changed files) or its raw
+ * content (for unchanged files).
  *
- * The dialog is data-driven by two host messages handled in main.ts:
- *  - `commitChanges` → setChangesFiles() fills the file list,
- *  - `fileDiff`      → setFileDiff() fills the right pane.
- * Selecting a file calls back into main.ts (onRequestFile) to fetch its diff.
+ * The dialog is data-driven by host messages handled in main.ts:
+ *  - `commitChanges`   → setChangesFiles() fills the changed-files list,
+ *  - `commitTree`      → setCommitTree() fills the all-files list,
+ *  - `fileDiff`        → setFileDiff() fills the right pane for a changed file,
+ *  - `fileContent`     → setFileContent() fills the right pane for an unchanged file.
+ * Selecting a changed file calls back into main.ts (onRequestFile).
+ * Selecting an unchanged file calls back (onRequestFileContent).
  */
 export interface ChangesDialogContext {
-  /** Full sha whose changes are shown. */
   sha: string;
-  /** Asked to fetch the diff of a file the user selected. */
   onRequestFile: (file: CommitChangeFile) => void;
+  onRequestFileContent: (path: string) => void;
 }
 
 /** Status priority used to pick the auto-selected first file. */
@@ -34,25 +37,25 @@ const STATUS_MARK: Record<DiffFileStatus, string> = {
 
 /** A node in the file tree: either a folder (with children) or a file leaf. */
 interface FileTreeNode {
-  /** The path segment shown on this row (e.g. "graph-webview"). */
   name: string;
-  /** Full slash-joined path from the repo root. */
   path: string;
   isFolder: boolean;
-  /** The change entry, on file leaves only. */
+  /** The change entry, on changed file leaves only. */
   file?: CommitChangeFile;
   children: FileTreeNode[];
 }
 
 /**
- * Build a folder tree from the flat list of changed files, the way a file
- * explorer (or Fork) groups them: "packages/graph-webview/harness/x.js"
- * contributes the folders packages → graph-webview → harness and the file leaf.
+ * Build a folder tree from a flat list of file paths. Changed files carry their
+ * CommitChangeFile; unchanged files have no `file` property.
  */
-function buildFileTree(files: CommitChangeFile[]): FileTreeNode[] {
+function buildFileTree(
+  paths: string[],
+  changedByPath: Map<string, CommitChangeFile>,
+): FileTreeNode[] {
   const root: FileTreeNode = { name: "", path: "", isFolder: true, children: [] };
-  for (const file of files) {
-    const segments = file.path.split("/").filter(Boolean);
+  for (const filePath of paths) {
+    const segments = filePath.split("/").filter(Boolean);
     if (segments.length === 0) continue;
     let parent = root;
     for (let i = 0; i < segments.length - 1; i++) {
@@ -66,7 +69,13 @@ function buildFileTree(files: CommitChangeFile[]): FileTreeNode[] {
       parent = folder;
     }
     const leaf = segments[segments.length - 1]!;
-    parent.children.push({ name: leaf, path: file.path, isFolder: false, file, children: [] });
+    parent.children.push({
+      name: leaf,
+      path: filePath,
+      isFolder: false,
+      file: changedByPath.get(filePath),
+      children: [],
+    });
   }
   sortTree(root);
   return root.children;
@@ -81,17 +90,14 @@ function sortTree(node: FileTreeNode): void {
   for (const child of node.children) sortTree(child);
 }
 
-/** A neutral folder glyph (tinted via CSS). */
 const FOLDER_SVG =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">' +
   '<path fill="currentColor" d="M1.5 3h4l1.2 1.6h7.8a.5.5 0 0 1 .5.5v8.4a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5V3.5A.5.5 0 0 1 1.5 3z"/></svg>';
-/** A document glyph with a folded corner (tinted per file type via CSS). */
 const FILE_SVG =
   '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">' +
   '<path fill="currentColor" d="M9.5 1H3.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V5L9.5 1z"/>' +
   '<path fill="rgba(0,0,0,0.35)" d="M9.5 1L13 5H10a.5.5 0 0 1-.5-.5V1z"/></svg>';
 
-/** Map a file name to a type category, used to tint its icon (Fork-style). */
 function fileCategory(name: string): string {
   const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
   if (["js", "mjs", "cjs", "jsx"].includes(ext)) return "js";
@@ -108,54 +114,60 @@ function fileCategory(name: string): string {
 let openOverlay: HTMLElement | null = null;
 let langUnsub: (() => void) | null = null;
 let minimapUnsub: (() => void) | null = null;
-// Tears down the current diff's minimap strips (listeners + DOM); null when none.
 let minimapCleanup: (() => void) | null = null;
 
-// Dialog state, module-scoped so the host-message handlers can update it.
+// Dialog state, module-scoped so host-message handlers can update it.
 let ctx: ChangesDialogContext | null = null;
-let files: CommitChangeFile[] | null = null; // null = still loading
+/** Changed files (null = still loading). */
+let files: CommitChangeFile[] | null = null;
+/** All paths in the commit's tree (null = not yet requested/received). */
+let allPaths: string[] | null = null;
+/** Active tab. */
+let activeTab: "changed" | "all" = "changed";
+/** Selected changed file (drives the diff pane). */
 let selected: CommitChangeFile | null = null;
-let diff: FileDiff | null = null; // diff for `selected`, null while loading
+/** Selected unchanged file path (drives the content pane). */
+let selectedPath: string | null = null;
+/** Diff for the selected changed file. */
+let diff: FileDiff | null = null;
+/** Content for the selected unchanged file. */
+interface FileContentState {
+  text: string;
+  binary?: boolean;
+  tooLarge?: boolean;
+}
+let fileContent: FileContentState | null = null;
 let listEl: HTMLElement | null = null;
 let diffPaneEl: HTMLElement | null = null;
-// Folders the user collapsed (by full path); folders start expanded.
 let collapsed = new Set<string>();
-// User-dragged width of the file-list pane, in px (null = CSS default).
 let listWidth: number | null = null;
 
-/** Close the changes dialog if open. */
 export function closeChangesDialog(): void {
   if (openOverlay) {
     openOverlay.remove();
     openOverlay = null;
   }
-  if (langUnsub) {
-    langUnsub();
-    langUnsub = null;
-  }
-  if (minimapUnsub) {
-    minimapUnsub();
-    minimapUnsub = null;
-  }
+  if (langUnsub) { langUnsub(); langUnsub = null; }
+  if (minimapUnsub) { minimapUnsub(); minimapUnsub = null; }
   minimapCleanup?.();
   minimapCleanup = null;
   ctx = null;
   files = null;
+  allPaths = null;
+  activeTab = "changed";
   selected = null;
+  selectedPath = null;
   diff = null;
+  fileContent = null;
   listEl = null;
   diffPaneEl = null;
   collapsed = new Set();
   listWidth = null;
 }
 
-/** Open the dialog for a commit; the file list arrives later via setChangesFiles. */
 export function openChangesDialog(context: ChangesDialogContext): void {
   closeChangesDialog();
   ctx = context;
-  files = null;
-  selected = null;
-  diff = null;
 
   const overlay = document.createElement("div");
   overlay.className = "settings-overlay";
@@ -182,12 +194,47 @@ export function openChangesDialog(context: ChangesDialogContext): void {
 
     const list = el("div", "changes-list");
     if (listWidth != null) list.style.flexBasis = `${listWidth}px`;
-    list.appendChild(el("div", "settings-section-title", t("changes.files")));
+
+    // Tabs row
+    const tabs = el("div", "changes-tabs");
+    const changedCount = files !== null ? files.length : null;
+    const changedLabel =
+      changedCount !== null
+        ? `${t("changes.tabChanged")} (${changedCount})`
+        : t("changes.tabChanged");
+    const tabChanged = button(
+      "changes-tab" + (activeTab === "changed" ? " changes-tab-active" : ""),
+      changedLabel,
+      () => {
+        if (activeTab === "changed") return;
+        activeTab = "changed";
+        selectedPath = null;
+        fileContent = null;
+        renderList();
+        renderDiff();
+        renderTabs();
+      },
+    );
+    const tabAll = button(
+      "changes-tab" + (activeTab === "all" ? " changes-tab-active" : ""),
+      t("changes.tabAll"),
+      () => {
+        if (activeTab === "all") return;
+        activeTab = "all";
+        selected = null;
+        diff = null;
+        renderList();
+        renderDiff();
+        renderTabs();
+      },
+    );
+    tabs.append(tabChanged, tabAll);
+    list.appendChild(tabs);
+
     listEl = el("div", "changes-list-scroll");
     list.appendChild(listEl);
     renderList();
 
-    // Drag handle: lets the user widen the file list when paths are deep.
     const resizer = el("div", "changes-resizer");
     attachResizer(resizer, list);
 
@@ -197,9 +244,13 @@ export function openChangesDialog(context: ChangesDialogContext): void {
 
     body.append(list, resizer, diffPane);
     modal.appendChild(body);
+
+    // Keep a reference to the tabs container so renderTabs() can update it.
+    currentTabsEl = tabs;
+    currentTabChangedBtn = tabChanged;
+    currentTabAllBtn = tabAll;
   }
 
-  /** Wire the splitter so dragging it resizes the file-list pane. */
   function attachResizer(handle: HTMLElement, list: HTMLElement): void {
     handle.addEventListener("mousedown", (down) => {
       down.preventDefault();
@@ -221,10 +272,19 @@ export function openChangesDialog(context: ChangesDialogContext): void {
     });
   }
 
-  /** (Re)draw the left-pane file tree from the current `files`/`selected`. */
   function renderList(): void {
     if (!listEl) return;
     listEl.innerHTML = "";
+
+    if (activeTab === "changed") {
+      renderChangedTab();
+    } else {
+      renderAllTab();
+    }
+  }
+
+  function renderChangedTab(): void {
+    if (!listEl) return;
     if (files === null) {
       listEl.appendChild(el("div", "changes-empty", t("changes.loading")));
       return;
@@ -233,25 +293,51 @@ export function openChangesDialog(context: ChangesDialogContext): void {
       listEl.appendChild(el("div", "changes-empty", t("changes.noChanges")));
       return;
     }
+    // Build tree from changed files only.
+    const changedByPath = new Map<string, CommitChangeFile>(files.map((f) => [f.path, f]));
     const tree = el("div", "changes-tree");
-    for (const node of buildFileTree(files)) renderNode(node, tree, 0);
+    for (const node of buildFileTree(files.map((f) => f.path), changedByPath))
+      renderNode(node, tree, 0, true);
     listEl.appendChild(tree);
   }
 
-  /** Render a tree node (and, for expanded folders, its children) at `depth`. */
-  function renderNode(node: FileTreeNode, container: HTMLElement, depth: number): void {
+  function renderAllTab(): void {
+    if (!listEl) return;
+    if (allPaths === null) {
+      listEl.appendChild(el("div", "changes-empty", t("changes.loading")));
+      return;
+    }
+    const changedByPath = new Map<string, CommitChangeFile>(
+      (files ?? []).map((f) => [f.path, f]),
+    );
+    const tree = el("div", "changes-tree");
+    for (const node of buildFileTree(allPaths, changedByPath))
+      renderNode(node, tree, 0, false);
+    listEl.appendChild(tree);
+  }
+
+  function renderNode(
+    node: FileTreeNode,
+    container: HTMLElement,
+    depth: number,
+    changedOnly: boolean,
+  ): void {
     if (node.isFolder) {
-      container.appendChild(folderRow(node, depth));
+      container.appendChild(folderRow(node, depth, changedOnly));
       if (!collapsed.has(node.path)) {
-        for (const child of node.children) renderNode(child, container, depth + 1);
+        for (const child of node.children)
+          renderNode(child, container, depth + 1, changedOnly);
       }
-    } else if (node.file) {
-      container.appendChild(fileRow(node.file, node.name, depth));
+    } else {
+      if (node.file) {
+        container.appendChild(fileRow(node.file, node.name, depth));
+      } else {
+        container.appendChild(staticFileRow(node.path, node.name, depth));
+      }
     }
   }
 
-  /** A folder row: chevron + folder icon + name, click to collapse/expand. */
-  function folderRow(node: FileTreeNode, depth: number): HTMLElement {
+  function folderRow(node: FileTreeNode, depth: number, changedOnly: boolean): HTMLElement {
     const row = el("div", "changes-folder");
     row.style.paddingLeft = `${6 + depth * 14}px`;
     const isCollapsed = collapsed.has(node.path);
@@ -268,44 +354,79 @@ export function openChangesDialog(context: ChangesDialogContext): void {
     return row;
   }
 
-  /** A clickable file row: type icon + name + status marker. */
   function fileRow(file: CommitChangeFile, label: string, depth: number): HTMLElement {
     const row = el("div", "changes-file");
     row.dataset.status = file.status;
     row.style.paddingLeft = `${6 + depth * 14}px`;
-    if (selected && selected.path === file.path && selected.status === file.status) {
-      row.classList.add("selected");
-    }
+    const isSelected =
+      selectedPath === null &&
+      selected &&
+      selected.path === file.path &&
+      selected.status === file.status;
+    if (isSelected) row.classList.add("selected");
     const icon = el("span", `changes-icon changes-icon-${fileCategory(label)}`);
     icon.innerHTML = FILE_SVG;
     const name = el("span", "changes-file-name", label);
     name.title = file.oldPath ? t("changes.renamedFrom", { path: file.oldPath }) : file.path;
     const mark = el("span", `changes-mark changes-mark-${file.status}`, STATUS_MARK[file.status]);
     row.append(icon, name, mark);
-    row.addEventListener("click", () => selectFile(file));
+    row.addEventListener("click", () => selectChangedFile(file));
     return row;
   }
 
-  /** Select a file: highlight it, show the loading state, and fetch its diff. */
-  function selectFile(file: CommitChangeFile): void {
+  /** A row for a file that exists in the tree but was NOT changed by this commit. */
+  function staticFileRow(filePath: string, label: string, depth: number): HTMLElement {
+    const row = el("div", "changes-file changes-file-static");
+    row.style.paddingLeft = `${6 + depth * 14}px`;
+    if (selectedPath === filePath) row.classList.add("selected");
+    const icon = el("span", `changes-icon changes-icon-${fileCategory(label)}`);
+    icon.innerHTML = FILE_SVG;
+    const name = el("span", "changes-file-name", label);
+    name.title = filePath;
+    row.append(icon, name);
+    row.addEventListener("click", () => selectUnchangedFile(filePath));
+    return row;
+  }
+
+  function selectChangedFile(file: CommitChangeFile): void {
     selected = file;
+    selectedPath = null;
+    fileContent = null;
     diff = null;
     renderList();
     renderDiff();
     ctx?.onRequestFile(file);
   }
 
-  /** (Re)draw the right-pane diff from the current `selected`/`diff`. */
+  function selectUnchangedFile(path: string): void {
+    selectedPath = path;
+    selected = null;
+    diff = null;
+    fileContent = null;
+    renderList();
+    renderDiff();
+    ctx?.onRequestFileContent(path);
+  }
+
   function renderDiff(): void {
     if (!diffPaneEl) return;
     diffPaneEl.innerHTML = "";
-    // The diff content always lives in its own scroll container so the change
-    // navigator (below) can stay pinned over it instead of scrolling away.
     const scroll = el("div", "changes-diff-scroll");
     const showEmpty = (key: Parameters<typeof t>[0]): void => {
       scroll.appendChild(el("div", "changes-empty", t(key)));
       diffPaneEl!.appendChild(scroll);
     };
+
+    if (selectedPath !== null) {
+      // Viewing an unchanged file — show its raw content.
+      if (!fileContent) return showEmpty("changes.loading");
+      if (fileContent.binary) return showEmpty("changes.binary");
+      if (fileContent.tooLarge) return showEmpty("changes.tooLarge");
+      scroll.appendChild(buildContentView(selectedPath, fileContent.text));
+      diffPaneEl.appendChild(scroll);
+      return;
+    }
+
     if (!selected) return showEmpty("changes.selectFile");
     if (!diff) return showEmpty("changes.loading");
     if (diff.binary) return showEmpty("changes.binary");
@@ -315,13 +436,8 @@ export function openChangesDialog(context: ChangesDialogContext): void {
     const { view, blocks, minimaps } = buildDiffView(diff, minimapOn);
     scroll.appendChild(view);
     diffPaneEl.appendChild(scroll);
-    // Overview strips (must come after the scroll container is in the DOM so they
-    // can measure their gutter columns). Tear down any from a previous render.
     minimapCleanup?.();
     minimapCleanup = minimapOn ? attachMinimaps(diffPaneEl, scroll, minimaps) : null;
-    // Two arrows that step between change blocks (a run of consecutive changed
-    // lines counts as one). Only worth showing when there's more than one. Nudge
-    // them left of the minimap gutter so they don't sit on top of it.
     if (blocks.length > 1) {
       diffPaneEl.appendChild(buildChangeNav(scroll, blocks, minimapOn ? MM_W + 10 : 14));
     }
@@ -329,7 +445,6 @@ export function openChangesDialog(context: ChangesDialogContext): void {
 
   render();
   langUnsub = onLangChange(render);
-  // Redraw the diff pane when the minimap setting is toggled in Settings.
   minimapUnsub = onDiffMinimapChange(() => renderDiff());
 
   overlay.addEventListener("mousedown", (e) => {
@@ -338,23 +453,44 @@ export function openChangesDialog(context: ChangesDialogContext): void {
   document.body.appendChild(overlay);
   openOverlay = overlay;
 
-  // Expose the renderers to the module-level setters via closure capture.
   pendingRenderList = renderList;
   pendingRenderDiff = renderDiff;
+  pendingRenderTabs = renderTabs;
 }
 
-// The active render callbacks, captured on open so host messages can refresh the
-// panes without re-opening the dialog.
+// References to the tab buttons, updated by render() so renderTabs() can update
+// them without re-building the entire dialog.
+let currentTabsEl: HTMLElement | null = null;
+let currentTabChangedBtn: HTMLButtonElement | null = null;
+let currentTabAllBtn: HTMLButtonElement | null = null;
+
+/** Update only the tab button labels/states without re-rendering the whole dialog. */
+function renderTabs(): void {
+  if (!currentTabChangedBtn || !currentTabAllBtn) return;
+  const changedCount = files !== null ? files.length : null;
+  const changedLabel =
+    changedCount !== null
+      ? `${t("changes.tabChanged")} (${changedCount})`
+      : t("changes.tabChanged");
+  currentTabChangedBtn.textContent = changedLabel;
+  currentTabChangedBtn.className =
+    "changes-tab" + (activeTab === "changed" ? " changes-tab-active" : "");
+  currentTabAllBtn.textContent = t("changes.tabAll");
+  currentTabAllBtn.className =
+    "changes-tab" + (activeTab === "all" ? " changes-tab-active" : "");
+}
+
 let pendingRenderList: (() => void) | null = null;
 let pendingRenderDiff: (() => void) | null = null;
+let pendingRenderTabs: (() => void) | null = null;
 
-/** Host delivered the file list for a commit (ignored if it's a stale sha). */
 export function setChangesFiles(sha: string, incoming: CommitChangeFile[]): void {
   if (!ctx || ctx.sha !== sha) return;
   files = incoming;
-  pendingRenderList?.();
-  // Auto-select the first file so the user immediately sees a diff.
-  if (incoming.length > 0 && !selected) {
+  pendingRenderTabs?.();
+  if (activeTab === "changed") pendingRenderList?.();
+  // Auto-select the first changed file so the user immediately sees a diff.
+  if (incoming.length > 0 && !selected && !selectedPath) {
     const first = orderedFirst(incoming);
     if (first) {
       selected = first;
@@ -366,7 +502,12 @@ export function setChangesFiles(sha: string, incoming: CommitChangeFile[]): void
   }
 }
 
-/** Host delivered a file diff (ignored unless it matches the current selection). */
+export function setCommitTree(sha: string, paths: string[]): void {
+  if (!ctx || ctx.sha !== sha) return;
+  allPaths = paths;
+  if (activeTab === "all") pendingRenderList?.();
+}
+
 export function setFileDiff(incoming: FileDiff): void {
   if (!ctx || ctx.sha !== incoming.sha) return;
   if (!selected || selected.path !== incoming.path) return;
@@ -374,7 +515,19 @@ export function setFileDiff(incoming: FileDiff): void {
   pendingRenderDiff?.();
 }
 
-/** First file in STATUS_ORDER grouping (matches the visual list order). */
+export function setFileContent(
+  sha: string,
+  path: string,
+  text: string,
+  binary?: boolean,
+  tooLarge?: boolean,
+): void {
+  if (!ctx || ctx.sha !== sha) return;
+  if (selectedPath !== path) return;
+  fileContent = { text, binary, tooLarge };
+  pendingRenderDiff?.();
+}
+
 function orderedFirst(list: CommitChangeFile[]): CommitChangeFile | null {
   for (const status of STATUS_ORDER) {
     const hit = list.find((f) => f.status === status);
@@ -383,7 +536,32 @@ function orderedFirst(list: CommitChangeFile[]): CommitChangeFile | null {
   return list[0] ?? null;
 }
 
-/* small DOM helpers (mirrors newBranchDialog.ts) */
+/**
+ * A simple single-column file-content viewer using the same diff grid CSS,
+ * but with neutral (no red/green) line styling — for unchanged files.
+ */
+function buildContentView(filePath: string, text: string): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "diff-grid diff-grid-single";
+  const hdr = document.createElement("div");
+  hdr.className = "diff-header";
+  hdr.style.gridColumn = "span 2";
+  hdr.textContent = filePath;
+  wrap.appendChild(hdr);
+  const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const numEl = document.createElement("div");
+    numEl.className = "diff-num diff-ctx";
+    numEl.textContent = String(i + 1);
+    wrap.appendChild(numEl);
+    const codeEl = document.createElement("div");
+    codeEl.className = "diff-code diff-ctx";
+    codeEl.textContent = lines[i] || " ";
+    wrap.appendChild(codeEl);
+  }
+  return wrap;
+}
+
 function el(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -399,7 +577,6 @@ function button(className: string, text: string, onClick: () => void): HTMLButto
   return b;
 }
 
-// Dismiss on Escape.
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeChangesDialog();
 });

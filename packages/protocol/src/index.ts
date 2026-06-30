@@ -124,6 +124,8 @@ export interface GraphData {
   repoName?: string;
   /** Stash entries, drawn in their own column linked back to their base commit. */
   stashes?: StashEntry[];
+  /** The git log command that produced this data, shown in the status bar. */
+  gitCommand?: string;
 }
 
 /** Theme tokens forwarded from the host so the webview matches the IDE. */

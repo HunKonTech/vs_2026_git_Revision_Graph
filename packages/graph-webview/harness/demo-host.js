@@ -339,6 +339,30 @@
       send({ type: "fileDiff", diff });
     },
 
+    // Return all paths seen across all mock commit changes as the "tree".
+    requestCommitTree(msg) {
+      const allChanges = window.__MOCK_CHANGES__ || {};
+      const seen = new Set();
+      for (const sha of Object.keys(allChanges)) {
+        for (const f of allChanges[sha] || []) seen.add(f.path);
+      }
+      const paths = Array.from(seen).sort();
+      send({ type: "commitTree", sha: msg.sha, paths });
+    },
+
+    // Return mock file content for unchanged files in the "All Files" tab.
+    requestFileContent(msg) {
+      const allChanges = window.__MOCK_CHANGES__ || {};
+      let text = "";
+      for (const sha of Object.keys(allChanges)) {
+        const f = (allChanges[sha] || []).find((x) => x.path === msg.path);
+        if (f && f.newText) { text = f.newText; break; }
+        if (f && f.oldText) { text = f.oldText; break; }
+      }
+      if (!text) text = "// " + msg.path + "\n// (no mock content available in the demo)";
+      send({ type: "fileContent", sha: msg.sha, path: msg.path, text });
+    },
+
     // Remote ops have no server in the demo — no-ops.
     fetch() {},
     pull() {},

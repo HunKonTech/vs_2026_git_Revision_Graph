@@ -183,8 +183,14 @@ namespace RevisionGraph
                 case "requestCommitChanges":
                     await HandleCommitChangesAsync(msg.Sha).ConfigureAwait(true);
                     break;
+                case "requestCommitTree":
+                    await HandleCommitTreeAsync(msg.Sha).ConfigureAwait(true);
+                    break;
                 case "requestFileDiff":
                     await HandleFileDiffAsync(msg.Sha, msg.Path, msg.Status, msg.OldPath).ConfigureAwait(true);
+                    break;
+                case "requestFileContent":
+                    await HandleFileContentAsync(msg.Sha, msg.Path).ConfigureAwait(true);
                     break;
                 case "requestMergePreview":
                     await HandleMergePreviewAsync(msg.Source).ConfigureAwait(true);
@@ -542,6 +548,44 @@ namespace RevisionGraph
             catch (Exception ex)
             {
                 PostToWebview(new { type = "error", message = "Failed to read commit changes: " + ex.Message });
+            }
+        }
+
+        /// <summary>Send the webview all file paths present in a commit's tree.</summary>
+        private async Task HandleCommitTreeAsync(string sha)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha)) return;
+            try
+            {
+                var paths = await _git.ReadCommitTreeAsync(sha).ConfigureAwait(true);
+                PostToWebview(new { type = "commitTree", sha, paths });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to read commit tree: " + ex.Message });
+            }
+        }
+
+        /// <summary>Send the webview the raw content of one file at a commit.</summary>
+        private async Task HandleFileContentAsync(string sha, string path)
+        {
+            if (_git == null || string.IsNullOrEmpty(sha) || string.IsNullOrEmpty(path)) return;
+            try
+            {
+                var (text, binary, tooLarge) = await _git.ReadFileContentAsync(sha, path).ConfigureAwait(true);
+                PostToWebview(new
+                {
+                    type = "fileContent",
+                    sha,
+                    path,
+                    text,
+                    binary = binary ? (bool?)true : null,
+                    tooLarge = tooLarge ? (bool?)true : null,
+                });
+            }
+            catch (Exception ex)
+            {
+                PostToWebview(new { type = "error", message = "Failed to read file content: " + ex.Message });
             }
         }
 

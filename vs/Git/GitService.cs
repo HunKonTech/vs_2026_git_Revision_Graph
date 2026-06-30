@@ -113,6 +113,7 @@ namespace RevisionGraph.Git
                 Head = string.IsNullOrWhiteSpace(headTask.Result) ? null : headTask.Result.Trim(),
                 RepoName = new DirectoryInfo(_repoRoot).Name,
                 Stashes = stashTask.Result,
+                GitCommand = "git log --exclude=refs/stash --all --topo-order --max-count=" + maxCommits,
             };
         }
 
@@ -485,6 +486,35 @@ namespace RevisionGraph.Git
                 }
             }
             return files;
+        }
+
+        /// <summary>
+        /// All file paths present in a commit's tree (flat list). Mirrors
+        /// readCommitTree in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<List<string>> ReadCommitTreeAsync(string sha)
+        {
+            var outp = await TryRunAsync("ls-tree", "-r", "--name-only", sha).ConfigureAwait(false);
+            var paths = new List<string>();
+            foreach (var line in (outp ?? string.Empty).Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (!string.IsNullOrEmpty(trimmed)) paths.Add(trimmed);
+            }
+            return paths;
+        }
+
+        /// <summary>
+        /// Raw text content of one file at a commit, for viewing unchanged files.
+        /// Mirrors readFileContent in vscode/src/gitData.ts.
+        /// </summary>
+        public async Task<(string Text, bool Binary, bool TooLarge)> ReadFileContentAsync(string sha, string path)
+        {
+            var size = await BlobSizeAsync(sha, path).ConfigureAwait(false);
+            if (size > MaxDiffBytes) return ("", false, true);
+            var text = await BlobTextAsync(sha, path).ConfigureAwait(false);
+            if (text.IndexOf('\0') >= 0) return ("", true, false);
+            return (text, false, false);
         }
 
         /// <summary>Byte size of a blob (<c>&lt;rev&gt;:&lt;path&gt;</c>), or -1 if absent.</summary>

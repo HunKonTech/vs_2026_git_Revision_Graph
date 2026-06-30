@@ -893,14 +893,44 @@ body,
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
-  padding: 8px 0 8px 10px;
+  padding: 8px 0 8px 0;
   min-height: 0;
   min-width: 140px;
+}
+/* Tab strip at the top of the file list pane. */
+.changes-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+  padding: 0 6px;
+}
+.changes-tab {
+  flex: 1 1 0;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  opacity: 0.65;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: -1px;
+}
+.changes-tab:hover { opacity: 1; }
+.changes-tab-active {
+  opacity: 1;
+  border-bottom-color: var(--accent);
+  color: var(--fg);
 }
 .changes-list-scroll {
   flex: 1 1 auto;
   overflow: auto; /* both axes — deep trees / long names scroll left-right */
-  margin-top: 4px;
+  padding-left: 10px;
 }
 /* The tree sizes to its content so long paths trigger horizontal scroll. */
 .changes-tree {
@@ -997,6 +1027,14 @@ body,
 .changes-file.selected {
   background: var(--accent);
   color: #fff;
+}
+/* Unchanged files in the "All Files" tab are shown at reduced opacity. */
+.changes-file-static {
+  opacity: 0.65;
+}
+.changes-file-static:hover,
+.changes-file-static.selected {
+  opacity: 1;
 }
 .changes-chevron {
   flex: 0 0 auto;

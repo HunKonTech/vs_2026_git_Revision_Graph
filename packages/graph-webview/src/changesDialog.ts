@@ -1,6 +1,6 @@
 import { t, onLangChange } from "./i18n.js";
 import { getDiffMinimap, onDiffMinimapChange } from "./diffMinimap.js";
-import { buildDiffView, attachMinimaps, buildChangeNav, MM_W } from "./diffView.js";
+import { buildDiffView, buildContentView, attachMinimaps, buildChangeNav, MM_W } from "./diffView.js";
 import type { CommitChangeFile, DiffFileStatus, FileDiff } from "@rev-graph/protocol";
 
 /**
@@ -418,12 +418,16 @@ export function openChangesDialog(context: ChangesDialogContext): void {
     };
 
     if (selectedPath !== null) {
-      // Viewing an unchanged file — show its raw content.
+      // Viewing an unchanged file — show its raw content with optional minimap.
       if (!fileContent) return showEmpty("changes.loading");
       if (fileContent.binary) return showEmpty("changes.binary");
       if (fileContent.tooLarge) return showEmpty("changes.tooLarge");
-      scroll.appendChild(buildContentView(selectedPath, fileContent.text));
+      const minimapOn = getDiffMinimap();
+      const { view, minimaps } = buildContentView(selectedPath, fileContent.text, minimapOn);
+      scroll.appendChild(view);
       diffPaneEl.appendChild(scroll);
+      minimapCleanup?.();
+      minimapCleanup = minimapOn ? attachMinimaps(diffPaneEl, scroll, minimaps) : null;
       return;
     }
 
@@ -540,27 +544,6 @@ function orderedFirst(list: CommitChangeFile[]): CommitChangeFile | null {
  * A simple single-column file-content viewer using the same diff grid CSS,
  * but with neutral (no red/green) line styling — for unchanged files.
  */
-function buildContentView(filePath: string, text: string): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "diff-grid diff-grid-single";
-  const hdr = document.createElement("div");
-  hdr.className = "diff-header";
-  hdr.style.gridColumn = "span 2";
-  hdr.textContent = filePath;
-  wrap.appendChild(hdr);
-  const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const numEl = document.createElement("div");
-    numEl.className = "diff-num diff-ctx";
-    numEl.textContent = String(i + 1);
-    wrap.appendChild(numEl);
-    const codeEl = document.createElement("div");
-    codeEl.className = "diff-code diff-ctx";
-    codeEl.textContent = lines[i] || " ";
-    wrap.appendChild(codeEl);
-  }
-  return wrap;
-}
 
 function el(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);

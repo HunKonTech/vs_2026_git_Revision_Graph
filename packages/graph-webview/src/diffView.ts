@@ -39,6 +39,31 @@ export interface DiffView {
 }
 
 /**
+ * Build a neutral single-column content view for an unchanged file. All lines
+ * are rendered with the "ctx" (context) style — no red/green highlighting. When
+ * `minimap` is on, a grey-toned minimap strip is shown on the right side.
+ */
+export function buildContentView(filePath: string, text: string, minimap: boolean): DiffView {
+  const wrap = el("div", "diff-grid diff-grid-single");
+  if (minimap) {
+    wrap.classList.add("has-minimap");
+    wrap.style.setProperty("--mm-w", `${MM_W}px`);
+  }
+  wrap.appendChild(headerCell(filePath, 2));
+  if (minimap) wrap.appendChild(spacerCell("end"));
+  const lines = text === "" ? [] : text.replace(/\n$/, "").split("\n");
+  const mini: MiniRow[] = [];
+  lines.forEach((line, i) => {
+    wrap.appendChild(numCell(i + 1, "ctx"));
+    wrap.appendChild(codeCell(line, "ctx"));
+    if (minimap) wrap.appendChild(spacerCell());
+    mini.push({ kind: "ctx", text: line });
+  });
+  const minimaps: MinimapSpec[] = minimap ? [{ side: "right", rows: mini }] : [];
+  return { view: wrap, blocks: [], minimaps };
+}
+
+/**
  * Build the diff view. Added files show one column of new content, deleted files
  * one column of old content, everything else a two-column side-by-side diff.
  *

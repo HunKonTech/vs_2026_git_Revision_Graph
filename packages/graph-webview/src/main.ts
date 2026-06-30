@@ -17,7 +17,7 @@ import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
 import { getThemeChoice, onThemeChange, LIGHT_THEME, DARK_THEME } from "./theme.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
-import { getGitMode, getCustomGitPath, onGitSourceChange } from "./gitPathSetting.js";
+import { getGitMode, getCustomGitPath, onGitSourceChange, receiveGitPathFromBrowse } from "./gitPathSetting.js";
 import type { GraphData, ThemeTokens, OpKind, OpResult } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
 import "./style.css";
@@ -314,6 +314,9 @@ function boot(): void {
         renderStatus(() => t("status.error", { message }));
         break;
       }
+      case "gitPathSelected":
+        receiveGitPathFromBrowse(msg.path);
+        break;
     }
   });
 
@@ -468,7 +471,7 @@ function boot(): void {
     }
     if (act === "jumpHead") goToCheckout();
     if (act === "reset") view.resetView();
-    if (act === "settings") toggleSettings({ branches: branchNames() });
+    if (act === "settings") toggleSettings({ branches: branchNames(), browseGitPath: () => bridge.post({ type: "browseGitPath" }) });
   });
   root.insertBefore(toolbar, mainContent);
 

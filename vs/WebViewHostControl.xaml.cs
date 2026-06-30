@@ -224,6 +224,29 @@ namespace RevisionGraph
                 case "setGitPath":
                     GitService.SetCustomGitPath(msg.GitPath);
                     break;
+                case "browseGitPath":
+                    BrowseGitPath();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Open an OS file-picker so the user can select a custom git executable.
+        /// Runs on the UI thread; replies with gitPathSelected when a file is chosen.
+        /// </summary>
+        private void BrowseGitPath()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select git executable",
+                Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*",
+                FilterIndex = 1,
+                CheckFileExists = true,
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                PostToWebview(new { type = "gitPathSelected", path = dlg.FileName });
             }
         }
 

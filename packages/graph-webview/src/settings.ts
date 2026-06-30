@@ -5,7 +5,7 @@ import { getBranchDialogMode, setBranchDialogMode } from "./branchDialogMode.js"
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from "./theme.js";
 import { getDiffMinimap, setDiffMinimap } from "./diffMinimap.js";
 import { detectHost } from "./host.js";
-import { getGitMode, getCustomGitPath, setGitSource, type GitMode } from "./gitPathSetting.js";
+import { getGitMode, getCustomGitPath, setGitSource, onGitSourceChange, type GitMode } from "./gitPathSetting.js";
 import {
   svnDialogSchematic,
   nativeDialogSchematic,
@@ -21,10 +21,14 @@ import {
 export interface SettingsContext {
   /** Branch names available to pick as the main branch (trunk). */
   branches: string[];
+  /** Send `browseGitPath` to the host so the OS file-picker opens. */
+  browseGitPath(): void;
 }
 
 let openOverlay: HTMLElement | null = null;
 let langUnsub: (() => void) | null = null;
+// Subscription that keeps the path input in sync when the host replies to browseGitPath.
+let gitPathUnsub: (() => void) | null = null;
 
 /** Close the settings dialog if open. */
 export function closeSettings(): void {
@@ -35,6 +39,10 @@ export function closeSettings(): void {
   if (langUnsub) {
     langUnsub();
     langUnsub = null;
+  }
+  if (gitPathUnsub) {
+    gitPathUnsub();
+    gitPathUnsub = null;
   }
 }
 
@@ -107,7 +115,7 @@ export function toggleSettings(ctx: SettingsContext): void {
     body.appendChild(changes);
 
     // Advanced section: git executable source — collapsed by default.
-    body.appendChild(advancedSection(() => advancedOpen, (v) => { advancedOpen = v; }));
+    body.appendChild(advancedSection(() => advancedOpen, (v) => { advancedOpen = v; }, ctx));
 
     modal.appendChild(body);
 
@@ -448,6 +456,7 @@ function cardGroup(cards: CardDef[], selectedKey: string, onSelect: (key: string
 function advancedSection(
   getOpen: () => boolean,
   setOpen: (v: boolean) => void,
+  ctx: SettingsContext,
 ): HTMLElement {
   const wrap = document.createElement("div");
   wrap.className = "settings-section";
@@ -473,12 +482,12 @@ function advancedSection(
 
   wrap.appendChild(header);
   wrap.appendChild(body);
-  body.appendChild(gitSourceRow());
+  body.appendChild(gitSourceRow(ctx.browseGitPath));
   return wrap;
 }
 
-/** Git executable row: segmented control (built-in / custom) + path input. */
-function gitSourceRow(): HTMLElement {
+/** Git executable row: segmented control (built-in / custom) + path input + browse button. */
+function gitSourceRow(onBrowse: () => void): HTMLElement {
   const row = document.createElement("div");
   row.className = "settings-row settings-row-stacked";
 
@@ -506,7 +515,7 @@ function gitSourceRow(): HTMLElement {
   hint.className = "settings-hint";
   row.appendChild(hint);
 
-  // Custom path input — visible only when "custom" is selected.
+  // Custom path input + browse button — visible only when "custom" is selected.
   const pathWrap = document.createElement("div");
   pathWrap.style.marginTop = "6px";
 
@@ -515,13 +524,24 @@ function gitSourceRow(): HTMLElement {
   pathLabel.textContent = t("settings.gitPath");
   pathLabel.style.marginBottom = "4px";
 
+  const pathInputRow = document.createElement("div");
+  pathInputRow.style.cssText = "display:flex;gap:4px;align-items:center;";
+
   const pathInput = document.createElement("input");
   pathInput.type = "text";
   pathInput.className = "settings-input";
+  pathInput.style.flex = "1 1 auto";
   pathInput.placeholder = t("settings.gitPathPlaceholder");
   pathInput.value = getCustomGitPath();
 
-  pathWrap.append(pathLabel, pathInput);
+  const browseBtn = document.createElement("button");
+  browseBtn.type = "button";
+  browseBtn.className = "settings-browse-btn";
+  browseBtn.textContent = t("settings.gitPathBrowse");
+  browseBtn.addEventListener("click", onBrowse);
+
+  pathInputRow.append(pathInput, browseBtn);
+  pathWrap.append(pathLabel, pathInputRow);
   row.appendChild(pathWrap);
 
   function apply(mode: GitMode): void {
@@ -541,6 +561,14 @@ function gitSourceRow(): HTMLElement {
   customBtn.addEventListener("click", () => apply("custom"));
   pathInput.addEventListener("change", () => {
     if (getGitMode() === "custom") setGitSource("custom", pathInput.value.trim());
+  });
+
+  // Keep the input in sync when the host replies to a browseGitPath request.
+  // The subscription is stored at module level so closeSettings() can clean it up.
+  if (gitPathUnsub) gitPathUnsub();
+  gitPathUnsub = onGitSourceChange(() => {
+    pathInput.value = getCustomGitPath();
+    apply(getGitMode());
   });
 
   return row;

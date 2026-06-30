@@ -169,7 +169,9 @@ export type HostToWebview =
   // The before/after content of one file the merge would change (answers
   // `requestMergeFileDiff`). Reuses FileDiff so the shared diff view renders it.
   | { type: "mergeFileDiff"; diff: FileDiff }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  // The host replies with the path the user selected in the OS file-picker.
+  | { type: "gitPathSelected"; path: string };
 
 /* ------------------------------------------------------------------ */
 /* webview -> host                                                     */
@@ -217,7 +219,9 @@ export type WebviewToHost =
   | { type: "pushBranch"; name: string }
   | { type: "sync" }
   // Override the git binary path. `null` = revert to the IDE's built-in git.
-  | { type: "setGitPath"; path: string | null };
+  | { type: "setGitPath"; path: string | null }
+  // Ask the host to open an OS file-picker so the user can select a git binary.
+  | { type: "browseGitPath" };
 
 /** Type guard helper used by hosts when handling untyped postMessage data. */
 export function isWebviewToHost(value: unknown): value is WebviewToHost {

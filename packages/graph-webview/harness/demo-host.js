@@ -312,6 +312,12 @@
       console.log("[demo] setGitPath:", msg.path ?? "(builtin)");
     },
 
+    browseGitPath() {
+      // The browser has no filesystem access, so simulate the OS picker with prompt().
+      const p = prompt("Enter path to git executable (demo — no real file-picker available):", "/usr/bin/git");
+      if (p && p.trim()) send({ type: "gitPathSelected", path: p.trim() });
+    },
+
     // Serve the hand-authored mock changes for the "View changes…" dialog. The
     // real hosts compute these from git; here they come from window.__MOCK_CHANGES__.
     requestCommitChanges(msg) {

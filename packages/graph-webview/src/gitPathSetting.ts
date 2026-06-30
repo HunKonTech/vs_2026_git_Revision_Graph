@@ -42,3 +42,13 @@ export function onGitSourceChange(cb: () => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
+
+/**
+ * Called by main.ts when the host replies to a `browseGitPath` request with
+ * the path the user picked in the OS file-picker. Switches the mode to
+ * "custom", persists the new path, and fires change listeners so the settings
+ * input updates itself in real-time.
+ */
+export function receiveGitPathFromBrowse(path: string): void {
+  setGitSource("custom", path);
+}

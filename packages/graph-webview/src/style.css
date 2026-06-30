@@ -507,6 +507,20 @@ body,
   outline: none;
   border-color: var(--accent);
 }
+.settings-browse-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-browse-btn:hover {
+  border-color: var(--accent);
+}
 
 /* Advanced (collapsible) section */
 .settings-advanced-header {

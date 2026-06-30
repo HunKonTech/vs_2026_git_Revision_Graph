@@ -192,6 +192,21 @@ export class GraphPanel {
       case "setGitPath":
         setCustomGitPath(msg.path);
         break;
+      case "browseGitPath": {
+        const result = await vscode.window.showOpenDialog({
+          canSelectFiles: true,
+          canSelectFolders: false,
+          canSelectMany: false,
+          title: "Select git executable",
+          filters: process.platform === "win32"
+            ? { "Executable": ["exe"], "All files": ["*"] }
+            : { "All files": ["*"] },
+        });
+        if (result && result[0]) {
+          this.post({ type: "gitPathSelected", path: result[0].fsPath });
+        }
+        break;
+      }
     }
   }
 

@@ -78,6 +78,7 @@ type Dict = {
   "settings.gitSourceCustomHint": string;
   "settings.gitPath": string;
   "settings.gitPathPlaceholder": string;
+  "settings.gitPathBrowse": string;
   "legend.title": string;
   "legend.head": string;
   "legend.local": string;
@@ -242,6 +243,7 @@ const DICTS: Record<Lang, Dict> = {
     "settings.gitSourceCustomHint": "Specify the path to your own git executable (e.g. /usr/bin/git or C:\\…\\git.exe).",
     "settings.gitPath": "Path to git",
     "settings.gitPathPlaceholder": "/usr/bin/git",
+    "settings.gitPathBrowse": "Browse…",
     "legend.title": "Legend",
     "legend.head": "HEAD / current branch",
     "legend.local": "Local branch",
@@ -404,6 +406,7 @@ const DICTS: Record<Lang, Dict> = {
     "settings.gitSourceCustomHint": "Adja meg a saját git futtatható fájl elérési útját (pl. /usr/bin/git vagy C:\\…\\git.exe).",
     "settings.gitPath": "Git elérési útja",
     "settings.gitPathPlaceholder": "/usr/bin/git",
+    "settings.gitPathBrowse": "Tallózás…",
     "legend.title": "Jelmagyarázat",
     "legend.head": "HEAD / aktuális branch",
     "legend.local": "Lokális branch",

@@ -2,6 +2,7 @@
 // a merge, a tag, and local + remote refs, to exercise the layout & colors.
 window.__MOCK_GRAPH__ = {
   repoName: "demo-repo",
+  gitCommand: "git log --exclude=refs/stash --all --topo-order --max-count=500",
   head: "h7777777",
   commits: [
     { sha: "h7777777", parents: ["h6666666", "f2222222"], summary: "Merge feature/login", author: "Ben", authorEmail: "ben@example.com", date: "2026-06-25T10:00:00Z" },

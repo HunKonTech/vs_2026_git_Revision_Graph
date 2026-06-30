@@ -15,6 +15,8 @@ namespace RevisionGraph.Model
         public string RepoName { get; set; }
         /// <summary>Stash entries, drawn in their own column linked to their base commit.</summary>
         public List<StashEntry> Stashes { get; set; } = new List<StashEntry>();
+        /// <summary>The git log command that produced this data, shown in the status bar.</summary>
+        public string GitCommand { get; set; }
     }
 
     /// <summary>A single git stash entry (<c>stash@{N}</c>).</summary>

@@ -508,6 +508,58 @@ body,
   border-color: var(--accent);
 }
 
+/* Advanced (collapsible) section */
+.settings-advanced-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 0 4px;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  width: 100%;
+  text-align: left;
+}
+.settings-advanced-header:hover {
+  opacity: 0.85;
+}
+.settings-advanced-body[hidden] {
+  display: none;
+}
+/* Segmented control (binary mode toggle) */
+.settings-segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.settings-segmented button {
+  flex: 1;
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-segmented button:last-child {
+  border-right: none;
+}
+.settings-segmented button:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+.settings-segmented button.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
 /* Searchable main-branch combobox */
 .settings-combo {
   position: relative;

@@ -126,5 +126,7 @@ namespace RevisionGraph.Model
         public string OldPath { get; set; }
         /// <summary>File status for requestFileDiff (added|modified|deleted|renamed).</summary>
         public string Status { get; set; }
+        /// <summary>Custom git binary path for setGitPath; null means use the built-in git.</summary>
+        public string GitPath { get; set; }
     }
 }

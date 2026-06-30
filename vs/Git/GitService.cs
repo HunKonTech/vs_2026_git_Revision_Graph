@@ -18,10 +18,21 @@ namespace RevisionGraph.Git
         private const char FS = '\u001f'; // field separator (ASCII unit separator)
         private const char RS = '\u001e'; // record separator (ASCII record separator)
 
-        // The git binary to invoke. Visual Studio ships git with Team Explorer, so
-        // we resolve it from the running IDE rather than relying on a separate
-        // install or a configured PATH. Falls back to "git" on PATH.
-        private static readonly string GitExe = ResolveGitPath();
+        // The git binary to invoke. Resolved once from the VS Team Explorer install
+        // at startup; may be overridden per-user via SetCustomGitPath().
+        private static readonly string _builtinGitExe = ResolveGitPath();
+        private static string _customGitExe = null;
+
+        /// <summary>
+        /// Override the git binary used for all operations. Pass <c>null</c> or an
+        /// empty string to revert to the built-in git resolved at startup.
+        /// </summary>
+        public static void SetCustomGitPath(string path)
+        {
+            _customGitExe = !string.IsNullOrWhiteSpace(path) ? path.Trim() : null;
+        }
+
+        private static string GitExe => _customGitExe ?? _builtinGitExe;
 
         private readonly string _repoRoot;
 

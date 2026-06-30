@@ -22,19 +22,30 @@ const run = promisify(execFile);
 const FS = "\x1f"; // field separator
 const RS = "\x1e"; // record separator
 
-// The git binary to invoke. Defaults to "git" on PATH, but is overridden with
-// the path the built-in VS Code Git extension resolved (see setGitPath) so the
-// user never has to install or configure git separately.
-let gitPath = "git";
+// The git binary path comes from two sources:
+// - builtinGitPath: resolved from the VS Code built-in Git extension (setBuiltinGitPath)
+// - customGitPath:  set by the user in the settings panel (setCustomGitPath)
+// The custom path takes precedence when set; builtinGitPath serves as the fallback.
+let builtinGitPath: string | null = null;
+let customGitPath: string | null = null;
 
-/** Point all git invocations at the binary the host's Git extension resolved. */
-export function setGitPath(path: string | undefined): void {
-  if (path && path.trim()) gitPath = path;
+function effectiveGitPath(): string {
+  return customGitPath ?? builtinGitPath ?? "git";
+}
+
+/** Point all git invocations at the binary the VS Code Git extension resolved. */
+export function setBuiltinGitPath(path: string | undefined): void {
+  builtinGitPath = path && path.trim() ? path : null;
+}
+
+/** Override the git binary with a user-supplied path (null = revert to built-in). */
+export function setCustomGitPath(path: string | null): void {
+  customGitPath = path && path.trim() ? path : null;
 }
 
 /** Run a git command in `cwd` and return stdout. */
 async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await run(gitPath, args, {
+  const { stdout } = await run(effectiveGitPath(), args, {
     cwd,
     maxBuffer: 64 * 1024 * 1024,
     windowsHide: true,
@@ -48,7 +59,7 @@ async function gitEnv(
   args: string[],
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
-  const { stdout } = await run(gitPath, args, {
+  const { stdout } = await run(effectiveGitPath(), args, {
     cwd,
     env: { ...process.env, ...env },
     maxBuffer: 64 * 1024 * 1024,
@@ -64,7 +75,7 @@ async function gitEnv(
  */
 async function gitCapture(cwd: string, args: string[]): Promise<{ stdout: string; code: number }> {
   try {
-    const { stdout } = await run(gitPath, args, {
+    const { stdout } = await run(effectiveGitPath(), args, {
       cwd,
       maxBuffer: 64 * 1024 * 1024,
       windowsHide: true,
@@ -772,6 +783,31 @@ export async function readCommitChanges(repoRoot: string, sha: string): Promise<
     }
   }
   return files;
+}
+
+/**
+ * All file paths present in a commit's tree (flat list, sorted by git).
+ * Used to populate the "All Files" tab in the changes dialog.
+ */
+export async function readCommitTree(repoRoot: string, sha: string): Promise<string[]> {
+  const out = await git(repoRoot, ["ls-tree", "-r", "--name-only", sha]).catch(() => "");
+  return out.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Raw text content of one file at a commit, for viewing unchanged files.
+ * Binary or oversized files are flagged rather than streamed.
+ */
+export async function readFileContent(
+  repoRoot: string,
+  sha: string,
+  filePath: string,
+): Promise<{ text: string; binary: boolean; tooLarge: boolean }> {
+  const size = await blobSize(repoRoot, sha, filePath);
+  if (size > MAX_DIFF_BYTES) return { text: "", binary: false, tooLarge: true };
+  const text = await blobText(repoRoot, sha, filePath);
+  if (hasNulByte(text)) return { text: "", binary: true, tooLarge: false };
+  return { text, binary: false, tooLarge: false };
 }
 
 /** True when a string contains a NUL byte (git's binary-file signal). */

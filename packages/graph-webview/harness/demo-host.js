@@ -306,6 +306,12 @@
       navigator.clipboard?.writeText(msg.sha);
     },
 
+    setGitPath(msg) {
+      // No real git in the browser demo — just log so developers can verify the
+      // message is reaching the (simulated) host.
+      console.log("[demo] setGitPath:", msg.path ?? "(builtin)");
+    },
+
     // Serve the hand-authored mock changes for the "View changes…" dialog. The
     // real hosts compute these from git; here they come from window.__MOCK_CHANGES__.
     requestCommitChanges(msg) {

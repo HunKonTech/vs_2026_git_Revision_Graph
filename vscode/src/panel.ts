@@ -21,10 +21,13 @@ import {
   stashPopCli,
   stashDropCli,
   readCommitChanges,
+  readCommitTree,
+  readFileContent,
   readFileDiff,
   computeMergePreview,
   mergeCli,
   readMergeFileDiff,
+  setCustomGitPath,
 } from "./gitData";
 import { resolveRepository, getGitApi } from "./repo";
 import { createBranchFromCommit } from "./branch";
@@ -149,8 +152,14 @@ export class GraphPanel {
       case "requestCommitChanges":
         await this.handleCommitChanges(msg.sha);
         break;
+      case "requestCommitTree":
+        await this.handleCommitTree(msg.sha);
+        break;
       case "requestFileDiff":
         await this.handleFileDiff(msg.sha, msg.path, msg.status, msg.oldPath);
+        break;
+      case "requestFileContent":
+        await this.handleFileContent(msg.sha, msg.path);
         break;
       case "requestMergePreview":
         await this.handleMergePreview(msg.source);
@@ -179,6 +188,9 @@ export class GraphPanel {
           await pullCli(root);
           await pushCli(root);
         });
+        break;
+      case "setGitPath":
+        setCustomGitPath(msg.path);
         break;
     }
   }
@@ -441,6 +453,39 @@ export class GraphPanel {
       this.post({ type: "commitChanges", sha, files });
     } catch (err) {
       this.post({ type: "error", message: `Failed to read commit changes: ${String(err)}` });
+    }
+  }
+
+  /** Send the webview all file paths present in a commit's tree. */
+  private async handleCommitTree(sha: string): Promise<void> {
+    if (!sha) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const paths = await readCommitTree(repo.rootUri.fsPath, sha);
+      this.post({ type: "commitTree", sha, paths });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to read commit tree: ${String(err)}` });
+    }
+  }
+
+  /** Send the webview the raw content of one file at a commit. */
+  private async handleFileContent(sha: string, path: string): Promise<void> {
+    if (!sha || !path) return;
+    const repo = await resolveRepository();
+    if (!repo) return;
+    try {
+      const { text, binary, tooLarge } = await readFileContent(repo.rootUri.fsPath, sha, path);
+      this.post({
+        type: "fileContent",
+        sha,
+        path,
+        text,
+        binary: binary || undefined,
+        tooLarge: tooLarge || undefined,
+      });
+    } catch (err) {
+      this.post({ type: "error", message: `Failed to read file content: ${String(err)}` });
     }
   }
 

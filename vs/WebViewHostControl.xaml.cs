@@ -215,6 +215,9 @@ namespace RevisionGraph
                 case "sync":
                     await RunRemoteOpAsync("Sync", g => g.SyncAsync()).ConfigureAwait(true);
                     break;
+                case "setGitPath":
+                    GitService.SetCustomGitPath(msg.GitPath);
+                    break;
             }
         }
 

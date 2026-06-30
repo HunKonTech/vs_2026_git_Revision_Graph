@@ -7,7 +7,9 @@ import {
   openChangesDialog,
   closeChangesDialog,
   setChangesFiles,
+  setCommitTree,
   setFileDiff,
+  setFileContent,
 } from "./changesDialog.js";
 import { openMergeDialog, closeMergeDialog, setMergePreview, setMergeFileDiff } from "./mergeDialog.js";
 import { getBranchDialogMode } from "./branchDialogMode.js";
@@ -15,6 +17,7 @@ import { getMainBranch, onMainBranchChange } from "./mainBranch.js";
 import { getDisplayMode, onDisplayModeChange } from "./displayMode.js";
 import { getThemeChoice, onThemeChange, LIGHT_THEME, DARK_THEME } from "./theme.js";
 import { t, onLangChange, type MsgKey } from "./i18n.js";
+import { getGitMode, getCustomGitPath, onGitSourceChange } from "./gitPathSetting.js";
 import type { GraphData, ThemeTokens, OpKind, OpResult } from "@rev-graph/protocol";
 import type { PositionedCommit } from "@rev-graph/graph-core";
 import "./style.css";
@@ -476,7 +479,19 @@ function boot(): void {
     statusBar.textContent = statusFn();
   });
 
+  // Notify the host of custom git path whenever it changes in the settings panel.
+  onGitSourceChange(() => {
+    const mode = getGitMode();
+    const path = mode === "custom" ? getCustomGitPath().trim() : null;
+    bridge.post({ type: "setGitPath", path: path || null });
+  });
+
   bridge.post({ type: "ready" });
+  // If a custom git path is already stored, inform the host immediately after ready.
+  if (getGitMode() === "custom") {
+    const p = getCustomGitPath().trim();
+    if (p) bridge.post({ type: "setGitPath", path: p });
+  }
 }
 
 /** Map an undo/stash op outcome to its localized status-line key. */

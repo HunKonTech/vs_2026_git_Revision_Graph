@@ -70,6 +70,14 @@ type Dict = {
   "settings.branchDialogNativeHint": string;
   "settings.close": string;
   "settings.done": string;
+  "settings.sectionAdvanced": string;
+  "settings.gitSource": string;
+  "settings.gitSourceBuiltin": string;
+  "settings.gitSourceBuiltinHint": string;
+  "settings.gitSourceCustom": string;
+  "settings.gitSourceCustomHint": string;
+  "settings.gitPath": string;
+  "settings.gitPathPlaceholder": string;
   "legend.title": string;
   "legend.head": string;
   "legend.local": string;
@@ -91,7 +99,8 @@ type Dict = {
   "menu.viewChanges": string;
   "menu.mergeBranch": string;
   "changes.title": string;
-  "changes.files": string;
+  "changes.tabChanged": string;
+  "changes.tabAll": string;
   "changes.added": string;
   "changes.modified": string;
   "changes.deleted": string;
@@ -225,6 +234,14 @@ const DICTS: Record<Lang, Dict> = {
     "settings.branchDialogNativeHint": "Your IDE's built-in branch prompt.",
     "settings.close": "Close",
     "settings.done": "Done",
+    "settings.sectionAdvanced": "Advanced",
+    "settings.gitSource": "Git executable",
+    "settings.gitSourceBuiltin": "Built-in",
+    "settings.gitSourceBuiltinHint": "Use the git binary from the IDE's built-in Git extension.",
+    "settings.gitSourceCustom": "Custom path",
+    "settings.gitSourceCustomHint": "Specify the path to your own git executable (e.g. /usr/bin/git or C:\\…\\git.exe).",
+    "settings.gitPath": "Path to git",
+    "settings.gitPathPlaceholder": "/usr/bin/git",
     "legend.title": "Legend",
     "legend.head": "HEAD / current branch",
     "legend.local": "Local branch",
@@ -246,7 +263,8 @@ const DICTS: Record<Lang, Dict> = {
     "menu.viewChanges": "View changes…",
     "menu.mergeBranch": 'Merge "{source}" into "{target}"…',
     "changes.title": "Changes in {sha}",
-    "changes.files": "Files",
+    "changes.tabChanged": "Changed",
+    "changes.tabAll": "All Files",
     "changes.added": "Added",
     "changes.modified": "Modified",
     "changes.deleted": "Deleted",
@@ -378,6 +396,14 @@ const DICTS: Record<Lang, Dict> = {
     "settings.branchDialogNativeHint": "Az IDE beépített branch ablaka.",
     "settings.close": "Bezárás",
     "settings.done": "Kész",
+    "settings.sectionAdvanced": "Speciális",
+    "settings.gitSource": "Git futtatható fájl",
+    "settings.gitSourceBuiltin": "Beépített",
+    "settings.gitSourceBuiltinHint": "Az IDE beépített Git bővítményének git binárisát használja.",
+    "settings.gitSourceCustom": "Egyéni útvonal",
+    "settings.gitSourceCustomHint": "Adja meg a saját git futtatható fájl elérési útját (pl. /usr/bin/git vagy C:\\…\\git.exe).",
+    "settings.gitPath": "Git elérési útja",
+    "settings.gitPathPlaceholder": "/usr/bin/git",
     "legend.title": "Jelmagyarázat",
     "legend.head": "HEAD / aktuális branch",
     "legend.local": "Lokális branch",
@@ -399,7 +425,8 @@ const DICTS: Record<Lang, Dict> = {
     "menu.viewChanges": "Változások megtekintése…",
     "menu.mergeBranch": '"{source}" beolvasztása ide: "{target}"…',
     "changes.title": "Változások — {sha}",
-    "changes.files": "Fájlok",
+    "changes.tabChanged": "Változott",
+    "changes.tabAll": "Összes fájl",
     "changes.added": "Hozzáadva",
     "changes.modified": "Módosítva",
     "changes.deleted": "Törölve",

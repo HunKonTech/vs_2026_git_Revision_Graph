@@ -5,6 +5,7 @@ import { getBranchDialogMode, setBranchDialogMode } from "./branchDialogMode.js"
 import { getThemeChoice, setThemeChoice, type ThemeChoice } from "./theme.js";
 import { getDiffMinimap, setDiffMinimap } from "./diffMinimap.js";
 import { detectHost } from "./host.js";
+import { getGitMode, getCustomGitPath, setGitSource, type GitMode } from "./gitPathSetting.js";
 import {
   svnDialogSchematic,
   nativeDialogSchematic,
@@ -47,6 +48,8 @@ export function toggleSettings(ctx: SettingsContext): void {
     closeSettings();
     return;
   }
+  // Collapse state for the Advanced section, reset each time the dialog opens.
+  let advancedOpen = false;
 
   const overlay = document.createElement("div");
   overlay.className = "settings-overlay";
@@ -102,6 +105,9 @@ export function toggleSettings(ctx: SettingsContext): void {
     const changes = section(t("settings.sectionChanges"));
     changes.appendChild(diffMinimapRow());
     body.appendChild(changes);
+
+    // Advanced section: git executable source — collapsed by default.
+    body.appendChild(advancedSection(() => advancedOpen, (v) => { advancedOpen = v; }));
 
     modal.appendChild(body);
 
@@ -431,6 +437,113 @@ function cardGroup(cards: CardDef[], selectedKey: string, onSelect: (key: string
     grid.appendChild(card);
   }
   return grid;
+}
+
+/**
+ * A collapsible "Advanced" section for the settings dialog. It holds the git
+ * executable source picker (built-in IDE git vs. a custom binary path). The
+ * collapse state is stored in the caller's closure so it survives re-renders
+ * triggered by language changes but resets to closed each time the dialog opens.
+ */
+function advancedSection(
+  getOpen: () => boolean,
+  setOpen: (v: boolean) => void,
+): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "settings-section";
+
+  const header = document.createElement("button");
+  header.type = "button";
+  header.className = "settings-advanced-header";
+
+  const body = document.createElement("div");
+  body.className = "settings-advanced-body";
+  if (!getOpen()) body.hidden = true;
+
+  function updateHeader(): void {
+    header.textContent = (getOpen() ? "▾ " : "▸ ") + t("settings.sectionAdvanced");
+  }
+  updateHeader();
+
+  header.addEventListener("click", () => {
+    setOpen(!getOpen());
+    body.hidden = !getOpen();
+    updateHeader();
+  });
+
+  wrap.appendChild(header);
+  wrap.appendChild(body);
+  body.appendChild(gitSourceRow());
+  return wrap;
+}
+
+/** Git executable row: segmented control (built-in / custom) + path input. */
+function gitSourceRow(): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "settings-row settings-row-stacked";
+
+  const label = document.createElement("div");
+  label.className = "settings-row-label";
+  label.textContent = t("settings.gitSource");
+  row.appendChild(label);
+
+  const seg = document.createElement("div");
+  seg.className = "settings-segmented";
+  seg.style.marginTop = "6px";
+
+  const builtinBtn = document.createElement("button");
+  builtinBtn.type = "button";
+  builtinBtn.textContent = t("settings.gitSourceBuiltin");
+
+  const customBtn = document.createElement("button");
+  customBtn.type = "button";
+  customBtn.textContent = t("settings.gitSourceCustom");
+
+  seg.append(builtinBtn, customBtn);
+  row.appendChild(seg);
+
+  const hint = document.createElement("div");
+  hint.className = "settings-hint";
+  row.appendChild(hint);
+
+  // Custom path input — visible only when "custom" is selected.
+  const pathWrap = document.createElement("div");
+  pathWrap.style.marginTop = "6px";
+
+  const pathLabel = document.createElement("div");
+  pathLabel.className = "settings-row-label";
+  pathLabel.textContent = t("settings.gitPath");
+  pathLabel.style.marginBottom = "4px";
+
+  const pathInput = document.createElement("input");
+  pathInput.type = "text";
+  pathInput.className = "settings-input";
+  pathInput.placeholder = t("settings.gitPathPlaceholder");
+  pathInput.value = getCustomGitPath();
+
+  pathWrap.append(pathLabel, pathInput);
+  row.appendChild(pathWrap);
+
+  function apply(mode: GitMode): void {
+    const isCustom = mode === "custom";
+    builtinBtn.classList.toggle("selected", !isCustom);
+    customBtn.classList.toggle("selected", isCustom);
+    hint.textContent = isCustom
+      ? t("settings.gitSourceCustomHint")
+      : t("settings.gitSourceBuiltinHint");
+    pathWrap.hidden = !isCustom;
+    setGitSource(mode, pathInput.value.trim());
+  }
+
+  apply(getGitMode());
+
+  builtinBtn.addEventListener("click", () => apply("builtin"));
+  customBtn.addEventListener("click", () => apply("custom"));
+  pathInput.addEventListener("change", () => {
+    if (getGitMode() === "custom") setGitSource("custom", pathInput.value.trim());
+  });
+
+  return row;
 }
 
 // Dismiss on Escape.

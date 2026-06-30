@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { GitExtension, GitAPI, Repository } from "./git";
-import { setGitPath } from "./gitData";
+import { setBuiltinGitPath } from "./gitData";
 
 let cachedApi: GitAPI | undefined;
 
@@ -13,7 +13,7 @@ export async function getGitApi(): Promise<GitAPI | undefined> {
   cachedApi = exports.getAPI(1);
   // Route our CLI helpers through the very git binary the Git extension resolved,
   // so nothing extra needs to be installed or configured.
-  setGitPath(cachedApi.git?.path);
+  setBuiltinGitPath(cachedApi.git?.path);
   return cachedApi;
 }
 

@@ -156,8 +156,12 @@ export type HostToWebview =
   | { type: "opResult"; op: OpKind; result: OpResult; detail?: string }
   // The list of files a commit changed (answers `requestCommitChanges`).
   | { type: "commitChanges"; sha: string; files: CommitChangeFile[] }
+  // All file paths present in the commit's tree (answers `requestCommitTree`).
+  | { type: "commitTree"; sha: string; paths: string[] }
   // The before/after content of one file (answers `requestFileDiff`).
   | { type: "fileDiff"; diff: FileDiff }
+  // Raw content of one file at a commit (answers `requestFileContent`).
+  | { type: "fileContent"; sha: string; path: string; text: string; binary?: boolean; tooLarge?: boolean }
   // A dry-run merge preview (answers `requestMergePreview`).
   | { type: "mergePreview"; preview: MergePreview }
   // The before/after content of one file the merge would change (answers
@@ -182,8 +186,12 @@ export type WebviewToHost =
   | { type: "renameCommit"; sha: string }
   // Ask the host for the list of files a commit changed (vs its first parent).
   | { type: "requestCommitChanges"; sha: string }
+  // Ask the host for all file paths present in the commit's tree.
+  | { type: "requestCommitTree"; sha: string }
   // Ask the host for the before/after content of one changed file.
   | { type: "requestFileDiff"; sha: string; path: string; status: DiffFileStatus; oldPath?: string }
+  // Ask the host for the raw content of one file at a commit (for unchanged files).
+  | { type: "requestFileContent"; sha: string; path: string }
   // Ask the host for a dry-run preview of merging `source` into the current branch.
   | { type: "requestMergePreview"; source: string }
   // Ask the host for the before/after content of one file the merge would change
@@ -205,7 +213,9 @@ export type WebviewToHost =
   | { type: "pull" }
   | { type: "push" }
   | { type: "pushBranch"; name: string }
-  | { type: "sync" };
+  | { type: "sync" }
+  // Override the git binary path. `null` = revert to the IDE's built-in git.
+  | { type: "setGitPath"; path: string | null };
 
 /** Type guard helper used by hosts when handling untyped postMessage data. */
 export function isWebviewToHost(value: unknown): value is WebviewToHost {

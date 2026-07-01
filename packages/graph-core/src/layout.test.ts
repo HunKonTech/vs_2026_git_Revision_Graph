@@ -205,7 +205,7 @@ describe("computeLayout", () => {
     expect(layout.laneCount).toBe(2); // only two columns total
   });
 
-  it("anchors a side branch at its fork level instead of the top", () => {
+  it("aligns a dangling side branch with its fork commit's row", () => {
     // trunk T4..T0 ; a single newer side commit S1 forked from old T1.
     const layout = computeLayout(
       data(
@@ -229,11 +229,14 @@ describe("computeLayout", () => {
     );
     const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
     expect(at("T4").row).toBe(0); // trunk tip at the top
-    // S1 is the newest commit but, by structure, sits one row above its fork
-    // (T1) — the same level as T2 — not at the top.
-    expect(at("S1").row).toBeGreaterThan(0);
-    expect(at("S1").row).toBe(at("T2").row);
-    expect(at("S1").lane).toBeGreaterThan(at("T2").lane);
+    // S1 is a dangling side branch (never merged back), so it is pulled down to
+    // sit beside the commit it forked from (T1) — same row, one lane right — with
+    // its connector sprouting from T1's side rather than entering the top.
+    expect(at("S1").row).toBe(at("T1").row);
+    expect(at("S1").lane).toBeGreaterThan(at("T1").lane);
+    const fork = layout.edges.find((e) => e.fromSha === "S1" && e.toSha === "T1")!;
+    expect(fork.isBranch).toBe(true);
+    expect(fork.fromRow).toBe(fork.toRow); // horizontal side sprout
   });
 
   it("keeps a merge back to the trunk a single row jump", () => {

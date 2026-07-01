@@ -175,6 +175,10 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     maxRow: number;
     /** Commit that seeded the column (its tip). Empty for phantom columns. */
     seed: string;
+    /** Oldest commit claimed by the column (its base — the branch creation point). */
+    baseSha: string;
+    /** Commit in another column that this one's base forked from, or null. */
+    forkParentSha: string | null;
     /** Branch name owning this column, or null when it is unlabeled. */
     branch: string | null;
   }
@@ -223,18 +227,22 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       minRow: 0,
       maxRow: 0,
       seed,
+      baseSha: seed,
+      forkParentSha: null,
       branch,
     };
     let cur: string | undefined = seed;
     while (cur !== undefined) {
       colOf.set(cur, col);
       columns[col]!.baseGen = genOf.get(cur) ?? 0; // last claimed = oldest so far
+      columns[col]!.baseSha = cur; // last claimed = oldest so far
       const parents: string[] = bySha.get(cur)!.parents.filter((p) => present.has(p));
       const first: string | undefined = parents[0];
       if (first === undefined) break; // root, or first parent out of view
       if (colOf.has(first)) {
         // First parent already belongs to another column: fork point.
         columns[col]!.forkParent = colOf.get(first)!;
+        columns[col]!.forkParentSha = first;
         break;
       }
       cur = first; // keep claiming straight down the first-parent chain
@@ -286,20 +294,65 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     phantoms.push({ branch: ref.name, refs: phRefs, anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
   }
 
-  // Phantoms sit on the *same* row as the commit they forked from (one lane to
-  // the right), so a new branch lines up horizontally with its fork commit —
-  // they never extend the grid vertically.
-  const effMaxGen = maxGen;
-  // Level 0 is the top (highest generation). Generations are contiguous, so a
-  // commit's level is just its distance from the top.
-  const levelOf = (sha: string): number => effMaxGen - (genOf.get(sha) ?? 0);
+  // ---- Row (level) assignment. ----
+  // Level 0 is the top. A commit's base level is its generation distance from the
+  // top. On top of that, a *dangling* side branch (a leaf tip that is never
+  // merged back) is pulled DOWN so its base commit lands on the same row as the
+  // commit it forked from — a new branch then sprouts sideways from its fork
+  // commit instead of floating one row above it. Merged branches keep the plain
+  // generation layout so their merge connector stays a single-row jump.
+  const rowBySha = new Map<string, number>();
+  for (const c of commits) rowBySha.set(c.sha, maxGen - (genOf.get(c.sha) ?? 0));
+
+  // Commits that are a parent of something in view — used to spot leaf tips.
+  const isParentInView = new Set<string>();
+  for (const c of commits) for (const p of c.parents) if (present.has(p)) isParentInView.add(p);
+
+  // Column membership, so a whole column can be shifted at once.
+  const colMembers = new Map<number, string[]>();
+  for (const [sha, cid] of colOf) {
+    const list = colMembers.get(cid);
+    if (list) list.push(sha);
+    else colMembers.set(cid, [sha]);
+  }
+  // Shift shallowest forks first so a chain of dangling branches settles in order.
+  const shiftable = columns
+    .filter((c) => c.forkParentSha != null && !isParentInView.has(c.seed))
+    .sort((a, b) => (rowBySha.get(a.forkParentSha!) ?? 0) - (rowBySha.get(b.forkParentSha!) ?? 0));
+  for (const col of shiftable) {
+    const forkRow = rowBySha.get(col.forkParentSha!);
+    const baseRow = rowBySha.get(col.baseSha);
+    if (forkRow === undefined || baseRow === undefined) continue;
+    const delta = forkRow - baseRow; // base is above its fork by >= 1 row
+    if (delta <= 0) continue;
+    for (const sha of colMembers.get(col.id) ?? []) {
+      rowBySha.set(sha, (rowBySha.get(sha) ?? 0) + delta);
+    }
+  }
+  // Renormalise so the topmost row is 0 (a shift can empty the old top row).
+  let minRowAll = Infinity;
+  for (const r of rowBySha.values()) if (r < minRowAll) minRowAll = r;
+  if (minRowAll > 0 && Number.isFinite(minRowAll)) {
+    for (const [s, r] of rowBySha) rowBySha.set(s, r - minRowAll);
+  }
+  let maxRowAll = 0;
+  for (const r of rowBySha.values()) if (r > maxRowAll) maxRowAll = r;
+
+  const levelOf = (sha: string): number => rowBySha.get(sha) ?? 0;
 
   // ---- Phase 2: assign lanes with column compaction. ----
-  // Each column's commits occupy a contiguous row span (tip = highest
-  // generation = topmost row; base = lowest = bottommost).
+  // Each column's commits occupy a contiguous row span (tip = topmost row; base
+  // = bottommost), taken from the (possibly shifted) per-commit rows.
   for (const col of columns) {
-    col.minRow = effMaxGen - col.tipGen;
-    col.maxRow = effMaxGen - col.baseGen;
+    let lo = Infinity;
+    let hi = 0;
+    for (const sha of colMembers.get(col.id) ?? []) {
+      const r = rowBySha.get(sha) ?? 0;
+      if (r < lo) lo = r;
+      if (r > hi) hi = r;
+    }
+    col.minRow = Number.isFinite(lo) ? lo : 0;
+    col.maxRow = hi;
   }
   // Order columns by creation point so earlier branches are placed first (and
   // therefore tend to land further left); topmost tip breaks ties.
@@ -339,7 +392,7 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   const phantomInfo = new Map<number, { ph: Phantom; row: number }>();
   for (const ph of phantoms) {
     const anchorCol = colOf.get(ph.anchorSha)!;
-    const row = effMaxGen - ph.anchorGen; // same row as the fork commit
+    const row = levelOf(ph.anchorSha); // same row as the fork commit
     const id = columns.length;
     columns[id] = {
       id,
@@ -349,6 +402,8 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       minRow: row,
       maxRow: row,
       seed: "",
+      baseSha: "",
+      forkParentSha: null,
       branch: ph.branch,
     };
     const list = phantomIdsByAnchor.get(anchorCol);
@@ -435,6 +490,11 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     c.parents.forEach((p, index) => {
       const parent = posBySha.get(p);
       if (!parent) return; // parent out of view
+      // A first-parent edge whose child was pulled down onto its fork commit's
+      // row (a dangling side branch) is drawn as a sideways sprout from the fork
+      // commit's right edge, exactly like a phantom branch — not a top-entering
+      // parent edge.
+      const isBranch = index === 0 && c.row === parent.row && c.lane !== parent.lane;
       edges.push({
         fromSha: c.sha,
         toSha: p,
@@ -445,6 +505,7 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
         toRow: parent.row,
         toLane: parent.lane,
         isMerge: index > 0,
+        isBranch,
       });
     });
   }
@@ -559,8 +620,8 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     commits: positioned,
     edges,
     laneCount: maxLane + 1,
-    // Rows are structural levels (0..effMaxGen), several commits may share one.
-    rowCount: commits.length > 0 ? effMaxGen + 1 : 0,
+    // Rows are structural levels (0..maxRowAll), several commits may share one.
+    rowCount: commits.length > 0 ? maxRowAll + 1 : 0,
   };
 }
 

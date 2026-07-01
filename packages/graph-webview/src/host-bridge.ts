@@ -19,14 +19,22 @@ declare global {
     };
     /** Set by the dev browser harness to capture outgoing messages. */
     __REV_GRAPH_HARNESS__?: { onPost(msg: WebviewToHost): void };
+    /**
+     * Set by the DevEco Studio (IntelliJ Platform/JCEF) host before the page
+     * loads. Wraps a JBCefJSQuery injection so the webview can call back into
+     * the Kotlin host; the host pushes messages the same way WebView2 does,
+     * via `window.postMessage`, which the listener below already handles.
+     */
+    __ideHostPostMessage__?: (json: string) => void;
   }
 }
 
 /**
  * Pick the right transport at runtime:
- *  - VS Code webview  -> acquireVsCodeApi()
- *  - Visual Studio    -> window.chrome.webview (WebView2)
- *  - dev browser      -> window.postMessage + harness hook
+ *  - VS Code webview   -> acquireVsCodeApi()
+ *  - Visual Studio     -> window.chrome.webview (WebView2)
+ *  - DevEco Studio     -> window.__ideHostPostMessage__ (JCEF)
+ *  - dev browser       -> window.postMessage + harness hook
  */
 export function createHostBridge(): HostBridge {
   const listeners: Listener[] = [];
@@ -45,6 +53,12 @@ export function createHostBridge(): HostBridge {
       emit(data as HostToWebview);
     });
     return { post: (m) => wv.postMessage(JSON.stringify(m)), onMessage: (cb) => listeners.push(cb) };
+  }
+
+  if (typeof window.__ideHostPostMessage__ === "function") {
+    const post = window.__ideHostPostMessage__;
+    window.addEventListener("message", (e) => emit(e.data as HostToWebview));
+    return { post: (m) => post(JSON.stringify(m)), onMessage: (cb) => listeners.push(cb) };
   }
 
   // Browser harness fallback.

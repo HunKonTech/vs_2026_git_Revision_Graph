@@ -125,6 +125,10 @@ jobs:
           $xml.PackageManifest.Metadata.Identity.Version = $v
           $xml.Save($manifestPath)
 
+          # deveco/gradle.properties (pluginVersion=...)
+          $f = 'deveco/gradle.properties'
+          (Get-Content $f -Raw) -replace 'pluginVersion=.*', "pluginVersion=$v" | Set-Content $f -NoNewline
+
           Write-Host "Patched all version strings to $v"
 
       # -----------------------------------------------------------------------
@@ -185,7 +189,8 @@ jobs:
             "|------|-------------|",
             "| rev-graph-vscode-$v.vsix | VS Code (engine ^1.85) |",
             "| RevisionGraph-vs2022.vsix | Visual Studio 2022 extension |",
-            "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |"
+            "| RevisionGraph-vs2026.vsix | Visual Studio 2026 extension |",
+            "| RevisionGraph-deveco.zip | Huawei DevEco Studio plugin (sideload, not yet on JetBrains Marketplace) |"
           ) -join "`n"
 
           $headers = @{
@@ -530,6 +535,111 @@ jobs:
           Write-Host "Successfully published to Visual Studio Marketplace."
 
   # -------------------------------------------------------------------------
+  # Third job: build the Huawei DevEco Studio plugin (IntelliJ Platform /
+  # Gradle). Independent of the VS 2022 VSIX job — runs in parallel, also
+  # after `release` so the GitHub Release already exists. No marketplace
+  # publish step: this pass ships as a sideloadable ZIP only.
+  # -------------------------------------------------------------------------
+  build-deveco-plugin:
+    needs: release
+    runs-on: [self-hosted, Windows]
+    if: success() || needs.release.result == 'success'
+
+    env:
+      NEW_VERSION: ${{ needs.release.outputs.new_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch version in deveco/gradle.properties
+        shell: powershell
+        run: |
+          $v = $env:NEW_VERSION
+          $f = 'deveco/gradle.properties'
+          (Get-Content $f -Raw) -replace 'pluginVersion=.*', "pluginVersion=$v" | Set-Content $f -NoNewline
+          Write-Host "Patched deveco/gradle.properties to $v"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build web assets for DevEco Studio
+        shell: powershell
+        run: |
+          npm install
+          npm run build:core
+          npm run build:webview
+          npm run build:deveco-assets
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build DevEco Studio plugin
+        shell: powershell
+        working-directory: deveco
+        run: |
+          gradle buildPlugin --no-daemon
+          if ($LASTEXITCODE -ne 0) { throw "Gradle buildPlugin failed ($LASTEXITCODE)" }
+
+      - name: Copy plugin ZIP to dist/installers
+        shell: powershell
+        run: |
+          $zip = Get-ChildItem "deveco\build\distributions\*.zip" -ErrorAction SilentlyContinue |
+                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) {
+            Write-Warning "No DevEco Studio plugin ZIP found - skipping."
+            exit 0
+          }
+          New-Item -ItemType Directory -Force "dist\installers" | Out-Null
+          Copy-Item $zip.FullName "dist\installers\RevisionGraph-deveco.zip" -Force
+          Write-Host "DevEco Studio plugin ready."
+
+      - name: Upload DevEco Studio plugin to GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $zipPath = "dist\installers\RevisionGraph-deveco.zip"
+          if (-not (Test-Path $zipPath)) {
+            Write-Warning "RevisionGraph-deveco.zip not found - skipping upload."
+            exit 0
+          }
+          $v   = $env:NEW_VERSION
+          $tag = "v$v"
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github.v3+json"
+          }
+          $release = Invoke-RestMethod -Method Get `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" `
+            -Headers $headers
+          $uploadBase = $release.upload_url -replace '\{.*\}', ''
+          $name = "RevisionGraph-deveco.zip"
+          $existing = $release.assets | Where-Object { $_.name -eq $name }
+          if ($existing) {
+            Invoke-RestMethod -Method Delete `
+              -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/assets/$($existing.id)" `
+              -Headers $headers | Out-Null
+            Write-Host "Removed old asset: $name"
+          }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $zipPath).Path)
+          Invoke-RestMethod -Method Post `
+            -Uri ($uploadBase + "?name=$name") `
+            -Headers $headers `
+            -Body $bytes `
+            -ContentType "application/octet-stream" | Out-Null
+          Write-Host "Uploaded: $name"
+
+  # -------------------------------------------------------------------------
   # Buffer release announcement (X / Twitter)
   # -------------------------------------------------------------------------
   post-to-buffer:
@@ -537,6 +647,7 @@ jobs:
     needs:
       - release
       - build-vs-vsix
+      - build-deveco-plugin
     runs-on: ubuntu-latest
 
     steps:

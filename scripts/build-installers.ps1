@@ -68,8 +68,9 @@ if ($LASTEXITCODE -ne 0) { Fail "npm install sikertelen." }
 Step "Közös web renderer + asset másolás"
 npm run build:core
 npm run build:webview
-npm run build:vscode    # VS Code extension bundle
-npm run build:vs-assets # -> vs\webview\
+npm run build:vscode        # VS Code extension bundle
+npm run build:vs-assets     # -> vs\webview\
+npm run build:deveco-assets # -> deveco\src\main\resources\webview\
 if ($LASTEXITCODE -ne 0) { Fail "Build sikertelen." }
 
 # ---------------------------------------------------------------------------
@@ -160,9 +161,43 @@ if (-not (Test-Path $vswhere)) {
 }
 
 # ---------------------------------------------------------------------------
+# 4. DevEco Studio plugin (IntelliJ Platform / Gradle)
+#    Nem publikáljuk a JetBrains Marketplace-re — csak a ZIP-et gyártjuk le
+#    és tesszük ki a GitHub Release-be (lásd deveco/BUILD.md).
+# ---------------------------------------------------------------------------
+$devecoDir = Join-Path $root "deveco"
+$gradlew   = if ($IsWindows) { Join-Path $devecoDir "gradlew.bat" } else { Join-Path $devecoDir "gradlew" }
+$gradleCmd = if (Test-Path $gradlew) { $gradlew } elseif (Get-Command gradle -ErrorAction SilentlyContinue) { "gradle" } else { $null }
+
+if (-not $gradleCmd) {
+    Warn "Sem deveco/gradlew, sem rendszer-Gradle nem található — DevEco Studio plugin kihagyva."
+    Warn "Lásd deveco/BUILD.md: 'gradle wrapper --gradle-version 8.9' a deveco/ mappában."
+} elseif (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+    Warn "JDK nem található a PATH-on — DevEco Studio plugin kihagyva."
+} else {
+    Step "DevEco Studio plugin fordítása (Gradle)"
+    Push-Location $devecoDir
+    try {
+        & $gradleCmd buildPlugin --no-daemon
+        if ($LASTEXITCODE -ne 0) { Fail "DevEco Studio plugin build sikertelen." }
+    } finally {
+        Pop-Location
+    }
+    $builtZip = Get-ChildItem "$devecoDir\build\distributions\*.zip" -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($builtZip) {
+        $dest = Join-Path $installers "RevisionGraph-deveco.zip"
+        Copy-Item $builtZip.FullName $dest -Force
+        Ok "DevEco Studio plugin: $($dest | Split-Path -Leaf)"
+    } else {
+        Warn "Nem található a build kimenete: $devecoDir\build\distributions\*.zip"
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Összefoglaló
 # ---------------------------------------------------------------------------
 Step "Kész. Telepítők:"
-Get-ChildItem $installers -Filter "*.vsix" |
+Get-ChildItem "$installers\*" -Include "*.vsix", "*.zip" -File |
     Sort-Object Name |
     Format-Table Name, @{L="Méret (KB)";E={[math]::Round($_.Length/1KB,1)}}

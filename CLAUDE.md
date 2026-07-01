@@ -2,26 +2,29 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Dual-host parity (MUST READ)
+## Quad-host parity (MUST READ)
 
-**Every feature must ship for ALL THREE hosts: the VS Code extension, the Visual Studio 2022/2026 VSIX, and the browser demo.** Never finish a feature in only one or two hosts — a feature that exists in only some hosts is incomplete.
+**Every feature must ship for ALL FOUR hosts: the VS Code extension, the Visual Studio 2022/2026 VSIX, the Huawei DevEco Studio plugin, and the browser demo.** Never finish a feature in only some hosts — a feature that exists in only some hosts is incomplete.
 
 The renderer/protocol live in shared `packages/` (graph-core, graph-webview, protocol) and are consumed by all hosts automatically. But each host has its own data/message layer that must be updated in parallel:
 
 - **VS Code** (`vscode/`, TypeScript): `vscode/src/gitData.ts` (git ops), `vscode/src/panel.ts` (message handling).
 - **Visual Studio** (`vs/`, C#): `vs/Git/GitService.cs` (git ops), `vs/WebViewHostControl.xaml.cs` (message handling), `vs/Model/Dtos.cs` (hand-mirrored protocol types).
+- **DevEco Studio** (`deveco/`, Kotlin — IntelliJ Platform plugin, since DevEco Studio is built on IntelliJ IDEA Community): `deveco/src/main/kotlin/.../git/GitService.kt` (git ops), `deveco/.../WebViewHostPanel.kt` (message handling, JCEF host), `deveco/.../model/Dtos.kt` (hand-mirrored protocol types).
 - **Browser demo** (`packages/graph-webview/harness/demo-host.js`): simulates git ops in-browser with mock data; the `handlers` object must mirror every `WebviewToHost` message type handled by the real hosts.
-- Any protocol change in `packages/protocol/src/index.ts` **must be mirrored by hand** into `vs/Model/Dtos.cs` AND handled in `demo-host.js`.
-- The shared webview bundle is copied into both IDE hosts by the build (`vscode/media/`, `vs/webview/`).
+- Any protocol change in `packages/protocol/src/index.ts` **must be mirrored by hand** into `vs/Model/Dtos.cs` AND `deveco/.../model/Dtos.kt` AND handled in `demo-host.js`.
+- The shared webview bundle is copied into all three IDE hosts by the build (`vscode/media/`, `vs/webview/`, `deveco/src/main/resources/webview/`).
 
 The VS C# VSIX is a legacy .NET Framework 4.7.2 + VS SDK project and can only be **compiled on Windows** (see [vs/BUILD.md](vs/BUILD.md)). On non-Windows machines, review the C# carefully but it cannot be built/run there.
+
+The DevEco Studio plugin needs a JDK 17 + Gradle + IntelliJ Platform Gradle plugin toolchain (see [deveco/BUILD.md](deveco/BUILD.md)); it is not published to the JetBrains Marketplace yet — distributed as a sideloadable ZIP via the GitHub Release only. Its git-plumbing-based reword/undo of non-HEAD commits intentionally diverges from the VS host's PowerShell-scripted `rebase -i` (DevEco Studio is cross-platform); see the doc comments on `GitService.kt`'s `rewordCommit`/`undoCommit`.
 
 ## Commands
 
 ```bash
 npm install          # install all workspace dependencies
 npm test             # run all unit tests (vitest, graph-core only)
-npm run build        # build everything: protocol → graph-core → webview → vscode extension → VS assets
+npm run build        # build everything: protocol → graph-core → webview → vscode extension → VS assets → DevEco assets
 npm run harness      # browser dev harness with mock data at http://localhost:5599
 ```
 
@@ -36,19 +39,20 @@ npm run build:core      # compiles packages/protocol + packages/graph-core (tsc 
 npm run build:webview   # bundles packages/graph-webview (esbuild via build.mjs)
 npm run build:vscode    # compiles vscode/ extension (esbuild)
 npm run build:vs-assets # copies webview bundle into vs/ (node scripts/copy-vs-assets.mjs)
+npm run build:deveco-assets # copies webview bundle into deveco/ (node scripts/copy-deveco-assets.mjs)
 ```
 
 Package for distribution:
 ```bash
 npm run package:vscode                    # → dist/installers/*.vsix (cross-platform)
-pwsh scripts/build-installers.ps1         # all three installers (Windows only)
+pwsh scripts/build-installers.ps1         # all four installers (Windows only)
 ```
 
 **VS Code extension dev loop:** `npm run build` then press **F5** in VS Code (Extension Development Host). No watch mode is wired to F5 — rebuild manually after changes.
 
 ## Architecture
 
-This is a monorepo with one shared web renderer embedded by two thin hosts:
+This is a monorepo with one shared web renderer embedded by three thin IDE hosts:
 
 ```
 packages/protocol/     — shared TypeScript types: GitCommit, GitRef, GraphData, WebviewToHost, HostToWebview
@@ -56,6 +60,7 @@ packages/graph-core/   — pure DAG layout algorithm (no DOM, fully unit-tested)
 packages/graph-webview/ — SVG renderer + context menus + i18n (builds to one JS bundle)
 vscode/src/            — VS Code extension: git data layer, webview panel, git CLI wrappers
 vs/                    — Visual Studio C# extension (WebView2 host, mirrors the TS protocol by hand)
+deveco/                — Huawei DevEco Studio plugin (Kotlin, IntelliJ Platform, JCEF host, mirrors the TS protocol by hand)
 ```
 
 ### Data flow
@@ -109,7 +114,8 @@ Key message types:
 4. Handle the message in `vscode/src/panel.ts: onMessage`.
 5. Implement the git operation in `vscode/src/gitData.ts`.
 6. Mirror the protocol change in `vs/` (C# side): `vs/WebViewHostControl.xaml.cs` + `vs/Git/GitService.cs` + `vs/Model/Dtos.cs`.
-7. Add a simulated handler in `packages/graph-webview/harness/demo-host.js` (`handlers` object) — the demo runs entirely in the browser with no real git, so every action needs its own mock implementation.
+7. Mirror the protocol change in `deveco/` (Kotlin side): `deveco/.../WebViewHostPanel.kt` + `deveco/.../git/GitService.kt` + `deveco/.../model/Dtos.kt`.
+8. Add a simulated handler in `packages/graph-webview/harness/demo-host.js` (`handlers` object) — the demo runs entirely in the browser with no real git, so every action needs its own mock implementation.
 
 ### Git operations pattern
 

@@ -1,0 +1,25 @@
+<idea-plugin>
+    <id>com.hunkontech.revgraph</id>
+    <name>Revision Graph for Git (SVN style)</name>
+    <vendor url="https://github.com/HunKonTech/git_Revision_Graph">HunKonTech</vendor>
+
+    <description><![CDATA[
+        A TortoiseSVN-style revision graph for Git, right inside DevEco Studio.
+        Commits, local and remote branches, and tags appear as connected,
+        color-coded boxes. Right-click a commit to branch, check out, merge,
+        or copy its SHA.
+    ]]></description>
+
+    <!-- DevEco Studio is built on IntelliJ IDEA Community; no DevEco-specific
+         plugin id/dependency exists, so this depends on the platform module
+         every JetBrains-family IDE (including DevEco Studio) provides. -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Revision Graph"
+                    anchor="bottom"
+                    icon="/icons/revisionGraph.svg"
+                    factoryClass="com.hunkontech.revgraph.RevisionGraphToolWindowFactory"/>
+    </extensions>
+</idea-plugin>

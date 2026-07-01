@@ -239,6 +239,33 @@ describe("computeLayout", () => {
     expect(fork.fromRow).toBe(fork.toRow); // horizontal side sprout
   });
 
+  it("lifts the first commit of a branch forked off the trunk tip above the fork", () => {
+    // main: C -> B -> A ; feature just created off main's tip C, first commit D.
+    // D forks off the *tip* of main's column, so it must rise one row above C
+    // (appear as a distinct new node), not collapse onto C's row and hide.
+    const layout = computeLayout(
+      data(
+        [commit("D", ["C"]), commit("C", ["B"]), commit("B", ["A"]), commit("A")],
+        {
+          refs: [
+            { name: "main", type: "localBranch", targetSha: "C" },
+            { name: "feature", type: "localBranch", targetSha: "D", isCurrent: true },
+            { name: "head", type: "head", targetSha: "D" },
+          ],
+          head: "D",
+        },
+      ),
+      { mainBranch: "main" },
+    );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha && !c.phantom)!;
+    expect(at("D").row).toBe(0); // newest, at the very top
+    expect(at("D").row).toBeLessThan(at("C").row); // strictly above its fork commit
+    expect(at("D").lane).toBeGreaterThan(at("C").lane); // in the feature column
+    expect(at("D").branch).toBe("feature");
+    // No phantom: feature now owns real commits, so it is not a bare branch label.
+    expect(layout.commits.some((c) => c.phantom)).toBe(false);
+  });
+
   it("merges a branch back from the row of its fork commit", () => {
     // A is root; main adds B1 then merges C1 (a 1-commit branch forked from A).
     const layout = computeLayout(

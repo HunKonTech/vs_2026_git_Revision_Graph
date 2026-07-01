@@ -324,10 +324,21 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       let h = 0;
       parents.forEach((p, idx) => {
         const ph = heightOf.get(p)!;
-        // First parent: +1 within the same column, +0 across a fork step (so the
-        // base aligns with its fork commit). Merge parents: always +1.
-        if (idx === 0) h = Math.max(h, colOf.get(p) === colOf.get(sha) ? ph + 1 : ph);
-        else h = Math.max(h, ph + 1);
+        // First parent, same column: +1 (a normal step down the trunk).
+        // First parent, fork step (parent in another column): +0 so the branch's
+        // base aligns with its fork commit and sprouts sideways from it — EXCEPT
+        // when it forks off the very tip of that column. A tip has no commit above
+        // it to sit beside, so a 0-cost step would drop the branch's first commit
+        // onto the tip's own row, hiding it (it looks like the branch never grew).
+        // Forking off a tip therefore costs +1, lifting the first commit one row
+        // above the fork so it appears as a distinct new node. Merge parents: +1.
+        if (idx === 0) {
+          if (colOf.get(p) === colOf.get(sha)) h = Math.max(h, ph + 1);
+          else {
+            const forkIsTip = columns[colOf.get(p)!]!.seed === p;
+            h = Math.max(h, forkIsTip ? ph + 1 : ph);
+          }
+        } else h = Math.max(h, ph + 1);
       });
       heightOf.set(sha, h);
     }

@@ -44,12 +44,11 @@ namespace RevisionGraph
         private async Task ShowToolWindowAsync()
         {
             await this.JoinableTaskFactory.SwitchToMainThreadAsync();
-            var window = await ShowToolWindowAsync(
+            // RevisionGraphToolWindow.OnToolWindowCreated() binds the repository once
+            // the pane's frame exists — it fires here on first creation, and also
+            // when Visual Studio auto-restores a previously docked window on startup.
+            await ShowToolWindowAsync(
                 typeof(RevisionGraphToolWindow), 0, create: true, cancellationToken: DisposalToken);
-            if (window is RevisionGraphToolWindow graph)
-            {
-                graph.Initialize(this);
-            }
         }
     }
 }

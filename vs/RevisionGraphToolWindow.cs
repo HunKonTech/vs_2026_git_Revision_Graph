@@ -26,6 +26,21 @@ namespace RevisionGraph
             Content = _control;
         }
 
+        /// <summary>
+        /// Called by the shell once the tool window's frame exists — both when a
+        /// user opens it via the command AND when Visual Studio auto-restores a
+        /// previously docked window on startup. Binding here (rather than only from
+        /// the command handler) ensures the graph loads either way; relying solely
+        /// on the command handler left the auto-restored window blank until the
+        /// user closed and reopened it manually.
+        /// </summary>
+        public override void OnToolWindowCreated()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            base.OnToolWindowCreated();
+            Initialize((IServiceProvider)Package);
+        }
+
         /// <summary>Bind the window to the repository of the current solution.</summary>
         public void Initialize(IServiceProvider serviceProvider)
         {

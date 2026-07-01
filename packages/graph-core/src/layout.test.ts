@@ -239,8 +239,8 @@ describe("computeLayout", () => {
     expect(fork.fromRow).toBe(fork.toRow); // horizontal side sprout
   });
 
-  it("keeps a merge back to the trunk a single row jump", () => {
-    // A is root; main and a side branch each add one commit, then merge.
+  it("merges a branch back from the row of its fork commit", () => {
+    // A is root; main adds B1 then merges C1 (a 1-commit branch forked from A).
     const layout = computeLayout(
       data(
         [commit("M", ["B1", "C1"]), commit("B1", ["A"]), commit("C1", ["A"]), commit("A")],
@@ -251,9 +251,14 @@ describe("computeLayout", () => {
       ),
       { mainBranch: "main" },
     );
+    const at = (sha: string) => layout.commits.find((c) => c.sha === sha)!;
     const merge = layout.edges.find((e) => e.isMerge)!;
     expect(merge.toSha).toBe("C1");
-    expect(merge.toRow - merge.fromRow).toBe(1); // exactly one level
+    // C1 aligns with its fork commit A (branch-beside-fork), so the merge from M
+    // spans the whole gap from A's row up to M — not a single level.
+    expect(at("C1").row).toBe(at("A").row);
+    expect(merge.toRow).toBe(at("C1").row);
+    expect(merge.fromRow).toBe(at("M").row);
   });
 
   it("labels every commit in a column with its owning branch", () => {

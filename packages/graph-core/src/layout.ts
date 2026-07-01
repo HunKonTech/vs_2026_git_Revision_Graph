@@ -294,51 +294,58 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     phantoms.push({ branch: ref.name, refs: phRefs, anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
   }
 
-  // ---- Row (level) assignment. ----
-  // Level 0 is the top. A commit's base level is its generation distance from the
-  // top. On top of that, a *dangling* side branch (a leaf tip that is never
-  // merged back) is pulled DOWN so its base commit lands on the same row as the
-  // commit it forked from — a new branch then sprouts sideways from its fork
-  // commit instead of floating one row above it. Merged branches keep the plain
-  // generation layout so their merge connector stays a single-row jump.
+  // ---- Row (level) assignment: fork-aligned height. ----
+  // A commit's height is its first-parent distance from the root, EXCEPT a fork
+  // step (a column base to the commit it branched from, in another column) costs
+  // 0 — so a branch's base lands on the SAME row as its fork commit and the branch
+  // sprouts sideways from it rather than floating one row above. Merge parents
+  // still push the child strictly above them, so a merge never dips below the
+  // branch it closes. Computed with a memoized post-order DFS (resolves every
+  // parent first), independent of input order and safe on deep history.
+  const heightOf = new Map<string, number>();
+  for (const start of commits) {
+    if (heightOf.has(start.sha)) continue;
+    const stack: string[] = [start.sha];
+    while (stack.length > 0) {
+      const sha = stack[stack.length - 1]!;
+      if (heightOf.has(sha)) {
+        stack.pop();
+        continue;
+      }
+      const parents = bySha.get(sha)!.parents.filter((p) => present.has(p));
+      let ready = true;
+      for (const p of parents) {
+        if (!heightOf.has(p)) {
+          stack.push(p);
+          ready = false;
+        }
+      }
+      if (!ready) continue;
+      let h = 0;
+      parents.forEach((p, idx) => {
+        const ph = heightOf.get(p)!;
+        // First parent: +1 within the same column, +0 across a fork step (so the
+        // base aligns with its fork commit). Merge parents: always +1.
+        if (idx === 0) h = Math.max(h, colOf.get(p) === colOf.get(sha) ? ph + 1 : ph);
+        else h = Math.max(h, ph + 1);
+      });
+      heightOf.set(sha, h);
+    }
+  }
+  let maxRowAll = 0;
+  for (const h of heightOf.values()) if (h > maxRowAll) maxRowAll = h;
   const rowBySha = new Map<string, number>();
-  for (const c of commits) rowBySha.set(c.sha, maxGen - (genOf.get(c.sha) ?? 0));
+  for (const c of commits) rowBySha.set(c.sha, maxRowAll - (heightOf.get(c.sha) ?? 0));
 
-  // Commits that are a parent of something in view — used to spot leaf tips.
-  const isParentInView = new Set<string>();
-  for (const c of commits) for (const p of c.parents) if (present.has(p)) isParentInView.add(p);
+  const levelOf = (sha: string): number => rowBySha.get(sha) ?? 0;
 
-  // Column membership, so a whole column can be shifted at once.
+  // Column membership, so each column's row span can be measured.
   const colMembers = new Map<number, string[]>();
   for (const [sha, cid] of colOf) {
     const list = colMembers.get(cid);
     if (list) list.push(sha);
     else colMembers.set(cid, [sha]);
   }
-  // Shift shallowest forks first so a chain of dangling branches settles in order.
-  const shiftable = columns
-    .filter((c) => c.forkParentSha != null && !isParentInView.has(c.seed))
-    .sort((a, b) => (rowBySha.get(a.forkParentSha!) ?? 0) - (rowBySha.get(b.forkParentSha!) ?? 0));
-  for (const col of shiftable) {
-    const forkRow = rowBySha.get(col.forkParentSha!);
-    const baseRow = rowBySha.get(col.baseSha);
-    if (forkRow === undefined || baseRow === undefined) continue;
-    const delta = forkRow - baseRow; // base is above its fork by >= 1 row
-    if (delta <= 0) continue;
-    for (const sha of colMembers.get(col.id) ?? []) {
-      rowBySha.set(sha, (rowBySha.get(sha) ?? 0) + delta);
-    }
-  }
-  // Renormalise so the topmost row is 0 (a shift can empty the old top row).
-  let minRowAll = Infinity;
-  for (const r of rowBySha.values()) if (r < minRowAll) minRowAll = r;
-  if (minRowAll > 0 && Number.isFinite(minRowAll)) {
-    for (const [s, r] of rowBySha) rowBySha.set(s, r - minRowAll);
-  }
-  let maxRowAll = 0;
-  for (const r of rowBySha.values()) if (r > maxRowAll) maxRowAll = r;
-
-  const levelOf = (sha: string): number => rowBySha.get(sha) ?? 0;
 
   // ---- Phase 2: assign lanes with column compaction. ----
   // Each column's commits occupy a contiguous row span (tip = topmost row; base

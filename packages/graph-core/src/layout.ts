@@ -286,9 +286,10 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     phantoms.push({ branch: ref.name, refs: phRefs, anchorSha: sha, anchorGen: genOf.get(sha) ?? 0 });
   }
 
-  // Phantoms sit one generation above their anchor, which can extend the grid.
-  let effMaxGen = maxGen;
-  for (const ph of phantoms) effMaxGen = Math.max(effMaxGen, ph.anchorGen + 1);
+  // Phantoms sit on the *same* row as the commit they forked from (one lane to
+  // the right), so a new branch lines up horizontally with its fork commit —
+  // they never extend the grid vertically.
+  const effMaxGen = maxGen;
   // Level 0 is the top (highest generation). Generations are contiguous, so a
   // commit's level is just its distance from the top.
   const levelOf = (sha: string): number => effMaxGen - (genOf.get(sha) ?? 0);
@@ -350,12 +351,12 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
   for (const ph of phantoms) {
     const anchorCol = colOf.get(ph.anchorSha)!;
     const anchorLane = laneOf.get(anchorCol) ?? 0;
-    const row = effMaxGen - (ph.anchorGen + 1);
+    const row = effMaxGen - ph.anchorGen; // same row as the fork commit
     const id = columns.length;
     columns[id] = {
       id,
-      tipGen: ph.anchorGen + 1,
-      baseGen: ph.anchorGen + 1,
+      tipGen: ph.anchorGen,
+      baseGen: ph.anchorGen,
       forkParent: anchorCol,
       minRow: row,
       maxRow: row,

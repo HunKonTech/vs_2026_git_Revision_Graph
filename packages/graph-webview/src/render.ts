@@ -68,6 +68,8 @@ export class GraphView {
    * onto a single point. Keyed by the edge object.
    */
   private rightAttach = new Map<LayoutEdge, { index: number; count: number }>();
+  /** Bottom Y of each box, keyed by `"row:lane"` — for routing around boxes. */
+  private boxBottom = new Map<string, number>();
 
   // pan/zoom state
   private scale = 1;
@@ -330,10 +332,19 @@ export class GraphView {
       else byParent.set(e.toId, [e]);
     }
     for (const list of byParent.values()) {
-      // Order by the fork's position (upper/left first) so the fan-out never
-      // crosses: a branch (one row up) sits above stashes on the same box.
+      // Order by the fork's lane (nearest first) so the fan-out never crosses:
+      // the closest branch/stash sits highest, farther ones lower.
       list.sort((a, b) => a.fromRow - b.fromRow || a.fromLane - b.fromLane);
       list.forEach((e, index) => this.rightAttach.set(e, { index, count: list.length }));
+    }
+
+    // Bottom Y of every box keyed by "row:lane", so a horizontal branch/stash
+    // connector can be dropped just below any box that sits between it and its
+    // fork commit (keeping a clean straight line instead of crossing the box).
+    this.boxBottom.clear();
+    for (const c of this.layout.commits) {
+      const bottom = this.boxY(c.row) + (this.ownHeight.get(c.nodeId) ?? CONTENT_H);
+      this.boxBottom.set(`${c.row}:${c.lane}`, bottom);
     }
 
     // Edges first so nodes paint on top.
@@ -390,50 +401,59 @@ export class GraphView {
     path.classList.add("edge");
     if (e.isMerge) path.classList.add("edge-merge");
 
-    if (e.isStash) {
-      // Stash → base: the stash sits on its base's row, one or more lanes to the
-      // right. Sprout the connector straight out of the base's *right side* into
-      // the stash's *left side* — a short horizontal line on a shared row, the
-      // clearest possible link (and never mistakable for a parent edge). The
-      // attach height is clamped to the smaller of the two box heights so the
-      // line stays inside both boxes; a stub jog covers the rare uneven case.
-      path.classList.add("edge-stash");
-      const baseRight = this.boxX(e.toLane) + BOX_W;
-      const baseH = this.ownHeight.get(e.toId) ?? CONTENT_H;
-      const stashLeft = this.boxX(e.fromLane);
-      const stashH = this.ownHeight.get(e.fromId) ?? CONTENT_H;
-      const top = this.boxY(e.toRow); // base and stash share this row's top
-      const y = this.rightAttachY(e, top, Math.min(baseH, stashH));
-      const pts: Array<[number, number]> = [
-        [baseRight, y],
-        [stashLeft, y],
-      ];
-      path.setAttribute("d", roundedPath(pts, 8));
-      return path;
-    }
-
-    if (e.isBranch) {
-      // New branch (phantom) → fork commit: sprout out of the fork commit's
-      // *right side* and rise to the phantom box sitting one row up and to the
-      // right. The line leaves the phantom's bottom (like every child edge),
-      // drops into the row gap, runs left along it, then down the box-free gutter
-      // just right of the fork commit, and finally into its right edge.
-      path.classList.add("edge-branch");
-      const phCx = this.boxX(e.fromLane) + BOX_W / 2;
-      const phBottom = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
-      const gapY = this.rowBottom(e.fromRow) + ROW_GAP / 2; // gap below the phantom
+    if (e.isStash || e.isBranch) {
+      // New branch (phantom) or stash → fork commit. Both sit on the *same row*
+      // as the commit they came from, one or more lanes to the right, so the
+      // connector sprouts straight out of the fork commit's *right side* into the
+      // target box's *left side* — the clearest possible link, never mistakable
+      // for a parent edge. Several forks off one commit fan out to distinct
+      // heights (rightAttachY). When a box sits between the two on the same row
+      // (e.g. a branch between a commit and its stash), the line drops just below
+      // that box so it stays a clean straight run rather than crossing it; if
+      // there is no room within both end boxes, it routes through the row gap.
+      path.classList.add(e.isStash ? "edge-stash" : "edge-branch");
       const forkRight = this.boxX(e.toLane) + BOX_W;
       const forkH = this.ownHeight.get(e.toId) ?? CONTENT_H;
-      const attachY = this.rightAttachY(e, this.boxY(e.toRow), forkH);
-      const gutterX = forkRight + (LANE_W - BOX_W) / 2; // gutter right of the fork box
-      const pts: Array<[number, number]> = [
-        [phCx, phBottom],
-        [phCx, gapY],
-        [gutterX, gapY],
-        [gutterX, attachY],
-        [forkRight, attachY],
-      ];
-      path.setAttribute("d", roundedPath(pts, 8));
+      const boxLeft = this.boxX(e.fromLane);
+      const boxH = this.ownHeight.get(e.fromId) ?? CONTENT_H;
+      const top = this.boxY(e.toRow); // fork commit and its branch/stash share this row
+      let y = this.rightAttachY(e, top, Math.min(forkH, boxH));
+
+      // Tallest box strictly between the two lanes on this row, if any.
+      const lo = Math.min(e.fromLane, e.toLane) + 1;
+      const hi = Math.max(e.fromLane, e.toLane) - 1;
+      let blockBottom = 0;
+      for (let lane = lo; lane <= hi; lane++) {
+        const b = this.boxBottom.get(`${e.toRow}:${lane}`);
+        if (b !== undefined && b > blockBottom) blockBottom = b;
+      }
+
+      const bottomLimit = top + Math.min(forkH, boxH); // lowest both boxes still cover
+      if (blockBottom > 0 && blockBottom + 6 <= bottomLimit - 4) {
+        // Room below the blocking box within both end boxes → keep it straight.
+        y = Math.min(bottomLimit - 4, Math.max(y, blockBottom + 6));
+        path.setAttribute("d", roundedPath([[forkRight, y], [boxLeft, y]], 8));
+      } else if (blockBottom > 0) {
+        // No room for a straight line → dip through the box-free row gap below.
+        // Stagger the vertical run and the gap height by fan-out slot so several
+        // gap-routed forks off one commit don't draw over each other.
+        const idx = this.rightAttach.get(e)?.index ?? 0;
+        const gutterX = forkRight + 8 + idx * 7;
+        const gapY = this.rowBottom(e.toRow) + ROW_GAP / 2 + idx * 5;
+        const targetCx = this.boxX(e.fromLane) + BOX_W / 2;
+        const targetBottom = top + boxH;
+        const pts: Array<[number, number]> = [
+          [forkRight, y],
+          [gutterX, y],
+          [gutterX, gapY],
+          [targetCx, gapY],
+          [targetCx, targetBottom],
+        ];
+        path.setAttribute("d", roundedPath(pts, 8));
+      } else {
+        // Clear path → straight horizontal line.
+        path.setAttribute("d", roundedPath([[forkRight, y], [boxLeft, y]], 8));
+      }
       return path;
     }
 

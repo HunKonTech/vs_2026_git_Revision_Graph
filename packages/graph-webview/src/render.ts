@@ -61,6 +61,13 @@ export class GraphView {
   private nodeRecords: Array<{ el: SVGGElement; sha: string }> = [];
   /** Sha of the node whose ancestry path is currently highlighted, if any. */
   private selectedSha: string | null = null;
+  /**
+   * For branch/stash connectors that attach to a commit box's *right side*: this
+   * edge's slot among all such connectors on the same box, so several branches or
+   * stashes forked from one commit fan out to distinct heights instead of piling
+   * onto a single point. Keyed by the edge object.
+   */
+  private rightAttach = new Map<LayoutEdge, { index: number; count: number }>();
 
   // pan/zoom state
   private scale = 1;
@@ -311,6 +318,24 @@ export class GraphView {
     // native size regardless of how many commits there are. Navigation is done
     // via the pan/zoom transform, not by squeezing the whole graph to fit.
 
+    // Branch/stash connectors attach to the right side of the commit they fork
+    // from. Group them by that commit so multiple forks off one box get distinct
+    // attachment heights (see rightAttachY) rather than overlapping at its centre.
+    this.rightAttach.clear();
+    const byParent = new Map<string, LayoutEdge[]>();
+    for (const e of this.layout.edges) {
+      if (!e.isBranch && !e.isStash) continue;
+      const list = byParent.get(e.toId);
+      if (list) list.push(e);
+      else byParent.set(e.toId, [e]);
+    }
+    for (const list of byParent.values()) {
+      // Order by the fork's position (upper/left first) so the fan-out never
+      // crosses: a branch (one row up) sits above stashes on the same box.
+      list.sort((a, b) => a.fromRow - b.fromRow || a.fromLane - b.fromLane);
+      list.forEach((e, index) => this.rightAttach.set(e, { index, count: list.length }));
+    }
+
     // Edges first so nodes paint on top.
     const edgeLayer = document.createElementNS(SVG_NS, "g");
     edgeLayer.classList.add("edges");
@@ -342,6 +367,19 @@ export class GraphView {
     return (this.rowTops[row] ?? MARGIN) + (this.rowHeights[row] ?? CONTENT_H);
   }
 
+  /**
+   * Y where a branch/stash connector meets the right side of the box it forks
+   * from. A single fork attaches at the box's vertical centre; several forks off
+   * the same box spread evenly across `spanH` so their lines never coincide.
+   * `spanH` is the fork box's own height for branches, or the smaller of the base
+   * and stash heights for stashes (so a horizontal run stays inside both boxes).
+   */
+  private rightAttachY(e: LayoutEdge, top: number, spanH: number): number {
+    const slot = this.rightAttach.get(e);
+    const frac = slot ? (slot.index + 1) / (slot.count + 1) : 0.5;
+    return top + spanH * frac;
+  }
+
   private edgePath(e: LayoutEdge): SVGPathElement {
     const cx = this.boxX(e.fromLane) + BOX_W / 2;
     // Child bottom uses the child's own box height (rows can hold several boxes).
@@ -353,21 +391,47 @@ export class GraphView {
     if (e.isMerge) path.classList.add("edge-merge");
 
     if (e.isStash) {
-      // Stash → base: orthogonal right-angle routing like the branch edges,
-      // instead of a curve. The stash sits at its base's row but in a lane to the
-      // right; route both box-bottoms down into the box-free gap below the row,
-      // run horizontally across it, so the line never crosses an intervening box.
+      // Stash → base: the stash sits on its base's row, one or more lanes to the
+      // right. Sprout the connector straight out of the base's *right side* into
+      // the stash's *left side* — a short horizontal line on a shared row, the
+      // clearest possible link (and never mistakable for a parent edge). The
+      // attach height is clamped to the smaller of the two box heights so the
+      // line stays inside both boxes; a stub jog covers the rare uneven case.
       path.classList.add("edge-stash");
-      const stashCx = this.boxX(e.fromLane) + BOX_W / 2;
-      const stashBottom = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
-      const baseCx = this.boxX(e.toLane) + BOX_W / 2;
-      const baseBottom = this.boxY(e.toRow) + (this.ownHeight.get(e.toId) ?? CONTENT_H);
-      const gapY = this.rowBottom(e.toRow) + ROW_GAP / 2;
+      const baseRight = this.boxX(e.toLane) + BOX_W;
+      const baseH = this.ownHeight.get(e.toId) ?? CONTENT_H;
+      const stashLeft = this.boxX(e.fromLane);
+      const stashH = this.ownHeight.get(e.fromId) ?? CONTENT_H;
+      const top = this.boxY(e.toRow); // base and stash share this row's top
+      const y = this.rightAttachY(e, top, Math.min(baseH, stashH));
       const pts: Array<[number, number]> = [
-        [baseCx, baseBottom],
-        [baseCx, gapY],
-        [stashCx, gapY],
-        [stashCx, stashBottom],
+        [baseRight, y],
+        [stashLeft, y],
+      ];
+      path.setAttribute("d", roundedPath(pts, 8));
+      return path;
+    }
+
+    if (e.isBranch) {
+      // New branch (phantom) → fork commit: sprout out of the fork commit's
+      // *right side* and rise to the phantom box sitting one row up and to the
+      // right. The line leaves the phantom's bottom (like every child edge),
+      // drops into the row gap, runs left along it, then down the box-free gutter
+      // just right of the fork commit, and finally into its right edge.
+      path.classList.add("edge-branch");
+      const phCx = this.boxX(e.fromLane) + BOX_W / 2;
+      const phBottom = this.boxY(e.fromRow) + (this.ownHeight.get(e.fromId) ?? CONTENT_H);
+      const gapY = this.rowBottom(e.fromRow) + ROW_GAP / 2; // gap below the phantom
+      const forkRight = this.boxX(e.toLane) + BOX_W;
+      const forkH = this.ownHeight.get(e.toId) ?? CONTENT_H;
+      const attachY = this.rightAttachY(e, this.boxY(e.toRow), forkH);
+      const gutterX = forkRight + (LANE_W - BOX_W) / 2; // gutter right of the fork box
+      const pts: Array<[number, number]> = [
+        [phCx, phBottom],
+        [phCx, gapY],
+        [gutterX, gapY],
+        [gutterX, attachY],
+        [forkRight, attachY],
       ];
       path.setAttribute("d", roundedPath(pts, 8));
       return path;

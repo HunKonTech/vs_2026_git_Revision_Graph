@@ -62,6 +62,12 @@ export interface LayoutEdge {
   isMerge: boolean;
   /** True for the connector from a stash node back to its base commit. */
   isStash?: boolean;
+  /**
+   * True for the connector from a freshly-created branch (a phantom node with no
+   * commits of its own) back to the commit it forked from. The renderer draws it
+   * sprouting from the *right side* of the fork commit rather than its top.
+   */
+  isBranch?: boolean;
 }
 
 export interface GraphLayout {
@@ -448,6 +454,7 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       toRow: anchor.row,
       toLane: anchor.lane,
       isMerge: false,
+      isBranch: true,
     });
   }
 

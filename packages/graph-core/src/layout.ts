@@ -325,32 +325,20 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
     }
   };
 
-  // The trunk owns lane 0; everything else is packed into lanes >= 1.
-  let primary = mainColSha !== undefined ? colOf.get(mainColSha) : undefined;
-  if (primary === undefined && columns.length > 0) {
-    primary = columns
-      .map((c) => c.id)
-      .sort((a, b) => columns[a]!.minRow - columns[b]!.minRow || byCreation(a, b))[0];
-  }
-  if (primary !== undefined) place(primary, 0);
-  for (const id of columns
-    .map((c) => c.id)
-    .filter((id) => id !== primary)
-    .sort(byCreation)) {
-    place(id, 1);
-  }
-
-  // Phantom columns are placed last, always one lane to the right of their
-  // anchor so a new branch never lands left of the branch it came from.
+  // Phantom columns (new branches with no commits of their own). Create them up
+  // front so each can be placed *immediately after* its anchor column — a new
+  // branch claims the lane right beside its fork commit, pushing real side
+  // branches further right, so it always lines up horizontally on the fork's row.
   interface PlacedPhantom {
     ph: Phantom;
     lane: number;
     row: number;
   }
-  const placedPhantoms: PlacedPhantom[] = [];
+  const realColumnIds = columns.map((c) => c.id);
+  const phantomIdsByAnchor = new Map<number, number[]>();
+  const phantomInfo = new Map<number, { ph: Phantom; row: number }>();
   for (const ph of phantoms) {
     const anchorCol = colOf.get(ph.anchorSha)!;
-    const anchorLane = laneOf.get(anchorCol) ?? 0;
     const row = effMaxGen - ph.anchorGen; // same row as the fork commit
     const id = columns.length;
     columns[id] = {
@@ -363,8 +351,38 @@ export function computeLayout(data: GraphData, options: LayoutOptions = {}): Gra
       seed: "",
       branch: ph.branch,
     };
-    place(id, anchorLane + 1);
-    placedPhantoms.push({ ph, lane: laneOf.get(id)!, row });
+    const list = phantomIdsByAnchor.get(anchorCol);
+    if (list) list.push(id);
+    else phantomIdsByAnchor.set(anchorCol, [id]);
+    phantomInfo.set(id, { ph, row });
+  }
+
+  const placedPhantoms: PlacedPhantom[] = [];
+  const placePhantomsOf = (anchorCol: number): void => {
+    const anchorLane = laneOf.get(anchorCol) ?? 0;
+    for (const pid of phantomIdsByAnchor.get(anchorCol) ?? []) {
+      place(pid, anchorLane + 1);
+      const info = phantomInfo.get(pid)!;
+      placedPhantoms.push({ ph: info.ph, lane: laneOf.get(pid)!, row: info.row });
+    }
+  };
+
+  // The trunk owns lane 0; everything else is packed into lanes >= 1. Each
+  // column's phantoms are placed right after it so they win the adjacent lane
+  // before any later column can take it.
+  let primary = mainColSha !== undefined ? colOf.get(mainColSha) : undefined;
+  if (primary === undefined && realColumnIds.length > 0) {
+    primary = realColumnIds
+      .slice()
+      .sort((a, b) => columns[a]!.minRow - columns[b]!.minRow || byCreation(a, b))[0];
+  }
+  if (primary !== undefined) {
+    place(primary, 0);
+    placePhantomsOf(primary);
+  }
+  for (const id of realColumnIds.filter((id) => id !== primary).sort(byCreation)) {
+    place(id, 1);
+    placePhantomsOf(id);
   }
 
   // ---- Phase 3: position commits (row = structural level) and build edges. ----
